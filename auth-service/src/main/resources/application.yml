@@ -1,0 +1,14 @@
+spring:
+  application:
+    name: auth-service
+  r2dbc:
+    url: r2dbc:postgresql://${DB_URL}:${DB_PORT}/${DB_NAME}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+
+logging:
+  level:
+    org.springframework.r2dbc: DEBUG
+
+app:
+  security:

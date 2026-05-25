@@ -1,14 +1,15 @@
 services:
   postgres:
     container_name: auth-service
-    image: 17.5
+    image: postgres:17.5
     environment:
-      POSTGRES_DB: user
+      POSTGRES_DB: auth_service_db
       POSTGRES_USER: username
       POSTGRES_PASSWORD: password
       PGDATA: /data/postgres
     volumes:
       - postgres:/data/postgres
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     ports:
       - "5432:5432"
     restart: unless-stopped
