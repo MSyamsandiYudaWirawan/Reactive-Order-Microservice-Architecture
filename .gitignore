@@ -1,1 +1,2 @@
 .idea
+auth-service/src/main/resources/keys/local-only/*
