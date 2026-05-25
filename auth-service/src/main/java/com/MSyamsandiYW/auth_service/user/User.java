@@ -34,8 +34,8 @@ public class User implements UserDetails {
     @Column(name = "password", nullable = false)
     private String password;
 
-    @Column(name = "phone", nullable = false, unique = true)
-    private String phone;
+    @Column(name = "phoneNumber", nullable = false, unique = true)
+    private String phoneNumber;
 
     //e.g. ADMIN|USER
     @Column(name = "roles")
@@ -63,6 +63,9 @@ public class User implements UserDetails {
 
     @Column(name = "is_phone_verified")
     private boolean phoneVerified;
+
+    @Column(name = "is_deleted")
+    private boolean deleted;
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
