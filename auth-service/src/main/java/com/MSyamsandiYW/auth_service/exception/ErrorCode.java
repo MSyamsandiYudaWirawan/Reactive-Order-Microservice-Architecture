@@ -34,7 +34,15 @@ public enum ErrorCode {
             HttpStatus.INTERNAL_SERVER_ERROR),
     USERNAME_NOT_FOUND("USERNAME_NOT_FOUND", "Cannot find user with the provided username", NOT_FOUND),
     CATEGORY_ALREADY_EXISTS_FOR_USER("CATEGORY_ALREADY_EXISTS_FOR_USER", "Category already exists for this user", CONFLICT),
+    USER_UNAUTHORIZED("USER_UNAUTHORIZED", "User is unauthorized to perform this action", UNAUTHORIZED),
+    INVALID_TOKEN("INVALID_TOKEN", "Token is invalid or malformed", UNAUTHORIZED),
+    INVALID_TYPE_TOKEN("INVALID_TYPE_TOKEN", "Token Type is invalid", UNAUTHORIZED),
+    TOKEN_EXPIRED("TOKEN_EXPIRED", "Token has expired", UNAUTHORIZED),
+    REFRESH_TOKEN_EXPIRED("REFRESH_TOKEN_EXPIRED", "Refresh Token has expired", UNAUTHORIZED),
+    TOKEN_SIGNATURE_INVALID("TOKEN_SIGNATURE_INVALID", "Token signature verification failed", UNAUTHORIZED),
+
     ;
+
 
     private final String code;
     private final String defaultMessage;

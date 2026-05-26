@@ -10,5 +10,9 @@ logging:
   level:
     org.springframework.r2dbc: DEBUG
 
+
 app:
   security:
+    jwt:
+      access-token-expiration: 86400000
+      refresh-token-expiration: 604800000
