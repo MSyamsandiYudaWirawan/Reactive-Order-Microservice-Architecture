@@ -35,6 +35,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public Mono<Void> updateProfileInfo(ProfileUpdateRequest request, String email) {
+        log.info("Update profile attempt for email: {}", email);
         return findUserByEmail(email)
                 .flatMap(user -> userMapper.mergerUserInfo(user, request))
                 .flatMap(userRepository::save)
@@ -45,7 +46,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public Mono<Void> changePassword(ChangePasswordRequest request, String email) {
-
+        log.info("Change password attempt for email: {}", email);
         return Mono.defer(() -> {
             if (!request.getNewPassword().equals(request.getConfirmNewPassword())) {
                 return Mono.error(new BusinessException(ErrorCode.CHANGE_PASSWORD_MISMATCH));
@@ -67,6 +68,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public Mono<Void> deactivateAccount(String email) {
+        log.info("Deactivate account attempt for email: {}", email);
         return findUserByEmail(email)
                 .flatMap(user -> {
                     if (!user.isEnabled()) {
@@ -83,6 +85,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public Mono<Void> reactivateAccount(String email) {
+        log.info("Reactivate account attempt for email: {}", email);
         return findUserByEmail(email)
                 .flatMap(user -> {
                     if (user.isEnabled()) {
@@ -99,6 +102,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public Mono<Void> deleteAccount(String email) {
+        log.info("Delete account attempt for email: {}", email);
         return findUserByEmail(email)
                 .flatMap(user -> {
                     if (user.isDeleted()) {

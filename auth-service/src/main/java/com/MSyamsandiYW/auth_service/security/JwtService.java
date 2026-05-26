@@ -37,9 +37,9 @@ public class JwtService {
     }
 
 
-    public Mono<String> generateAccessToken(final String email) {
+    public Mono<String> generateAccessToken(final String username) {
         final Map<String, Object> claims = new HashMap<>();
-        return findUserByEmail(email)
+        return findUserByEmail(username)
                 .doOnNext(user -> {
                     claims.put(TOKEN_TYPE, "ACCESS_TOKEN");
                     populateClaims(claims, user);
@@ -48,9 +48,9 @@ public class JwtService {
     }
 
 
-    public Mono<String> generateRefreshToken(final String email) {
+    public Mono<String> generateRefreshToken(final String username) {
         final Map<String, Object> claims = new HashMap<>();
-        return findUserByEmail(email)
+        return findUserByEmail(username)
                 .doOnNext(user -> {
                     claims.put(TOKEN_TYPE, "REFRESH_TOKEN");
                     populateClaims(claims, user);
@@ -106,9 +106,9 @@ public class JwtService {
     }
 
 
-    private Mono<User> findUserByEmail(final String email) {
-        return userRepository.findByEmailIgnoreCase(email)
-                .switchIfEmpty(Mono.error(new BusinessException(ErrorCode.USER_NOT_FOUND, email)));
+    private Mono<User> findUserByEmail(final String username) {
+        return userRepository.findByEmailIgnoreCase(username)
+                .switchIfEmpty(Mono.error(new BusinessException(ErrorCode.USER_NOT_FOUND, username)));
     }
 
     private void populateClaims(Map<String, Object> claims, User user) {
@@ -116,11 +116,11 @@ public class JwtService {
         claims.put("userEmail", user.getEmail());
         claims.put("userRole", user.getRoles());
         claims.put("phoneNumber", user.getPhoneNumber());
-        claims.put("locked", user.isLocked());
-        claims.put("credentialsExpired", user.isCredentialsExpired());
-        claims.put("enabled", user.isEnabled());
-        claims.put("emailVerified", user.isEmailVerified());
-        claims.put("phoneVerified", user.isPhoneVerified());
-        claims.put("deleted", user.isDeleted());
+        claims.put("isLocked", user.isLocked());
+        claims.put("isCredentialsExpired", user.isCredentialsExpired());
+        claims.put("isEnabled", user.isEnabled());
+        claims.put("isEmailVerified", user.isEmailVerified());
+        claims.put("isPhoneVerified", user.isPhoneVerified());
+        claims.put("isDeleted", user.isDeleted());
     }
 }
