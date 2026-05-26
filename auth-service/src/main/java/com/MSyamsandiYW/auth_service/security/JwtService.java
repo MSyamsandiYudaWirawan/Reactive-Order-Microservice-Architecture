@@ -58,14 +58,14 @@ public class JwtService {
                 .flatMap(user -> buildToken(user, claims, refreshTokenExpiration));
     }
 
-    public Mono<Boolean> isTokenValid(final String token, final String expectedEmail) {
+    public Mono<Void> validateToken(final String token, final String expectedEmail) {
         return extractClaims(token)
                 .flatMap(claims -> {
                     if (claims.getExpiration().before(new Date()))
                         return Mono.error(new BusinessException(ErrorCode.TOKEN_EXPIRED));
                     if (!claims.getSubject().equalsIgnoreCase(expectedEmail))
                         return Mono.error(new BusinessException(ErrorCode.USER_UNAUTHORIZED));
-                    return Mono.just(true);
+                    return Mono.empty();
                 });
     }
 
@@ -83,7 +83,7 @@ public class JwtService {
                 .flatMap(this::generateAccessToken);
     }
 
-    private Mono<Claims> extractClaims(final String token) {
+    public Mono<Claims> extractClaims(final String token) {
         return publicKey.map(key ->
                 Jwts.parser()
                         .verifyWith(key)

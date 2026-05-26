@@ -47,23 +47,22 @@ public class UserServiceImpl implements UserService {
     public Mono<Void> changePassword(ChangePasswordRequest request, String email) {
 
         return Mono.defer(() -> {
-                    if (!request.getNewPassword().equals(request.getConfirmNewPassword())) {
-                        return Mono.error(new BusinessException(ErrorCode.CHANGE_PASSWORD_MISMATCH));
-                    }
-                    return Mono.empty();
-                })
-                .then(findUserByEmail(email))
-                .flatMap(user -> {
-                    if (!this.passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
-                        return Mono.error(new BusinessException(ErrorCode.PASSWORD_MISMATCH));
-                    }
-                    user.setPassword(passwordEncoder.encode(request.getNewPassword()));
-                    return Mono.just(user);
-                })
-                .flatMap(userRepository::save)
-                .doOnSuccess(v -> log.info("Password changed for user: {}", email))
-                .doOnError(ex -> log.error("Failed to change password for: {}", email, ex))
-                .then();
+            if (!request.getNewPassword().equals(request.getConfirmNewPassword())) {
+                return Mono.error(new BusinessException(ErrorCode.CHANGE_PASSWORD_MISMATCH));
+            }
+            return findUserByEmail(email)
+                    .flatMap(user -> {
+                        if (!this.passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
+                            return Mono.error(new BusinessException(ErrorCode.PASSWORD_MISMATCH));
+                        }
+                        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+                        return Mono.just(user);
+                    })
+                    .flatMap(userRepository::save)
+                    .doOnSuccess(v -> log.info("Password changed for user: {}", email))
+                    .doOnError(ex -> log.error("Failed to change password for: {}", email, ex))
+                    .then();
+        });
     }
 
     @Override
@@ -106,6 +105,7 @@ public class UserServiceImpl implements UserService {
                         return Mono.error(new BusinessException(ErrorCode.ACCOUNT_ALREADY_DELETED));
                     }
                     user.setDeleted(true);
+                    //also deactivate the account
                     user.setEnabled(false);
                     return Mono.just(user);
                 })
