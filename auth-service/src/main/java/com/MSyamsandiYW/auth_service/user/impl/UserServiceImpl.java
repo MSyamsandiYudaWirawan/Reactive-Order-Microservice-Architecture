@@ -106,6 +106,7 @@ public class UserServiceImpl implements UserService {
                         return Mono.error(new BusinessException(ErrorCode.ACCOUNT_ALREADY_DELETED));
                     }
                     user.setDeleted(true);
+                    user.setEnabled(false);
                     return Mono.just(user);
                 })
                 .flatMap(userRepository::save)
