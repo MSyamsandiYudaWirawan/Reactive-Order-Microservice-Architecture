@@ -2,6 +2,7 @@ package com.MSyamsandiYW.auth_service.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.data.domain.ReactiveAuditorAware;
 import org.springframework.security.authentication.ReactiveAuthenticationManager;
 import org.springframework.security.authentication.UserDetailsRepositoryReactiveAuthenticationManager;
 import org.springframework.security.core.userdetails.ReactiveUserDetailsService;
@@ -21,5 +22,10 @@ public class BeansConfig {
         UserDetailsRepositoryReactiveAuthenticationManager authManager = new UserDetailsRepositoryReactiveAuthenticationManager(userDetailsService);
         authManager.setPasswordEncoder(passwordEncoder);
         return authManager;
+    }
+
+    @Bean("reactiveAuditorAware")
+    public ReactiveAuditorAware<String> reactiveAuditorAware(){
+        return new ReactiveApplicationAuditorAware();
     }
 }
