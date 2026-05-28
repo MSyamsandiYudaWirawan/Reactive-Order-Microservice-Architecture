@@ -80,7 +80,6 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     }
 
     private Mono<Void> checkUserPhoneNumber(String phoneNumber) {
-        //todo normalized phoneNumber
         return userRepository.existsByPhoneNumber(phoneNumber)
                 .flatMap(exists -> {
                     if (exists) {

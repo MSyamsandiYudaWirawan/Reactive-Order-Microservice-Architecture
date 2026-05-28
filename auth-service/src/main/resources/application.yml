@@ -11,8 +11,10 @@ logging:
     org.springframework.r2dbc: DEBUG
 
 
+# these properties need to be well organized across the different ENV
 app:
   security:
     jwt:
-      access-token-expiration: 86400000
-      refresh-token-expiration: 604800000
+      access-token-expiration: 86400000 #24 hours for local testing #900000 # 15 minutes
+      refresh-token-expiration: 604800000 # 7 days
+    disposable-email: 10minutemail,20minutemail,33mail,5ymail,anonbox,guerrillamail,mailinator,maildrop,mailnesia,moakt,my10minutemail,throwawaymail,trashmail,temp-mail,tempmail,truemail,yopmail

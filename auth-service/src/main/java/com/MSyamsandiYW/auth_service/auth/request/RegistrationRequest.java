@@ -1,5 +1,6 @@
 package com.MSyamsandiYW.auth_service.auth.request;
 
+import com.MSyamsandiYW.auth_service.validation.NonDisposableEmail;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -28,12 +29,12 @@ public class RegistrationRequest {
 
     @NotBlank(message = "VALIDATION.REGISTRATION.EMAIL.NOT_BLANK")
     @Email(message = "VALIDATION.REGISTRATION.EMAIL.FORMAT")
-    // @NondisposableEmail(message = "VALIDATION.REGISTRATION.EMAIL.NONDISPOSABLE")
+    @NonDisposableEmail(message = "VALIDATION.REGISTRATION.EMAIL.NONDISPOSABLE")
     @Schema(example = "syamsandi@mail.com")
     private String email;
 
     @NotBlank(message = "VALIDATION.REGISTRATION.PHONE_NUMBER.NOT_BLANK")
-    @Pattern(regexp = "^\\+?[1-9]\\d{1,14}$", message = "VALIDATION.REGISTRATION.PHONE_NUMBER.FORMAT")
+    @Pattern(regexp = "^\\+[1-9]\\d{1,14}$", message = "VALIDATION.REGISTRATION.PHONE_NUMBER.FORMAT")
     @Schema(example = "+6281234567890")
     private String phoneNumber;
 
