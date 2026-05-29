@@ -54,16 +54,14 @@ public class JwtFilter implements WebFilter {
     private Mono<Void> authenticateAndContinue(String jwt, ServerWebExchange exchange, WebFilterChain chain) {
         return jwtService.extractClaims(jwt)
                 .flatMap(claims -> jwtService.validateToken(jwt, claims.getSubject())
-                        .thenReturn(claims))
+                        .then(Mono.just(claims)))
                 .flatMap(claims -> reactiveUserDetailsService.findByUsername(claims.getSubject()))
-                .flatMap(userDetails -> {
-                    final var authToken = new UsernamePasswordAuthenticationToken(
-                            userDetails, null, userDetails.getAuthorities()
-                    );
-                    return chain.filter(exchange)
-                            .contextWrite(ReactiveSecurityContextHolder.withAuthentication(authToken));
-                })
-                .switchIfEmpty(chain.filter(exchange));
+                .map(userDetails -> new UsernamePasswordAuthenticationToken(
+                        userDetails, null, userDetails.getAuthorities()
+                ))
+                .flatMap(authToken -> chain.filter(exchange)
+                        .contextWrite(ReactiveSecurityContextHolder.withAuthentication(authToken)))
+                .onErrorResume(e -> chain.filter(exchange));
     }
 }
 

@@ -1,10 +1,11 @@
 package com.MSyamsandiYW.auth_service.user;
 
-import jakarta.persistence.*;
 import lombok.*;
 import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.LastModifiedDate;
-import org.springframework.data.jpa.domain.support.AuditingEntityListener;
+import org.springframework.data.relational.core.mapping.Column;
+import org.springframework.data.relational.core.mapping.Table;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -14,57 +15,57 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
-@Entity
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@Table(name = "users")
-@EntityListeners(AuditingEntityListener.class)
+@Table("users")
 public class User implements UserDetails {
 
     @Id
-    @Column(name = "email", nullable = false)
+    @Column("id")
+    private Long id;
+
+    @Column("email")
     private String email;
 
-    @Column(name = "name", nullable = false)
+    @Column("name")
     private String name;
 
-    @Column(name = "password", nullable = false)
+    @Column("password")
     private String password;
 
-    @Column(name = "phoneNumber", nullable = false, unique = true)
+    @Column("phonenumber")
     private String phoneNumber;
 
-    //e.g. ADMIN|USER
-    @Column(name = "roles")
+    @Column("roles")
     private String roles;
 
     @CreatedDate
-    @Column(name = "created_date", updatable = false, nullable = false)
+    @Column("created_date")
     private LocalDateTime createdDate;
 
     @LastModifiedDate
-    @Column(name = "last_modified_date", insertable = false)
+    @Column("last_modified_date")
     private LocalDateTime lastModifiedDate;
 
-    @Column(name = "is_locked")
+    @Column("is_locked")
     private boolean locked;
 
-    @Column(name = "is_credentials_expired")
+    @Column("is_credentials_expired")
     private boolean credentialsExpired;
 
-    @Column(name = "is_enabled")
+    @Column("is_enabled")
     private boolean enabled;
 
-    @Column(name = "is_email_verified")
+    @Column("is_email_verified")
     private boolean emailVerified;
 
-    @Column(name = "is_phone_verified")
+    @Column("is_phone_verified")
     private boolean phoneVerified;
 
-    @Column(name = "is_deleted")
+    @Column("is_deleted")
     private boolean deleted;
 
     @Override
