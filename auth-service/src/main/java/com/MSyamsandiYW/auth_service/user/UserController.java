@@ -5,7 +5,8 @@ import com.MSyamsandiYW.auth_service.user.request.ProfileUpdateRequest;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.ReactiveSecurityContextHolder;
+import org.springframework.security.core.context.SecurityContext;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
 
@@ -21,11 +22,10 @@ public class UserController {
     @PatchMapping("/me")
     @ResponseStatus(code = NO_CONTENT)
     public Mono<Void> updateProfileInfo(
-            @RequestBody
-            @Valid final ProfileUpdateRequest request,
-            final Authentication principal
+            @RequestBody(required = false)
+            @Valid final ProfileUpdateRequest request
     ) {
-        return getEmail(principal)
+        return getEmail()
                 .flatMap(email -> userService.updateProfileInfo(request, email));
     }
 
@@ -33,36 +33,37 @@ public class UserController {
     @ResponseStatus(code = NO_CONTENT)
     public Mono<Void> changePassword(
             @RequestBody
-            @Valid final ChangePasswordRequest request,
-            final Authentication principal
+            @Valid final ChangePasswordRequest request
     ) {
-        return getEmail(principal)
+        return getEmail()
                 .flatMap(email -> userService.changePassword(request, email));
     }
 
     @PatchMapping("/me/deactivated")
     @ResponseStatus(code = NO_CONTENT)
-    public Mono<Void> deactivateAccount(final Authentication principal) {
-        return getEmail(principal)
+    public Mono<Void> deactivateAccount() {
+        return getEmail()
                 .flatMap(userService::deactivateAccount);
     }
 
     @PatchMapping("/me/reactivated")
     @ResponseStatus(code = NO_CONTENT)
-    public Mono<Void> reactivatedAccount(final Authentication principal) {
-        return getEmail(principal)
+    public Mono<Void> reactivatedAccount() {
+        return getEmail()
                 .flatMap(userService::reactivateAccount);
     }
 
     @DeleteMapping("/me")
     @ResponseStatus(code = NO_CONTENT)
-    public Mono<Void> deleteAccount(final Authentication principal) {
-        return getEmail(principal)
+    public Mono<Void> deleteAccount() {
+        return getEmail()
                 .flatMap(userService::deleteAccount);
     }
 
 
-    private Mono<String> getEmail(Authentication principal) {
-        return Mono.just(((User) principal.getPrincipal()).getEmail());
+    private Mono<String> getEmail() {
+        return ReactiveSecurityContextHolder.getContext()
+                .map(SecurityContext::getAuthentication)
+                .map(auth -> ((User) auth.getPrincipal()).getEmail());
     }
 }

@@ -3,7 +3,7 @@ package com.MSyamsandiYW.auth_service.user;
 import org.springframework.data.r2dbc.repository.R2dbcRepository;
 import reactor.core.publisher.Mono;
 
-public interface UserRepository extends R2dbcRepository<User,String> {
+public interface UserRepository extends R2dbcRepository<User, Long> {
 
     Mono<Boolean> existsByEmailIgnoreCase(String email);
 

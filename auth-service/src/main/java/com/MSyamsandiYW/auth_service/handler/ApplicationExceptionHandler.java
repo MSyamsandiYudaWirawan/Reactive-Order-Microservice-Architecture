@@ -1,8 +1,6 @@
 package com.MSyamsandiYW.auth_service.handler;
 
 import com.MSyamsandiYW.auth_service.exception.BusinessException;
-import jakarta.persistence.EntityNotFoundException;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -15,6 +13,7 @@ import org.springframework.web.bind.support.WebExchangeBindException;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.NoSuchElementException;
 
 import static com.MSyamsandiYW.auth_service.exception.ErrorCode.*;
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
@@ -69,8 +68,8 @@ public class ApplicationExceptionHandler {
                         .build());
     }
 
-    @ExceptionHandler(EntityNotFoundException.class)
-    public ResponseEntity<ErrorResponse> handleException(final EntityNotFoundException e) {
+    @ExceptionHandler(NoSuchElementException.class)
+    public ResponseEntity<ErrorResponse> handleException(final NoSuchElementException e) {
         log.error(e.getMessage(), e);
         return ResponseEntity.status(NOT_FOUND)
                 .body(ErrorResponse.builder()
