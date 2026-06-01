@@ -11,7 +11,6 @@ import reactor.core.publisher.Mono;
 
 import java.security.PublicKey;
 import java.security.SignatureException;
-import java.util.Date;
 
 @Service
 public class JwtService {
@@ -22,7 +21,7 @@ public class JwtService {
         this.publicKey = KeyUtils.loadPublicKey("keys/public_key.pem");
     }
 
-    private Mono<Claims> extractClaims(String token) {
+    public Mono<Claims> extractClaims(String token) {
         return publicKey.map(key -> Jwts.parser()
                 .verifyWith(key)
                 .build()
@@ -36,7 +35,7 @@ public class JwtService {
                         new BusinessException(ErrorCode.INVALID_TOKEN));
     }
 
-    private Mono<Void> validateToken(final String token) {
+    public Mono<Void> validateToken(final String token) {
         return extractClaims(token)
                 .flatMap(claims -> {
                     if (!"ACCESS_TOKEN".equals(claims.get(TOKEN_TYPE))) {

@@ -1,0 +1,33 @@
+package com.MSyamsandiYW.gateway_service.security;
+
+import org.springframework.stereotype.Component;
+
+import java.util.List;
+import java.util.Map;
+
+@Component
+public class RouteValidator {
+
+    private final List<String> openPaths = List.of(
+            "/api/v1/auth"
+    );
+
+    //todo save this in kubs config
+    private final Map<String, List<String>> roleProtectedPaths = Map.of(
+            "/api/v1/admin", List.of("ADMIN"),
+            "/api/v1/orders", List.of("USER","ADMIN")
+    );
+
+    public boolean isOpen(String path) {
+        return openPaths.stream().anyMatch(path::startsWith);
+    }
+
+    public List<String> getRequiredRoles(String path){
+        return roleProtectedPaths.entrySet().stream()
+                .filter(e -> path.startsWith(e.getKey()))
+                .map(Map.Entry::getValue)
+                .findFirst()
+                .orElse(List.of());
+    }
+
+}
