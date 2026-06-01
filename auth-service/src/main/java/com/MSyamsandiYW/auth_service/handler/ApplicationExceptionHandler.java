@@ -1,6 +1,6 @@
 package com.MSyamsandiYW.auth_service.handler;
 
-import com.MSyamsandiYW.auth_service.exception.BusinessException;
+import com.MSyamsandiYW.common.exception.BusinessException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -15,7 +15,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
 
-import static com.MSyamsandiYW.auth_service.exception.ErrorCode.*;
+import static com.MSyamsandiYW.common.exception.ErrorCode.*;
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 

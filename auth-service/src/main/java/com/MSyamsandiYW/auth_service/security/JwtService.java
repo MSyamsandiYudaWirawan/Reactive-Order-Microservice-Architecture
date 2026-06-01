@@ -1,7 +1,7 @@
 package com.MSyamsandiYW.auth_service.security;
 
-import com.MSyamsandiYW.auth_service.exception.BusinessException;
-import com.MSyamsandiYW.auth_service.exception.ErrorCode;
+import com.MSyamsandiYW.common.exception.BusinessException;
+import com.MSyamsandiYW.common.exception.ErrorCode;
 import com.MSyamsandiYW.auth_service.user.User;
 import com.MSyamsandiYW.auth_service.user.UserRepository;
 import io.jsonwebtoken.Claims;
@@ -112,6 +112,7 @@ public class JwtService {
     }
 
     private void populateClaims(Map<String, Object> claims, User user) {
+        claims.put("userId", user.getId());
         claims.put("userName", user.getName());
         claims.put("userEmail", user.getEmail());
         claims.put("userRole", user.getRoles());

@@ -1,16 +1,12 @@
-package com.MSyamsandiYW.auth_service.exception;
+package com.MSyamsandiYW.common.exception;
 
 import lombok.Getter;
 import org.springframework.http.HttpStatus;
 
-import static org.springframework.http.HttpStatus.BAD_REQUEST;
-import static org.springframework.http.HttpStatus.CONFLICT;
-import static org.springframework.http.HttpStatus.NOT_FOUND;
-import static org.springframework.http.HttpStatus.UNAUTHORIZED;
+import static org.springframework.http.HttpStatus.*;
 
 @Getter
 public enum ErrorCode {
-
 
     EMAIL_ALREADY_EXISTS("ERR_EMAIL_EXISTS", "Email already exists", CONFLICT),
     PHONE_ALREADY_EXISTS("ERR_PHONE_EXISTS", "An account with this phone number already exists", CONFLICT),
@@ -24,10 +20,12 @@ public enum ErrorCode {
             "User account is disabled, please activate your account or contact the administrator",
             UNAUTHORIZED),
     INVALID_CURRENT_PASSWORD("INVALID_CURRENT_PASSWORD", "The current password is incorrect", BAD_REQUEST),
+    PASSWORD_EXPIRED("PASSWORD_EXPIRED", "The current password is expired", BAD_REQUEST),
     USER_NOT_FOUND("USER_NOT_FOUND", "User not found", NOT_FOUND),
     ACCOUNT_ALREADY_DEACTIVATED("ACCOUNT_ALREADY_DEACTIVATED", "Account has been deactivated", BAD_REQUEST),
     ACCOUNT_ALREADY_ACTIVATED("ACCOUNT_ALREADY_ACTIVATED", "Account has been activated", BAD_REQUEST),
     ACCOUNT_ALREADY_DELETED("ACCOUNT_ALREADY_DELETED", "Account has been deleted", BAD_REQUEST),
+    ACCOUNT_LOCKED("ACCOUNT_LOCKED", "Account has been locked", BAD_REQUEST),
     BAD_CREDENTIALS("BAD_CREDENTIALS", "Username and / or password is incorrect", UNAUTHORIZED),
     INTERNAL_EXCEPTION("INTERNAL_EXCEPTION",
             "An internal exception occurred, please try again or contact the admin",
@@ -42,7 +40,6 @@ public enum ErrorCode {
     TOKEN_SIGNATURE_INVALID("TOKEN_SIGNATURE_INVALID", "Token signature verification failed", UNAUTHORIZED),
 
     ;
-
 
     private final String code;
     private final String defaultMessage;
