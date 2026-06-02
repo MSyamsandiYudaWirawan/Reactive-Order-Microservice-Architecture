@@ -19,7 +19,7 @@ public class RouteValidator {
     );
 
     private final Map<String, List<String>> idemKeyPaths = Map.of(
-            "/api/v1/orders", List.of("POST")
+            "/api/v1/orders", List.of("POST") // matches /api/v1/orders/**
     );
 
     public boolean isOpen(String path) {
