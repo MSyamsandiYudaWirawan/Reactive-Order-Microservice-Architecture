@@ -1,9 +1,11 @@
 package com.MSyamsandiYW.gateway_service.security;
 
+import com.MSyamsandiYW.common.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
+import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
@@ -12,6 +14,8 @@ import reactor.core.publisher.Mono;
 
 import java.util.List;
 import java.util.UUID;
+
+import static com.MSyamsandiYW.common.exception.ErrorCode.*;
 
 @Component
 @RequiredArgsConstructor
@@ -27,8 +31,8 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
             return chain.filter(exchange);
         }
         String authHeader = exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
-        if(authHeader == null || !authHeader.startsWith("Bearer ")) {
-            return unauthorized(exchange);
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            return errorCodeMapper(exchange, USER_UNAUTHORIZED);
         }
         String token = authHeader.substring(7);
 
@@ -38,8 +42,17 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
                     String userRoles = claims.get("userRole").toString();
                     List<String> roles = List.of(userRoles.split("\\|"));
                     List<String> requiredRoles = routeValidator.getRequiredRoles(path);
-                    if(!requiredRoles.isEmpty() && roles.stream().noneMatch(requiredRoles::contains)){
-                        return forbidden(exchange);
+                    // check required roles path
+                    if (!requiredRoles.isEmpty() && roles.stream().noneMatch(requiredRoles::contains)) {
+                        return errorCodeMapper(exchange, USER_FORBIDDEN);
+                    }
+                    String method = exchange.getRequest().getMethod().name();
+                    // check mandatory idempotency key path
+                    if (routeValidator.requiresIdemKey(path, method)) {
+                        String idempotencyKey = exchange.getRequest().getHeaders().getFirst("X-Idempotency-Key");
+                        if (idempotencyKey == null || idempotencyKey.isEmpty()) {
+                            return errorCodeMapper(exchange, MISSING_IDEMPOTENCY_KEY);
+                        }
                     }
                     ServerWebExchange mutated = exchange.mutate()
                             .request(r -> r
@@ -53,14 +66,13 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
                 });
     }
 
-    private Mono<Void> forbidden(ServerWebExchange exchange) {
-        exchange.getResponse().setStatusCode(HttpStatus.FORBIDDEN);
-        return exchange.getResponse().setComplete();
-    }
-
-    private Mono<Void> unauthorized(ServerWebExchange exchange) {
-        exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
-        return exchange.getResponse().setComplete();
+    private Mono<Void> errorCodeMapper(ServerWebExchange exchange, ErrorCode errorCode) {
+        String body = """
+                {"code":"%s","message":"%s"}
+                """.formatted(errorCode.getCode(), errorCode.getDefaultMessage());
+        exchange.getResponse().setStatusCode(errorCode.getStatus());
+        DataBuffer buffer = exchange.getResponse().bufferFactory().wrap(body.getBytes());
+        return exchange.getResponse().writeWith(Mono.just(buffer));
     }
 
     @Override

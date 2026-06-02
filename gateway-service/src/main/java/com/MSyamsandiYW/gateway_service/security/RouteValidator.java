@@ -18,8 +18,17 @@ public class RouteValidator {
             "/api/v1/orders", List.of("USER","ADMIN")
     );
 
+    private final Map<String, List<String>> idemKeyPaths = Map.of(
+            "/api/v1/orders", List.of("POST")
+    );
+
     public boolean isOpen(String path) {
         return openPaths.stream().anyMatch(path::startsWith);
+    }
+
+    public boolean requiresIdemKey(String path, String method) {
+        return idemKeyPaths.entrySet().stream()
+                .anyMatch(e -> path.startsWith(e.getKey()) && e.getValue().contains(method));
     }
 
     public List<String> getRequiredRoles(String path){
