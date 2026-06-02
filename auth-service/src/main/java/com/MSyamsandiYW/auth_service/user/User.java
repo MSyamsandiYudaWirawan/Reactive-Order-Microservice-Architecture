@@ -10,7 +10,7 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
-import java.time.LocalDateTime;
+import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -45,11 +45,11 @@ public class User implements UserDetails {
 
     @CreatedDate
     @Column("created_date")
-    private LocalDateTime createdDate;
+    private ZonedDateTime createdDate;
 
     @LastModifiedDate
     @Column("last_modified_date")
-    private LocalDateTime lastModifiedDate;
+    private ZonedDateTime lastModifiedDate;
 
     @Column("is_locked")
     private boolean locked;
