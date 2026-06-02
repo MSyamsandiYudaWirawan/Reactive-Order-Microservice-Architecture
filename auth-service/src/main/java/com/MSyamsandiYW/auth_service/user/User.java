@@ -14,6 +14,7 @@ import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.UUID;
 
 @Getter
 @Setter
@@ -25,7 +26,7 @@ public class User implements UserDetails {
 
     @Id
     @Column("id")
-    private Long id;
+    private UUID id;
 
     @Column("email")
     private String email;
