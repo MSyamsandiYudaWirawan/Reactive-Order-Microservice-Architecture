@@ -1,4 +1,4 @@
-package com.MSyamsandiYW.auth_service.config;
+package com.MSyamsandiYW.order_service.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -15,7 +15,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Configuration
-@EnableR2dbcAuditing(auditorAwareRef = "reactiveAuditorAware")
+@EnableR2dbcAuditing
 public class R2dbcConfig {
 
     @Bean

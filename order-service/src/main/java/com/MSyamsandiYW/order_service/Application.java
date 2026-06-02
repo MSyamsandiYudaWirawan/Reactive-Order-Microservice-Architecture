@@ -1,4 +1,4 @@
-package com.MSyamsandiYW.auth_service;
+package com.MSyamsandiYW.order_service;
 
 import jakarta.annotation.PostConstruct;
 import org.springframework.boot.SpringApplication;
@@ -15,6 +15,6 @@ public class Application {
 
 	@PostConstruct
 	void setTimezone() {
-			TimeZone.setDefault(TimeZone.getTimeZone("Asia/Jakarta"));
+		TimeZone.setDefault(TimeZone.getTimeZone("Asia/Jakarta"));
 	}
 }
