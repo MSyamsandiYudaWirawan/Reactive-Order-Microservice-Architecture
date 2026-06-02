@@ -1,3 +1,13 @@
 spring:
   application:
     name: order-service
+  config:
+    import: optional:file:.env[.properties]
+  r2dbc:
+    url: r2dbc:postgresql://${DB_URL}:${DB_PORT}/${DB_NAME}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+
+logging:
+  level:
+    org.springframework.r2dbc: DEBUG

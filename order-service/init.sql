@@ -9,8 +9,8 @@ CREATE TABLE if NOT EXISTS orders (
     payment_method VARCHAR(50),
     created_by VARCHAR(255) NOT NULL,
     updated_by VARCHAR(255) NOT NULL,
-    created_date TIMESTAMP NOT NULL,
-    last_modified_date TIMESTAMP
+    created_date TIMESTAMPTZ NOT NULL,
+    last_modified_date TIMESTAMPTZ
 );
 
 CREATE TABLE if NOT EXISTS order_items (
@@ -21,6 +21,6 @@ CREATE TABLE if NOT EXISTS order_items (
     price DECIMAL NOT NULL,
     created_by VARCHAR(255) NOT NULL,
     updated_by VARCHAR(255) NOT NULL,
-    created_date TIMESTAMP NOT NULL,
-    last_modified_date TIMESTAMP
+    created_date TIMESTAMPTZ NOT NULL,
+    last_modified_date TIMESTAMPTZ
 );
