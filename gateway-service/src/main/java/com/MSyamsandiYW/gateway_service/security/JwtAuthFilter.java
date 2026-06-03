@@ -1,13 +1,13 @@
 package com.MSyamsandiYW.gateway_service.security;
 
 import com.MSyamsandiYW.common.exception.ErrorCode;
+import com.MSyamsandiYW.common.jwt.JwtService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
 import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
@@ -21,6 +21,7 @@ import static com.MSyamsandiYW.common.exception.ErrorCode.*;
 @RequiredArgsConstructor
 public class JwtAuthFilter implements GlobalFilter, Ordered {
 
+    private final TokenValidator tokenValidator;
     private final JwtService jwtService;
     private final RouteValidator routeValidator;
 
@@ -36,7 +37,7 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
         }
         String token = authHeader.substring(7);
 
-        return jwtService.validateToken(token)
+        return tokenValidator.validateToken(token)
                 .then(jwtService.extractClaims(token))
                 .flatMap(claims -> {
                     String userRoles = claims.get("userRole").toString();

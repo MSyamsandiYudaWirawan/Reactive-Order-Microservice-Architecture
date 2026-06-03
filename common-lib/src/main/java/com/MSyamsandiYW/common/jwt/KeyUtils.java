@@ -1,4 +1,4 @@
-package com.MSyamsandiYW.gateway_service.security;
+package com.MSyamsandiYW.common.jwt;
 
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
