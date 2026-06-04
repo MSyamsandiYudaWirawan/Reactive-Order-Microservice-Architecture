@@ -16,6 +16,15 @@ public class TokenValidator {
     public Mono<Void> validateToken(final String token) {
         return jwtService.extractClaims(token)
                 .flatMap(claims -> {
+                    if (claims.get("userId") == null || claims.get("userId").toString().isEmpty()) {
+                        return Mono.error(new BusinessException(ErrorCode.INVALID_TOKEN));
+                    }
+                    if (claims.get("userEmail") == null || claims.get("userEmail").toString().isEmpty()) {
+                        return Mono.error(new BusinessException(ErrorCode.INVALID_TOKEN));
+                    }
+                    if (claims.get("userRole") == null || claims.get("userRole").toString().isEmpty()) {
+                        return Mono.error(new BusinessException(ErrorCode.INVALID_TOKEN));
+                    }
                     if (!"ACCESS_TOKEN".equals(claims.get(TOKEN_TYPE))) {
                         return Mono.error(new BusinessException(ErrorCode.INVALID_TOKEN));
                     }

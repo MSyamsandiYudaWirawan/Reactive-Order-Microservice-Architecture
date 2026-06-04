@@ -27,6 +27,7 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+
         String path = exchange.getRequest().getURI().getPath();
         if (routeValidator.isOpen(path)) {
             return chain.filter(exchange);
@@ -54,6 +55,7 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
                         if (idempotencyKey == null || idempotencyKey.isEmpty()) {
                             return errorCodeMapper(exchange, MISSING_IDEMPOTENCY_KEY);
                         }
+                        //todo check redis by X-Idempotency-Key to deduplicate
                     }
                     ServerWebExchange mutated = exchange.mutate()
                             .request(r -> r

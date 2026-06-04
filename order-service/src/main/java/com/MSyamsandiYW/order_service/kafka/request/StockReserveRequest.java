@@ -1,7 +1,6 @@
-package com.MSyamsandiYW.order_service.order.request;
+package com.MSyamsandiYW.order_service.kafka.request;
 
 import com.MSyamsandiYW.order_service.order_item.request.OrderItemRequest;
-import jakarta.validation.constraints.NotEmpty;
 import lombok.*;
 
 import java.util.List;
@@ -11,9 +10,9 @@ import java.util.List;
 @Getter
 @Setter
 @Builder
-public class CreateOrderRequest {
-
-    @NotEmpty
+public class StockReserveRequest {
+    private String orderId;
+    private String transactionId;
+    private String correlationId;
     private List<OrderItemRequest> items;
-    private String discountCode;
 }

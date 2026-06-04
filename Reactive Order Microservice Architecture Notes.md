@@ -60,7 +60,6 @@
 - JWT validation
 - Authorization
 - Route requests
-- Generate correlationId
 - Propagate JWT downstream
 
 **Authorization Example:**

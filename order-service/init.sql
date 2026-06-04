@@ -1,26 +1,43 @@
-CREATE TABLE if NOT EXISTS orders (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    correlation_id VARCHAR(255) NOT NULL,
-    transaction_id VARCHAR(255) NOT NULL,
-    user_id VARCHAR(255) NOT NULL,
-    payment_id VARCHAR(255),
-    order_status VARCHAR(50) NOT NULL ,
-    total_amount DECIMAL NOT NULL ,
-    payment_method VARCHAR(50),
-    created_by VARCHAR(255) NOT NULL,
-    updated_by VARCHAR(255) NOT NULL,
-    created_date TIMESTAMPTZ NOT NULL,
+CREATE TABLE if NOT EXISTS orders
+(
+    id                 UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    correlation_id     VARCHAR(255) NOT NULL,
+    transaction_id     VARCHAR(255) NOT NULL,
+    user_id            VARCHAR(255) NOT NULL,
+    payment_id         VARCHAR(255),
+    order_status       VARCHAR(50)  NOT NULL,
+    total_amount       DECIMAL      NOT NULL,
+    payment_method     VARCHAR(50),
+    created_by         VARCHAR(255) NOT NULL,
+    updated_by         VARCHAR(255) NOT NULL,
+    created_date       TIMESTAMPTZ  NOT NULL,
     last_modified_date TIMESTAMPTZ
 );
 
-CREATE TABLE if NOT EXISTS order_items (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    order_id UUID NOT NULL,
-    product_id VARCHAR(255) NOT NULL,
-    quantity INTEGER NOT NULL,
-    price DECIMAL NOT NULL,
-    created_by VARCHAR(255) NOT NULL,
-    updated_by VARCHAR(255) NOT NULL,
-    created_date TIMESTAMPTZ NOT NULL,
+CREATE TABLE if NOT EXISTS order_items
+(
+    id                 UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    order_id           UUID         NOT NULL,
+    product_id         VARCHAR(255) NOT NULL,
+    quantity           INTEGER      NOT NULL,
+    price              DECIMAL      NOT NULL,
+    created_by         VARCHAR(255) NOT NULL,
+    updated_by         VARCHAR(255) NOT NULL,
+    created_date       TIMESTAMPTZ  NOT NULL,
+    last_modified_date TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS discounts
+(
+    id                 UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    code               VARCHAR(50) UNIQUE NOT NULL,
+    discount_type      VARCHAR(20)        NOT NULL, -- 'PERCENTAGE' or 'FIXED'
+    value              DECIMAL            NOT NULL,
+    max_usage          INTEGER,
+    valid_from         TIMESTAMPTZ,
+    valid_until        TIMESTAMPTZ,
+    created_by         VARCHAR(255)       NOT NULL,
+    updated_by         VARCHAR(255)       NOT NULL,
+    created_date       TIMESTAMPTZ        NOT NULL,
     last_modified_date TIMESTAMPTZ
 );

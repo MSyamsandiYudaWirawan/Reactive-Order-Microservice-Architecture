@@ -1,4 +1,4 @@
-package com.MSyamsandiYW.order_service.config;
+package com.MSyamsandiYW.order_service.properties;
 
 
 import lombok.AllArgsConstructor;
@@ -18,5 +18,5 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties("app")
 public class AppProperties {
 
-    p
+
 }

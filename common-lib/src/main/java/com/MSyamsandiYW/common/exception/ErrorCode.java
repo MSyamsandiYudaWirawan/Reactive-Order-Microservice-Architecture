@@ -40,7 +40,6 @@ public enum ErrorCode {
     TOKEN_EXPIRED("TOKEN_EXPIRED", "Token has expired", UNAUTHORIZED),
     REFRESH_TOKEN_EXPIRED("REFRESH_TOKEN_EXPIRED", "Refresh Token has expired", UNAUTHORIZED),
     TOKEN_SIGNATURE_INVALID("TOKEN_SIGNATURE_INVALID", "Token signature verification failed", UNAUTHORIZED),
-
     ;
 
     private final String code;
