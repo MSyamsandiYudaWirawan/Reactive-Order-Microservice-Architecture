@@ -9,6 +9,10 @@ public class AppConstant {
         FAILED,
         REFUNDED
     }
+    public enum DISCOUNT_TYPE {
+        PERCENTAGE,
+        FIXED
+    }
 
     public static class TOPICS {
         public static final String STOCK_RESERVE_REQUESTED = "stock-reserve-requested";
