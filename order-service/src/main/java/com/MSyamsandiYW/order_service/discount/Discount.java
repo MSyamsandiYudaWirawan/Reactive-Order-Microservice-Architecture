@@ -26,6 +26,10 @@ public class Discount {
     private String discountType;
     @Column("value")
     private Double value;
+    @Column("minimum_order_value")
+    private Double minimumOrderValue;
+    @Column("maximum_order_value")
+    private Double maximumOrderValue;
     @Column("max_usage")
     private Integer maxUsage;
     @Column("valid_from")

@@ -33,6 +33,8 @@ CREATE TABLE IF NOT EXISTS discounts
     code               VARCHAR(50) UNIQUE NOT NULL,
     discount_type      VARCHAR(20)        NOT NULL, -- 'PERCENTAGE' or 'FIXED'
     value              DECIMAL            NOT NULL,
+    minimum_order_value    DECIMAL,
+    maximum_order_value DECIMAL,
     max_usage          INTEGER,
     valid_from         TIMESTAMPTZ,
     valid_until        TIMESTAMPTZ,
