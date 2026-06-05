@@ -40,6 +40,10 @@ public enum ErrorCode {
     TOKEN_EXPIRED("TOKEN_EXPIRED", "Token has expired", UNAUTHORIZED),
     REFRESH_TOKEN_EXPIRED("REFRESH_TOKEN_EXPIRED", "Refresh Token has expired", UNAUTHORIZED),
     TOKEN_SIGNATURE_INVALID("TOKEN_SIGNATURE_INVALID", "Token signature verification failed", UNAUTHORIZED),
+
+
+
+    TRANSACTION_NOT_FOUND("TRANSACTION_NOT_FOUND", "Transaction not found", NOT_FOUND),
     ;
 
     private final String code;

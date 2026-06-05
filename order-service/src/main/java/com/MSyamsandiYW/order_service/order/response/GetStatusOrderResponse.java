@@ -12,6 +12,7 @@ import java.time.ZonedDateTime;
 public class GetStatusOrderResponse {
     private String transactionId;
     private String orderStatus;
+    private String discountCode;
     private Double totalAmount;
     private String paymentMethod;
     private ZonedDateTime createdDate;

@@ -10,6 +10,6 @@ import java.util.List;
 @Getter
 @Setter
 @Builder
-public class GetOrdersResponse {
+public class GetUserOrdersResponse {
     private List<GetStatusOrderResponse> orders;
 }
