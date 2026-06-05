@@ -28,6 +28,8 @@ public class Order {
     private String userId;
     @Column("payment_id")
     private String paymentId;
+    @Column("discount_code")
+    private String discountCode;
     @Column("order_status")
     private String orderStatus;
     @Column("total_amount")

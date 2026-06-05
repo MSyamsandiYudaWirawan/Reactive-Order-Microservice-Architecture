@@ -5,6 +5,7 @@ CREATE TABLE if NOT EXISTS orders
     transaction_id     VARCHAR(255) NOT NULL,
     user_id            VARCHAR(255) NOT NULL,
     payment_id         VARCHAR(255),
+    discount_code        VARCHAR(255),
     order_status       VARCHAR(50)  NOT NULL,
     total_amount       DECIMAL      NOT NULL,
     payment_method     VARCHAR(50),

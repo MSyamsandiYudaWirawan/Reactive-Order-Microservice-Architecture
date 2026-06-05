@@ -29,6 +29,7 @@ public class DiscountServiceImpl implements DiscountService {
                     DiscountStrategy strategy = discountStrategy.get(discount.getDiscountType());
                     if (strategy != null && strategy.isApplicable(order, discount)) {
                         Order discounted = strategy.apply(order, discount);
+                        discounted.setDiscountCode(discount.getCode());
                         discount.setMaxUsage(discount.getMaxUsage() - 1);
                         return discountRepository.save(discount).thenReturn(discounted);
                     }
