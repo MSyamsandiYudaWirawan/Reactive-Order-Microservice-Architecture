@@ -1,35 +1,49 @@
 package com.MSyamsandiYW.order_service.kafka;
 
+import com.MSyamsandiYW.order_service.kafka.request.OrderEventPayload;
+import com.MSyamsandiYW.order_service.order.OrderRepository;
+import com.MSyamsandiYW.order_service.properties.AppConstant;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
+import static com.MSyamsandiYW.order_service.properties.AppConstant.ORDER_STATUS.*;
+
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class OrderEventHandler {
+    private final OrderRepository orderRepository;
 
-    private Mono<Void> handleStockReserved(Object payload) {
-        // stock reserved → update order status to WAITING_PAYMENT
-        return Mono.empty();
+    public Mono<Void> handleStockReservedCompleted(OrderEventPayload payload) {
+        return updateOrderStatus(payload.getTransactionId(), WAITING_PAYMENT);
     }
 
-    private Mono<Void> handlePaymentCompleted(Object payload) {
-        // payment done → update order status to PAID
-        return Mono.empty();
+    public Mono<Void> handlePaymentCompleted(OrderEventPayload payload) {
+        return updateOrderStatus(payload.getTransactionId(), PAID);
     }
 
-    private Mono<Void> handleOrderCompleted(Object payload) {
-        // fulfillment success → update order status to COMPLETED
-        return Mono.empty();
+    public Mono<Void> handleOrderCompleted(OrderEventPayload payload) {
+        return updateOrderStatus(payload.getTransactionId(), COMPLETED);
     }
 
-    private Mono<Void> handleOrderFailed(Object payload) {
-        // something failed → update order status to FAILED\
-        return Mono.empty();
+    public Mono<Void> handleOrderFailed(OrderEventPayload payload) {
+        return updateOrderStatus(payload.getTransactionId(), FAILED);
     }
 
-    private Mono<Void> handleRefundCompleted(Object payload) {
-        // refund done → update order status to REFUNDED
-        return Mono.empty();
+    public Mono<Void> handleRefundCompleted(OrderEventPayload payload) {
+        return updateOrderStatus(payload.getTransactionId(), REFUNDED);
+    }
+
+    public Mono<Void> updateOrderStatus(String transactionId, AppConstant.ORDER_STATUS orderStatus) {
+        return orderRepository.findByTransactionId(transactionId)
+                .switchIfEmpty(Mono.fromRunnable(() ->
+                        log.warn("Order not found for transactionId: {}", transactionId)))
+                .flatMap(order -> {
+                    order.setOrderStatus(orderStatus.name());
+                    return orderRepository.save(order);
+                })
+                .then();
     }
 }

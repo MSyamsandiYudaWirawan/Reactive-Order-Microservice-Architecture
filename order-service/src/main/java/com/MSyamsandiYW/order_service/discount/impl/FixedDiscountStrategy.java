@@ -12,7 +12,8 @@ public class FixedDiscountStrategy implements DiscountStrategy {
 
     @Override
     public Order apply(Order order, Discount discount) {
-        //if total amount greater than maximum order value
+
+        //check max cap
         if(discount.getMaximumOrderValue() != null && discount.getMaximumOrderValue() < order.getTotalAmount()){
             Double totalAmount = discount.getMaximumOrderValue();
             Double remainingTotal = order.getTotalAmount() - discount.getMaximumOrderValue();
