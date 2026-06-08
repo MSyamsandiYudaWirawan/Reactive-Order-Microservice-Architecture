@@ -1,5 +1,6 @@
 package com.MSyamsandiYW.order_service.kafka;
 
+import com.MSyamsandiYW.common.redis.RedisService;
 import com.MSyamsandiYW.order_service.kafka.request.OrderEventPayload;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -17,6 +18,7 @@ import static com.MSyamsandiYW.order_service.properties.AppConstant.TOPICS.*;
 public class OrderEventReceiver {
 
     private final KafkaReceiver<String, OrderEventPayload> kafkaReceiver;
+    private final RedisService redisService;
     private final OrderEventHandler handler;
 
     @PostConstruct
@@ -37,14 +39,22 @@ public class OrderEventReceiver {
             case REFUND_COMPLETED -> handler.handleRefundCompleted(record.value());
             default -> Mono.empty();
         };
-        return result
-                .retry(3)
+        // check idempotency eventId as a key
+        return redisService.storeIfAbsent(record.key(), "processed")
+                .doOnNext(stored -> {
+                    if (!stored) log.info("Duplicate event skipped - key: {}", record.key());
+                })
+                // return mono empty if false
+                .filter(stored -> stored)
+                // flatmap only run when mono has value or filter is true
+                // if there is exception -> retry x times
+                .flatMap(stored -> result.retry(3))
                 .onErrorResume(e -> {
-                    log.error("Failed to process event after retries - topic: {}, key: {}, sending to DLQ",
-                            record.topic(), record.key(), e);
-                    // TODO Phase 2: add Outbox pattern
+                    log.error("Failed to process event after retries - topic: {}, key: {}", record.topic(), record.key(), e);
                     return Mono.empty();
                 })
+                //acknowledge on matter what
                 .doFinally(s -> record.receiverOffset().acknowledge());
+
     }
 }

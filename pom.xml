@@ -13,5 +13,6 @@
 		<module>common-lib</module>
 		<module>auth-service</module>
 		<module>gateway-service</module>
+		<module>order-service</module>
 	</modules>
 </project>

@@ -45,12 +45,15 @@ public class OrderServiceImpl implements OrderService {
         String transactionId = UUID.randomUUID().toString();
         log.info("Creating order - correlationId: {}, transactionId: {}", correlationId, transactionId);
 
+        // extract claims
         return jwtService.extractClaims(token)
                 .map(claims -> {
+                    //calculate total amount
                     double totalAmount = request.getItems().stream()
                             .mapToDouble(item -> item.getPrice() * item.getQuantity())
                             .sum();
 
+                    //create order object
                     return Order.builder()
                             .correlationId(correlationId)
                             .transactionId(transactionId)
@@ -61,11 +64,15 @@ public class OrderServiceImpl implements OrderService {
                             .createdDate(ZonedDateTime.now())
                             .build();
                 })
+                // apply discount if valid
                 .flatMap(order -> discountService.apply(request, order))
+                // save order and items in database
                 .flatMap(order -> saveOrderWithItems(order, request))
                 .doOnSuccess(order ->
                         log.info("Order persisted - orderId: {}, correlationId: {}",
                                 order.getId(), correlationId))
+
+                // produce event to reserve stock consumed by  inventory-service
                 .flatMap(order -> {
                     StockReserveRequest stockReserveRequest = StockReserveRequest.builder()
                             .orderId(order.getId().toString())
@@ -73,15 +80,19 @@ public class OrderServiceImpl implements OrderService {
                             .correlationId(correlationId)
                             .items(request.getItems())
                             .build();
+
+                    //key is UUID random purposely for eventId
                     return orderEventProducer.send(
-                            AppConstant.TOPICS.STOCK_RESERVE_REQUESTED, correlationId, stockReserveRequest);
+                            AppConstant.TOPICS.STOCK_RESERVE_REQUESTED, UUID.randomUUID().toString(), stockReserveRequest);
                 })
                 .doOnSuccess(unused ->
                         log.info("Stock reserve event published - correlationId: {}", correlationId))
                 .doOnError(e ->
                         log.error("Failed to create order - correlationId: {}, error: {}",
                                 correlationId, e.getMessage()))
+                // handle order failed
                 .onErrorResume(e -> handleError(transactionId).then(Mono.error(e)))
+                // return to client
                 .then(Mono.just(
                         ResponseEntity.status(HttpStatus.CREATED)
                                 .body(CreateOrderResponse.builder()
@@ -90,6 +101,64 @@ public class OrderServiceImpl implements OrderService {
                 ));
     }
 
+    @Override
+    public Mono<ResponseEntity<GetStatusOrderResponse>> getStatusOrder(String token, String transactionId) {
+        // extract claims and validate userId from token
+        return Mono.zip(jwtService.extractClaims(token), orderRepository.findByTransactionId(transactionId))
+                //validate userId with order user
+                .flatMap(tuple -> {
+                    String userId = tuple.getT1().get("userId").toString();
+                    if (userId == null || userId.isEmpty()) {
+                        return Mono.error(new BusinessException(ErrorCode.USER_NOT_FOUND));
+                    }
+                    Order order = tuple.getT2();
+                    if (!userId.equalsIgnoreCase(order.getUserId())) {
+                        return Mono.error(new BusinessException(ErrorCode.USER_UNAUTHORIZED));
+                    }
+                    return Mono.just(order);
+                })
+                // mapping order to client
+                .map(order -> ResponseEntity.status(HttpStatus.OK)
+                        .body(GetStatusOrderResponse
+                                .builder()
+                                .transactionId(order.getTransactionId())
+                                .orderStatus(order.getOrderStatus())
+                                .totalAmount(order.getTotalAmount())
+                                .paymentMethod(order.getPaymentMethod())
+                                .discountCode(order.getDiscountCode())
+                                .createdDate(order.getCreatedDate())
+                                .build())
+                );
+    }
+
+    @Override
+    public Mono<ResponseEntity<GetUserOrdersResponse>> getUserOrders(String token) {
+        //extract claims
+        return jwtService.extractClaims(token)
+                //validate userId from token
+                .flatMap(claims -> {
+                    String userId = claims.get("userId").toString();
+                    if (userId == null || userId.isEmpty()) {
+                        return Mono.error(new BusinessException(ErrorCode.USER_NOT_FOUND));
+                    }
+                    return orderRepository.findByUserId(userId);
+                })
+                .map(orders -> {
+                    List<GetStatusOrderResponse> orderList = orders.stream().map(order -> GetStatusOrderResponse.builder()
+                            .transactionId(order.getTransactionId())
+                            .orderStatus(order.getOrderStatus())
+                            .totalAmount(order.getTotalAmount())
+                            .paymentMethod(order.getPaymentMethod())
+                            .discountCode(order.getDiscountCode())
+                            .createdDate(order.getCreatedDate())
+                            .build()).toList();
+
+                    return ResponseEntity.ok().body(GetUserOrdersResponse.builder()
+                            .orders(orderList)
+                            .build());
+                })
+                ;
+    }
 
     private Mono<Order> saveOrderWithItems(Order order, CreateOrderRequest request) {
         return orderRepository.save(order)
@@ -116,59 +185,5 @@ public class OrderServiceImpl implements OrderService {
                     return orderRepository.save(order);
                 })
                 .then();
-    }
-
-    @Override
-    public Mono<ResponseEntity<GetStatusOrderResponse>> getStatusOrder(String token, String transactionId) {
-        return Mono.zip(jwtService.extractClaims(token), orderRepository.findByTransactionId(transactionId))
-                .flatMap(tuple -> {
-                    String userId = tuple.getT1().get("userId").toString();
-                    if (userId == null || userId.isEmpty()) {
-                        return Mono.error(new BusinessException(ErrorCode.USER_NOT_FOUND));
-                    }
-                    Order order = tuple.getT2();
-                    if (!userId.equalsIgnoreCase(order.getUserId())) {
-                        return Mono.error(new BusinessException(ErrorCode.USER_UNAUTHORIZED));
-                    }
-                    return Mono.just(order);
-                })
-                .map(order -> ResponseEntity.status(HttpStatus.OK)
-                        .body(GetStatusOrderResponse
-                                .builder()
-                                .transactionId(order.getTransactionId())
-                                .orderStatus(order.getOrderStatus())
-                                .totalAmount(order.getTotalAmount())
-                                .paymentMethod(order.getPaymentMethod())
-                                .discountCode(order.getDiscountCode())
-                                .createdDate(order.getCreatedDate())
-                                .build())
-                );
-    }
-
-    @Override
-    public Mono<ResponseEntity<GetUserOrdersResponse>> getUserOrders(String token) {
-        return jwtService.extractClaims(token)
-                .flatMap(claims -> {
-                    String userId = claims.get("userId").toString();
-                    if (userId == null || userId.isEmpty()) {
-                        return Mono.error(new BusinessException(ErrorCode.USER_NOT_FOUND));
-                    }
-                    return orderRepository.findByUserId(userId);
-                })
-                .map(orders -> {
-                    List<GetStatusOrderResponse> orderList = orders.stream().map(order -> GetStatusOrderResponse.builder()
-                            .transactionId(order.getTransactionId())
-                            .orderStatus(order.getOrderStatus())
-                            .totalAmount(order.getTotalAmount())
-                            .paymentMethod(order.getPaymentMethod())
-                            .discountCode(order.getDiscountCode())
-                            .createdDate(order.getCreatedDate())
-                            .build()).toList();
-
-                    return ResponseEntity.ok().body(GetUserOrdersResponse.builder()
-                            .orders(orderList)
-                            .build());
-                })
-                ;
     }
 }
