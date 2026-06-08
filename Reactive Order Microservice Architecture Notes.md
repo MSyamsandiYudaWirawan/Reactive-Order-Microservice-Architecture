@@ -4,101 +4,125 @@
 
 ### Core Technologies
 
+- Java 21
+- Spring Boot 4.0.6
 - Spring WebFlux
-- Apache Kafka
-- Redis
-- Docker
-- Kubernetes
-- PostgreSQL
-- JWT Authentication
+- Spring Cloud Gateway 2025.1.1
+- Apache Kafka (Confluent 7.9.0)
+- Redis 7-alpine
+- Docker / Docker Compose
+- Kubernetes (planned - Phase 4)
+- PostgreSQL 17.5
+- JWT Authentication (RSA key pair, JJWT 0.12.6)
+- R2DBC (Reactive database access)
 - Reactive WebClient
 
 ## Architecture Goals
 
-- Reactive microservices
+- Reactive microservices (non-blocking end-to-end)
 - Event-driven architecture
-- Saga pattern
+- Saga pattern (fulfillment-service as coordinator)
 - Compensation transaction
-- Idempotency
-- Distributed tracing
-- Cloud-native deployment
+- Idempotency & deduplication (Redis-based, 24h TTL)
+- Distributed tracing (X-Correlation-Id)
+- Cloud-native deployment (K8s, no Eureka/Config Server)
 - JWT authentication & authorization
 
 ---
 
 ## Service List
 
-### 1. auth-service
+### 1. auth-service ✅ (Completed)
 
 **Responsibilities:**
 
 - Login
+- Registration
 - Refresh token
-- JWT generation
+- JWT generation (RSA key pair)
 - User credential validation
+- User profile management
 
 **Important Notes:**
 
 - Does NOT handle authorization logic
 - Only responsible for authentication
-- JWT contains: `userId`, `role`, `email`
+- JWT contains: `userId`, `userName`, `userEmail`, `userRole`, `phoneNumber`, account status flags
+- Uses `token_type` claim to differentiate access vs refresh tokens
 
 **Endpoints:**
 
-| Method | Path           | Description   |
-|--------|----------------|---------------|
-| POST   | /auth/login    | User login    |
-| POST   | /auth/refresh  | Refresh token |
+| Method | Path                | Description      |
+|--------|---------------------|------------------|
+| POST   | /api/v1/auth/login    | User login       |
+| POST   | /api/v1/auth/register | User registration|
+| POST   | /api/v1/auth/refresh  | Refresh token    |
 
 ---
 
-### 2. gateway-service
+### 2. gateway-service ✅ (Completed)
 
 **Responsibilities:**
 
-- API Gateway
-- JWT validation
-- Authorization
-- Route requests
-- Propagate JWT downstream
+- API Gateway (Spring Cloud Gateway)
+- JWT validation (RSA public key verification)
+- Role-based authorization
+- Route requests to downstream services
+- Propagate user context via X-headers
+- Idempotency key enforcement with Redis deduplication
+- Generate and propagate Correlation ID
 
-**Authorization Example:**
+**Authorization:**
 
-| Endpoint     | Role  |
-|--------------|-------|
-| POST /orders | USER  |
-| POST /refund | ADMIN |
+| Path Prefix      | Allowed Roles |
+|------------------|---------------|
+| /api/v1/orders   | USER, ADMIN   |
+| /api/v1/admin    | ADMIN         |
+
+**Open Paths (no auth required):**
+- `/api/v1/auth`
 
 **Important Notes:**
 
 - Gateway is the main security layer
 - Internal services are private inside Kubernetes network
+- Idempotency check via Redis `storeIfAbsent` — returns `DUPLICATE_REQUEST` error if key already exists
+- Uses `GlobalFilter` with `Ordered` interface for filter priority
 
-**JWT Flow:**
+**Security Flow:**
 
 ```
-Client → [JWT] → Gateway validates JWT → forwards JWT → Downstream services
+Client → [JWT] → Gateway validates JWT → extracts claims → mutates headers → forwards to downstream
 ```
 
-**Correlation ID:**
+**Propagated Headers:**
 
-- Gateway generates `X-Correlation-Id` and propagates it to:
-  - Downstream HTTP calls
-  - Kafka events
-  - Logs
+- `X-User-Id`
+- `X-User-Email`
+- `X-User-Roles`
+- `X-Correlation-Id` (UUID generated per request)
+
+**Idempotency Flow:**
+
+```
+POST /api/v1/orders → Check X-Idempotency-Key header exists → Redis storeIfAbsent →
+  → Already exists: Return DUPLICATE_REQUEST (409 Conflict)
+  → New: Forward request downstream
+```
 
 ---
 
-### 3. order-service
+### 3. order-service ✅ (Completed)
 
 **Responsibilities:**
 
 - Create order
-- Store order in database
-- Create checkpoint in Redis
-- Publish `RESERVE_STOCK` event
-- Return `transactionId` to client
+- Store order in database (R2DBC PostgreSQL)
+- Apply discount codes (strategy pattern)
+- Publish `STOCK_RESERVE_REQUESTED` event
+- Return `transactionId` to client (optimistic — doesn't wait for stock)
 - Consume status update events to sync own DB
+- Event deduplication via Redis (eventId as key)
 
 **Order Status:**
 
@@ -111,56 +135,86 @@ Client → [JWT] → Gateway validates JWT → forwards JWT → Downstream servi
 | COMPLETED       |
 | REFUNDED        |
 
+**Endpoints:**
+
+| Method | Path                              | Description         |
+|--------|-----------------------------------|---------------------|
+| POST   | /api/v1/orders                    | Create order        |
+| GET    | /api/v1/orders/status/{transactionId} | Get order status |
+| GET    | /api/v1/orders                    | Get user's orders   |
+
 **Flow:**
 
 ```
-Client → Create Order → Save DB → Redis checkpoint → Publish RESERVE_STOCK → Return transactionId
+Client → Create Order → Extract JWT claims → Calculate total → Apply discount → Save DB (PENDING) → Publish STOCK_RESERVE_REQUESTED → Return transactionId
 ```
 
-**Kafka Consumer:**
+**Kafka Producer:**
 
-| Event            | Action                      |
-|------------------|-----------------------------|
-| ORDER_COMPLETED  | Update status → COMPLETED   |
-| ORDER_FAILED     | Update status → FAILED      |
-| PAYMENT_REFUNDED | Update status → REFUNDED    |
+| Topic                    | Key            | Trigger        |
+|--------------------------|----------------|----------------|
+| stock-reserve-requested  | UUID (eventId) | Order created  |
+
+**Kafka Consumer (OrderEventReceiver):**
+
+| Topic                    | Action                      |
+|--------------------------|-----------------------------|
+| order-completed          | Update status → COMPLETED   |
+| order-failed             | Update status → FAILED      |
+| stock-reserve-completed  | Update status → WAITING_PAYMENT |
+| payment-completed        | Update status → PAID        |
+| order-refund-completed   | Update status → REFUNDED    |
+
+**Event Deduplication:**
+
+```
+Receive Kafka event → Redis storeIfAbsent(eventId) →
+  → Already exists: Skip (log duplicate)
+  → New: Process event → retry(3) on failure
+  → Always: acknowledge offset
+```
 
 **Important Notes:**
 
-- User information extracted from JWT
-- Correlation ID stored in logs/events
+- User information extracted from JWT (forwarded by gateway)
+- Correlation ID stored in order entity
 - Does NOT wait for stock reservation (optimistic)
+- Discount system uses Strategy pattern with `Map<String, DiscountStrategy>` injection
+- Supports PERCENTAGE and FIXED discount types
 
 ---
 
-### 4. inventory-service
+### 4. inventory-service (Planned)
 
 **Responsibilities:**
 
 - Reserve stock
-- Release stock
+- Release stock (compensation)
+- Deduct stock (confirm sold)
 
 **Kafka Consumer:**
 
-| Event         | Action                                    |
-|---------------|-------------------------------------------|
-| RESERVE_STOCK | Reserve stock                             |
-| RELEASE_STOCK | Release stock (cancel reservation)        |
-| DEDUCT_STOCK  | Deduct stock (convert reservation to sold)|
+| Topic                    | Action                                    |
+|--------------------------|-------------------------------------------|
+| stock-reserve-requested  | Reserve stock                             |
+| release-stock            | Release stock (cancel reservation)        |
+| deduct-stock             | Deduct stock (convert reservation to sold)|
 
 **Kafka Producer:**
 
-| Event        | Condition          |
-|--------------|--------------------|
-| OUT_OF_STOCK | Stock insufficient |
+| Topic                    | Condition          |
+|--------------------------|--------------------|
+| out-of-stock             | Stock insufficient |
+| stock-reserve-completed  | Stock reserved OK  |
 
 **Important Notes:**
 
 - Inventory reservation is part of saga pattern
+- Each product tracks: available, reserved, sold quantities
 
 ---
 
-### 5. payment-service
+### 5. payment-service (Planned)
 
 **Responsibilities:**
 
@@ -168,7 +222,7 @@ Client → Create Order → Save DB → Redis checkpoint → Publish RESERVE_STO
 - Support 3 dummy payment methods (simulating real-world multiple payment types)
 - Handle payment callback/webhook
 - Refund payment
-- Publish payment event
+- Publish payment events
 
 **Endpoints:**
 
@@ -191,21 +245,21 @@ Client → Create Order → Save DB → Redis checkpoint → Publish RESERVE_STO
 
 **Kafka Producer:**
 
-| Event            | Condition        |
-|------------------|------------------|
-| PAYMENT_SUCCESS  | Callback success |
-| PAYMENT_FAILED   | Callback failed  |
-| PAYMENT_REFUNDED | Refund completed |
+| Topic              | Condition        |
+|--------------------|------------------|
+| payment-completed  | Callback success |
+| payment-failed     | Callback failed  |
+| order-refund-completed | Refund completed |
 
 **Kafka Consumer:**
 
-| Event            | Action                                      |
+| Topic            | Action                                      |
 |------------------|---------------------------------------------|
-| REFUND_REQUESTED | Process refund → Publish PAYMENT_REFUNDED   |
+| refund-requested | Process refund → Publish order-refund-completed |
 
 ---
 
-### 6. fulfillment-service
+### 6. fulfillment-service (Planned)
 
 **Responsibilities:**
 
@@ -216,11 +270,11 @@ Client → Create Order → Save DB → Redis checkpoint → Publish RESERVE_STO
 
 **Kafka Consumer:**
 
-| Event           | Source            |
-|-----------------|-------------------|
-| PAYMENT_SUCCESS | payment-service   |
-| PAYMENT_FAILED  | payment-service   |
-| OUT_OF_STOCK    | inventory-service |
+| Topic              | Source            |
+|--------------------|-------------------|
+| payment-completed  | payment-service   |
+| payment-failed     | payment-service   |
+| out-of-stock       | inventory-service |
 
 **Saga Logic (current — coordinator only):**
 
@@ -244,13 +298,13 @@ Client → Create Order → Save DB → Redis checkpoint → Publish RESERVE_STO
 
 **Kafka Producer:**
 
-| Event             | Condition                                |
+| Topic             | Condition                                |
 |-------------------|------------------------------------------|
-| DEDUCT_STOCK      | Payment success / Fulfillment success    |
-| RELEASE_STOCK     | Payment failed / Fulfillment failed      |
-| REFUND_REQUESTED  | Out of stock (paid) / Fulfillment failed |
-| ORDER_COMPLETED   | Payment success / Fulfillment success    |
-| ORDER_FAILED      | Payment failed / Out of stock            |
+| deduct-stock      | Payment success / Fulfillment success    |
+| release-stock     | Payment failed / Fulfillment failed      |
+| refund-requested  | Out of stock (paid) / Fulfillment failed |
+| order-completed   | Payment success / Fulfillment success    |
+| order-failed      | Payment failed / Out of stock            |
 
 **Important Notes:**
 
@@ -261,37 +315,53 @@ Client → Create Order → Save DB → Redis checkpoint → Publish RESERVE_STO
 
 ---
 
+### 7. common-lib ✅ (Completed)
+
+**Shared across all services:**
+
+- `ErrorCode` enum — centralized error codes with code, message, HTTP status
+- `BusinessException` — custom exception thrown with ErrorCode
+- `JwtService` — JWT claims extraction using RSA public key
+- `KeyUtils` — RSA key loading (reactive, offloaded to boundedElastic)
+- `RedisService` / `RedisServiceImpl` — idempotency helpers (isDuplicate, store, storeIfAbsent)
+- `RedisConfig` — ReactiveRedisTemplate bean configuration
+
+---
+
 ## Complete Flows
 
 ### Flow 1: Happy Path (Order Success)
 
 ```
-1. Client → order-service: Create order → Save DB (PENDING) → Redis checkpoint → Publish RESERVE_STOCK → Return transactionId
-2. inventory-service: Consumes RESERVE_STOCK → Reserve stock ✅
-3. Client → payment-service: Send transactionId + payment method → Return dummy callbacks
-4. Client → payment callback success → payment-service: Publish PAYMENT_SUCCESS
-5. fulfillment-service: Consumes PAYMENT_SUCCESS → Publish ORDER_COMPLETED + DEDUCT_STOCK
-6. inventory-service: Consumes DEDUCT_STOCK → Convert reservation to sold ✅
-7. order-service: Consumes ORDER_COMPLETED → Update status → COMPLETED ✅
+1. Client → order-service: Create order → Save DB (PENDING) → Publish STOCK_RESERVE_REQUESTED → Return transactionId
+2. inventory-service: Consumes STOCK_RESERVE_REQUESTED → Reserve stock ✅ → Publish STOCK_RESERVE_COMPLETED
+3. order-service: Consumes STOCK_RESERVE_COMPLETED → Update status → WAITING_PAYMENT
+4. Client → payment-service: Send transactionId + payment method → Return dummy callbacks
+5. Client → payment callback success → payment-service: Publish PAYMENT_COMPLETED
+6. order-service: Consumes PAYMENT_COMPLETED → Update status → PAID
+7. fulfillment-service: Consumes PAYMENT_COMPLETED → Publish ORDER_COMPLETED + DEDUCT_STOCK
+8. inventory-service: Consumes DEDUCT_STOCK → Convert reservation to sold ✅
+9. order-service: Consumes ORDER_COMPLETED → Update status → COMPLETED ✅
 ```
 
 ### Flow 2: Payment Failed
 
 ```
-1. Client → order-service: Create order → Save DB (PENDING) → Redis checkpoint → Publish RESERVE_STOCK → Return transactionId
-2. inventory-service: Consumes RESERVE_STOCK → Reserve stock ✅
-3. Client → payment-service: Send transactionId + payment method → Return dummy callbacks
-4. Client → payment callback failed → payment-service: Publish PAYMENT_FAILED
-5. fulfillment-service: Consumes PAYMENT_FAILED → Publish ORDER_FAILED + RELEASE_STOCK
-6. inventory-service: Consumes RELEASE_STOCK → Cancel reservation ✅
-7. order-service: Consumes ORDER_FAILED → Update status → FAILED ✅
+1. Client → order-service: Create order → Save DB (PENDING) → Publish STOCK_RESERVE_REQUESTED → Return transactionId
+2. inventory-service: Consumes STOCK_RESERVE_REQUESTED → Reserve stock ✅ → Publish STOCK_RESERVE_COMPLETED
+3. order-service: Consumes STOCK_RESERVE_COMPLETED → Update status → WAITING_PAYMENT
+4. Client → payment-service: Send transactionId + payment method → Return dummy callbacks
+5. Client → payment callback failed → payment-service: Publish PAYMENT_FAILED
+6. fulfillment-service: Consumes PAYMENT_FAILED → Publish ORDER_FAILED + RELEASE_STOCK
+7. inventory-service: Consumes RELEASE_STOCK → Cancel reservation ✅
+8. order-service: Consumes ORDER_FAILED → Update status → FAILED ✅
 ```
 
 ### Flow 3: Out of Stock (No Payment Yet)
 
 ```
-1. Client → order-service: Create order → Save DB (PENDING) → Redis checkpoint → Publish RESERVE_STOCK → Return transactionId
-2. inventory-service: Consumes RESERVE_STOCK → Stock insufficient → Publish OUT_OF_STOCK
+1. Client → order-service: Create order → Save DB (PENDING) → Publish STOCK_RESERVE_REQUESTED → Return transactionId
+2. inventory-service: Consumes STOCK_RESERVE_REQUESTED → Stock insufficient → Publish OUT_OF_STOCK
 3. fulfillment-service: Consumes OUT_OF_STOCK → No payment exists → Publish ORDER_FAILED
 4. order-service: Consumes ORDER_FAILED → Update status → FAILED ✅
 ```
@@ -299,28 +369,26 @@ Client → Create Order → Save DB → Redis checkpoint → Publish RESERVE_STO
 ### Flow 4: Out of Stock (Payment Already Made)
 
 ```
-1. Client → order-service: Create order → Save DB (PENDING) → Redis checkpoint → Publish RESERVE_STOCK → Return transactionId
-2. Client → payment-service: Send transactionId + payment method → callback success → Publish PAYMENT_SUCCESS
-3. inventory-service: Consumes RESERVE_STOCK → Stock insufficient → Publish OUT_OF_STOCK
+1. Client → order-service: Create order → Save DB (PENDING) → Publish STOCK_RESERVE_REQUESTED → Return transactionId
+2. Client → payment-service: Send transactionId + payment method → callback success → Publish PAYMENT_COMPLETED
+3. inventory-service: Consumes STOCK_RESERVE_REQUESTED → Stock insufficient → Publish OUT_OF_STOCK
 4. fulfillment-service: Consumes OUT_OF_STOCK → Payment exists → Publish REFUND_REQUESTED + ORDER_FAILED
-5. payment-service: Consumes REFUND_REQUESTED → Process refund → Publish PAYMENT_REFUNDED
+5. payment-service: Consumes REFUND_REQUESTED → Process refund → Publish ORDER_REFUND_COMPLETED
 6. order-service: Consumes ORDER_FAILED → Update status → FAILED
-7. order-service: Consumes PAYMENT_REFUNDED → Update status → REFUNDED ✅
+7. order-service: Consumes ORDER_REFUND_COMPLETED → Update status → REFUNDED ✅
 ```
 
 ### Flow 5: Fulfillment Failed (Future — with third-party API)
 
 ```
-1. Client → order-service: Create order → Save DB (PENDING) → Redis checkpoint → Publish RESERVE_STOCK → Return transactionId
-2. inventory-service: Consumes RESERVE_STOCK → Reserve stock ✅
-3. Client → payment-service: Send transactionId + payment method → callback success → Publish PAYMENT_SUCCESS
-4. fulfillment-service: Consumes PAYMENT_SUCCESS → Call third-party API → Fails ❌ → Publish REFUND_REQUESTED + RELEASE_STOCK
-5. payment-service: Consumes REFUND_REQUESTED → Process refund → Publish PAYMENT_REFUNDED
+1. Client → order-service: Create order → Save DB (PENDING) → Publish STOCK_RESERVE_REQUESTED → Return transactionId
+2. inventory-service: Consumes STOCK_RESERVE_REQUESTED → Reserve stock ✅ → Publish STOCK_RESERVE_COMPLETED
+3. Client → payment-service: Send transactionId + payment method → callback success → Publish PAYMENT_COMPLETED
+4. fulfillment-service: Consumes PAYMENT_COMPLETED → Call third-party API → Fails ❌ → Publish REFUND_REQUESTED + RELEASE_STOCK
+5. payment-service: Consumes REFUND_REQUESTED → Process refund → Publish ORDER_REFUND_COMPLETED
 6. inventory-service: Consumes RELEASE_STOCK → Cancel reservation ✅
-7. order-service: Consumes PAYMENT_REFUNDED → Update status → REFUNDED ✅
+7. order-service: Consumes ORDER_REFUND_COMPLETED → Update status → REFUNDED ✅
 ```
-
-
 
 ---
 
@@ -330,38 +398,45 @@ Client → Create Order → Save DB → Redis checkpoint → Publish RESERVE_STO
 
 **Responsibilities:**
 
-- Idempotency
-- Deduplication
-- Event checkpoint
+- Gateway idempotency (X-Idempotency-Key deduplication)
+- Kafka event deduplication (eventId as key)
+- TTL: 24 hours
 
-**Deduplication Flow:**
+**Gateway Deduplication Flow:**
 
 ```
-Receive Kafka event → Check Redis → Already exists? 
-  → Yes: Ignore
-  → No: Process event → Save eventId
+Request arrives → Extract X-Idempotency-Key → Redis storeIfAbsent →
+  → Key exists: Return 409 DUPLICATE_REQUEST
+  → Key new: Forward request
 ```
 
-**Recommended TTL:** 24 hours
+**Event Deduplication Flow:**
+
+```
+Receive Kafka event → Redis storeIfAbsent(eventId) →
+  → Key exists: Skip processing
+  → Key new: Process event
+```
 
 ---
 
 ### Kafka Topics
 
-| Topic              | Producer            | Consumer            |
-|--------------------|---------------------|---------------------|
-| reserve-stock      | order-service       | inventory-service   |
-| deduct-stock       | fulfillment-service | inventory-service   |
-| release-stock      | fulfillment-service | inventory-service   |
-| out-of-stock       | inventory-service   | fulfillment-service |
-| payment-success    | payment-service     | fulfillment-service |
-| payment-failed     | payment-service     | fulfillment-service |
-| refund-requested   | fulfillment-service | payment-service     |
-| payment-refunded   | payment-service     | order-service       |
-| order-completed    | fulfillment-service | order-service       |
-| order-failed       | fulfillment-service | order-service       |
+| Topic                    | Producer            | Consumer            |
+|--------------------------|---------------------|---------------------|
+| stock-reserve-requested  | order-service       | inventory-service   |
+| stock-reserve-completed  | inventory-service   | order-service       |
+| deduct-stock             | fulfillment-service | inventory-service   |
+| release-stock            | fulfillment-service | inventory-service   |
+| out-of-stock             | inventory-service   | fulfillment-service |
+| payment-completed        | payment-service     | order-service, fulfillment-service |
+| payment-failed           | payment-service     | fulfillment-service |
+| refund-requested         | fulfillment-service | payment-service     |
+| order-refund-completed   | payment-service     | order-service       |
+| order-completed          | fulfillment-service | order-service       |
+| order-failed             | fulfillment-service | order-service       |
 
-**Note:** order-service is both a producer (`reserve-stock`) and consumer (`order-completed`, `order-failed`, `payment-refunded`) because each service owns its own DB — status updates must flow back via events.
+**Note:** order-service is both a producer (`stock-reserve-requested`) and consumer (`order-completed`, `order-failed`, `stock-reserve-completed`, `payment-completed`, `order-refund-completed`) because each service owns its own DB — status updates must flow back via events.
 
 ---
 
@@ -371,36 +446,34 @@ Receive Kafka event → Check Redis → Already exists?
 
 **Header:** `X-Correlation-Id`
 
+**Generated by:** Gateway (UUID per request)
+
 **Must be propagated to:**
 
-- HTTP requests
-- Kafka events
+- HTTP headers (downstream services)
+- Kafka event payloads
 - Logs
-
-**Example Event:**
-
-```json
-{
-  "eventId": "abc-123",
-  "correlationId": "corr-999",
-  "orderId": "order-1"
-}
-```
+- Order entity (`correlationId` field)
 
 ---
 
-### JWT Propagation
+### JWT Architecture
 
 **Strategy:**
 
-1. Gateway validates JWT
-2. Gateway forwards JWT downstream
+1. auth-service signs JWT with RSA private key
+2. Gateway validates JWT with RSA public key (from common-lib)
+3. Gateway extracts claims and propagates as X-headers
+4. Downstream services can also verify JWT via common-lib's JwtService
 
-**Benefits:** Services can access `userId`, `role`, `email` without calling auth-service again.
+**Key Storage:**
+
+- Private key: `auth-service/src/main/resources/keys/private_key.pem`
+- Public key: `common-lib/src/main/resources/keys/public_key.pem`
 
 ---
 
-## Kubernetes Architecture
+## Kubernetes Architecture (Phase 4)
 
 ### No Eureka Needed
 
@@ -424,96 +497,108 @@ http://payment-service  ← works automatically inside cluster
 | Secret      | DB password, JWT keys, Kafka creds    |
 | Environment | Injected into pods                    |
 
-**ConfigMap Example:**
+---
 
-```yaml
-env:
-  - name: APP_PAYMENT_TIMEOUT
-    value: "30"
+## Project Structure (Actual)
+
 ```
-
-Spring Boot automatically maps `APP_PAYMENT_TIMEOUT` → `app.payment-timeout`
-
-**Secrets Example:**
-
-Use Kubernetes Secret for:
-
-- DB password
-- JWT private/public keys
-- Kafka credentials
+reactive-order-microservice/
+├── common-lib/                     # Shared library
+│   └── src/main/java/com/MSyamsandiYW/common/
+│       ├── exception/ (BusinessException, ErrorCode)
+│       ├── jwt/ (JwtService, KeyUtils)
+│       └── redis/ (RedisConfig, RedisService, impl/RedisServiceImpl)
+├── auth-service/                   # Authentication service
+│   └── src/main/java/com/MSyamsandiYW/auth_service/
+│       ├── auth/ (controller, service, impl, request/, response/)
+│       ├── config/
+│       ├── handler/
+│       ├── security/
+│       ├── user/
+│       └── validation/
+├── gateway-service/                # API Gateway
+│   └── src/main/java/com/MSyamsandiYW/gateway_service/
+│       ├── config/ (JwtConfig, RedisServiceConfig)
+│       ├── handler/ (ApplicationExceptionHandler)
+│       └── security/ (JwtAuthFilter, RouteValidator, TokenValidator, SecurityConfig)
+├── order-service/                  # Order processing
+│   └── src/main/java/com/MSyamsandiYW/order_service/
+│       ├── config/ (JwtConfig, R2dbcConfig, RedisServiceConfig)
+│       ├── discount/ (Discount, DiscountRepository, DiscountService, DiscountStrategy, impl/)
+│       ├── kafka/ (OrderEventReceiver, OrderEventHandler, OrderEventProducer, config/, request/)
+│       ├── order/ (Order, OrderController, OrderService, OrderRepository, impl/, request/, response/, service/)
+│       ├── order_item/ (OrderItem, OrderItemRepository, request/)
+│       └── properties/ (AppConstant, AppProperties)
+├── inventory-service/              # (Planned)
+├── payment-service/                # (Planned)
+├── fulfillment-service/            # (Planned)
+├── docker-compose.yml              # Infrastructure (Kafka, Zookeeper, Redis)
+└── pom.xml                         # Parent POM (modules: common-lib, auth-service, gateway-service, order-service)
+```
 
 ---
 
-## Recommended Development Phases
+## Development Phases
 
-### Phase 1 — MVP
+### Phase 1 — MVP ✅ (In Progress)
 
-- JWT auth
-- Gateway authorization
-- Create order
-- Kafka event flow
-- Dummy payment callback (3 payment methods)
-- Fulfillment flow
-- **No Kubernetes yet** — Use Docker Compose first
+- [x] JWT auth (RSA key pair, access + refresh tokens)
+- [x] Gateway authorization (role-based, JWT validation)
+- [x] Gateway idempotency (Redis deduplication)
+- [x] Create order (with discount system)
+- [x] Kafka event producer/consumer (order-service)
+- [x] Event deduplication (Redis, eventId key)
+- [x] common-lib (shared JWT, exceptions, Redis)
+- [ ] inventory-service
+- [ ] payment-service (3 dummy payment methods + callbacks)
+- [ ] fulfillment-service (saga coordinator)
+- **Docker Compose** for local development
 
 ### Phase 2 — Reliability
 
-- Redis idempotency
-- Retry
-- Dead Letter Queue (DLQ)
-- Compensation flow
+- [x] Redis idempotency (gateway + event consumer)
+- [ ] Retry with backoff
+- [ ] Dead Letter Queue (DLQ)
+- [ ] Outbox pattern
+- [ ] Full compensation flow testing
 
 ### Phase 3 — Observability
 
-- Correlation ID logging
-- Distributed tracing
-- Metrics
-- Centralized logging
+- [x] Correlation ID generation (gateway)
+- [ ] Correlation ID in all logs
+- [ ] Distributed tracing (OpenTelemetry)
+- [ ] Metrics
+- [ ] Centralized logging
 
 ### Phase 4 — Kubernetes
 
-- Kubernetes deployment
-- ConfigMap & Secret
-- Horizontal scaling
-
----
-
-## Project Structure
-
-```
-├── auth-service/
-├── gateway-service/
-├── order-service/
-├── inventory-service/
-├── payment-service/
-├── fulfillment-service/
-└── infra/
-    ├── docker-compose.yml
-    └── k8s/
-        ├── kafka/
-        ├── redis/
-        └── postgresql/
-```
+- [ ] Kubernetes deployment manifests
+- [ ] ConfigMap & Secret
+- [ ] Horizontal scaling
+- [ ] Health checks / readiness probes
 
 ---
 
 ## Enterprise Concepts Used
 
-| Concept                    | Used |
-|----------------------------|------|
-| JWT Authentication         | ✅   |
-| Authorization              | ✅   |
-| API Gateway                | ✅   |
-| Reactive Programming       | ✅   |
-| Saga Pattern               | ✅   |
-| Compensation Transaction   | ✅   |
-| Event-Driven Architecture  | ✅   |
-| Kafka Messaging            | ✅   |
-| Idempotency                | ✅   |
-| Distributed Tracing        | ✅   |
-| Correlation ID             | ✅   |
-| Kubernetes                 | ✅   |
-| Docker                     | ✅   |
+| Concept                    | Status |
+|----------------------------|--------|
+| JWT Authentication (RSA)   | ✅     |
+| Role-based Authorization   | ✅     |
+| API Gateway                | ✅     |
+| Reactive Programming       | ✅     |
+| Saga Pattern               | 🔄 (planned in fulfillment-service) |
+| Compensation Transaction   | 🔄     |
+| Event-Driven Architecture  | ✅     |
+| Kafka Messaging            | ✅     |
+| Idempotency (Redis)        | ✅     |
+| Event Deduplication        | ✅     |
+| Distributed Tracing        | 🔄     |
+| Correlation ID             | ✅     |
+| Kubernetes                 | 🔄 (Phase 4) |
+| Docker                     | ✅     |
+| Strategy Pattern           | ✅ (discount) |
+| Database per Service       | ✅     |
 
 ---
 

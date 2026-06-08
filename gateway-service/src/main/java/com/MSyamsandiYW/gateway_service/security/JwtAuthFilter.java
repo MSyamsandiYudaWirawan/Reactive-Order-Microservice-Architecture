@@ -3,7 +3,6 @@ package com.MSyamsandiYW.gateway_service.security;
 import com.MSyamsandiYW.common.exception.ErrorCode;
 import com.MSyamsandiYW.common.jwt.JwtService;
 import com.MSyamsandiYW.common.redis.RedisService;
-import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
@@ -61,32 +60,27 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
                         if (idempotencyKey == null || idempotencyKey.isEmpty()) {
                             return errorCodeMapper(exchange, MISSING_IDEMPOTENCY_KEY);
                         }
-                        return checkIdempotencyKey(exchange, chain, claims, idempotencyKey, userRoles);
+                        return checkIdempotencyKey(exchange, chain, idempotencyKey);
                     }
-                    return chain.filter(mutateExchange(exchange, claims, userRoles));
+                    return chain.filter(mutateExchange(exchange));
                 });
     }
 
     private Mono<Void> checkIdempotencyKey(ServerWebExchange exchange,
                                            GatewayFilterChain chain,
-                                           Claims claims,
-                                           String idempotencyKey,
-                                           String userRoles) {
+                                           String idempotencyKey) {
         return redisService.storeIfAbsent(idempotencyKey, "processed")
                 .flatMap(stored -> {
                     if (!stored) {
                         return errorCodeMapper(exchange, DUPLICATE_REQUEST);
                     }
-                    return chain.filter(mutateExchange(exchange, claims, userRoles));
+                    return chain.filter(mutateExchange(exchange));
                 });
     }
 
-    private ServerWebExchange mutateExchange(ServerWebExchange exchange, Claims claims, String userRoles) {
+    private ServerWebExchange mutateExchange(ServerWebExchange exchange) {
         return exchange.mutate()
                 .request(r -> r
-                        .header("X-User-Id", claims.getId())
-                        .header("X-User-Email", claims.get("userEmail").toString())
-                        .header("X-User-Roles", userRoles)
                         .header("X-Correlation-Id", UUID.randomUUID().toString())
                 )
                 .build();
