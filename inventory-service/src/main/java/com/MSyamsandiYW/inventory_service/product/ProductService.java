@@ -11,4 +11,6 @@ public interface ProductService {
     Mono<List<Product>> releaseStock(List<StockReservation> reservationList);
 
     Mono<List<Product>> deductStock(List<StockReservation> reservationList);
+
+    //TODO implement getListProduct REST API that will be used by order-service for product validation
 }
