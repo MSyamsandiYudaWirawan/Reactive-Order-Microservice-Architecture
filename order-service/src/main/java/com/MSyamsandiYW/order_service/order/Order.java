@@ -36,6 +36,10 @@ public class Order {
     private Double totalAmount;
     @Column("payment_method")
     private String paymentMethod;
+    @Column("failure_code")
+    private String failureCode;
+    @Column("failure_message")
+    private String failureMessage;
     @Column("created_by")
     private String createdBy;
     @Column("updated_by")

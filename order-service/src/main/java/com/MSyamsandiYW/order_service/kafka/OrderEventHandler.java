@@ -17,31 +17,37 @@ public class OrderEventHandler {
     private final OrderRepository orderRepository;
 
     public Mono<Void> handleStockReservedCompleted(OrderEventPayload payload) {
-        return updateOrderStatus(payload.getTransactionId(), WAITING_PAYMENT);
+        return updateOrderStatus(payload, WAITING_PAYMENT);
     }
 
     public Mono<Void> handlePaymentCompleted(OrderEventPayload payload) {
-        return updateOrderStatus(payload.getTransactionId(), PAID);
+        return updateOrderStatus(payload, PAID);
     }
 
     public Mono<Void> handleOrderCompleted(OrderEventPayload payload) {
-        return updateOrderStatus(payload.getTransactionId(), COMPLETED);
+        return updateOrderStatus(payload, COMPLETED);
     }
 
     public Mono<Void> handleOrderFailed(OrderEventPayload payload) {
-        return updateOrderStatus(payload.getTransactionId(), FAILED);
+        return updateOrderStatus(payload, FAILED);
     }
 
     public Mono<Void> handleRefundCompleted(OrderEventPayload payload) {
-        return updateOrderStatus(payload.getTransactionId(), REFUNDED);
+        return updateOrderStatus(payload, REFUNDED);
     }
 
-    public Mono<Void> updateOrderStatus(String transactionId, AppConstant.ORDER_STATUS orderStatus) {
-        return orderRepository.findByTransactionId(transactionId)
+    public Mono<Void> updateOrderStatus(OrderEventPayload payload, AppConstant.ORDER_STATUS orderStatus) {
+        return orderRepository.findByTransactionId(payload.getTransactionId())
                 .switchIfEmpty(Mono.fromRunnable(() ->
-                        log.warn("Order not found for transactionId: {}", transactionId)))
+                        log.warn("Order not found for transactionId: {}", payload.getTransactionId())))
                 .flatMap(order -> {
                     order.setOrderStatus(orderStatus.name());
+                    if (payload.getFailureCode() != null && !payload.getFailureCode().isEmpty()) {
+                        order.setFailureCode(payload.getFailureCode());
+                    }
+                    if (payload.getFailureMessage() != null && !payload.getFailureMessage().isEmpty()) {
+                        order.setFailureMessage(payload.getFailureMessage());
+                    }
                     return orderRepository.save(order);
                 })
                 .then();

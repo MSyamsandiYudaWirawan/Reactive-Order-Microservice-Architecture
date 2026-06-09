@@ -9,6 +9,8 @@ CREATE TABLE if NOT EXISTS orders
     order_status       VARCHAR(50)  NOT NULL,
     total_amount       DECIMAL      NOT NULL,
     payment_method     VARCHAR(50),
+    failure_code       VARCHAR(100),
+    failure_message    VARCHAR(500),
     created_by         VARCHAR(255) NOT NULL,
     updated_by         VARCHAR(255) NOT NULL,
     created_date       TIMESTAMPTZ  NOT NULL,

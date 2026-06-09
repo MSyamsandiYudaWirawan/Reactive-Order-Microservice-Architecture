@@ -11,4 +11,6 @@ public class OrderEventPayload {
     private String orderId;
     private String correlationId;
     private String transactionId;
+    private String failureCode;
+    private String failureMessage;
 }
