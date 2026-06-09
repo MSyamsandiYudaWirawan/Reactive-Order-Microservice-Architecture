@@ -1,4 +1,4 @@
-package com.MSyamsandiYW.auth_service.handler;
+package com.MSyamsandiYW.common.exception;
 
 import lombok.*;
 

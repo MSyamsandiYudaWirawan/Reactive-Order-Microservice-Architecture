@@ -10,6 +10,8 @@ import reactor.kafka.sender.SenderOptions;
 
 import java.util.List;
 
+import static com.MSyamsandiYW.inventory_service.properties.AppConstant.TOPICS.*;
+
 @Configuration
 public class KafkaConfig {
 
@@ -21,8 +23,8 @@ public class KafkaConfig {
 
     @Bean
     public KafkaReceiver<String, Object> kafkaReceiver(KafkaProperties kafkaProperties) {
-        ReceiverOptions<String, Object> receiverOptions = ReceiverOptions.create(kafkaProperties.buildConsumerProperties())
-                .subscription(List.of());
+        ReceiverOptions<String, Object> receiverOptions = ReceiverOptions.<String, Object>create(kafkaProperties.buildConsumerProperties())
+                .subscription(List.of(STOCK_RESERVE_REQUESTED.name(), RELEASE_STOCK.name(), DEDUCT_STOCK.name()));
         return KafkaReceiver.create(receiverOptions);
     }
 }
