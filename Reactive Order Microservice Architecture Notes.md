@@ -191,6 +191,7 @@ Receive Kafka event → Redis storeIfAbsent(eventId) →
 - Reserve stock
 - Release stock (compensation)
 - Deduct stock (confirm sold)
+- Get Products
 
 **Kafka Consumer:**
 

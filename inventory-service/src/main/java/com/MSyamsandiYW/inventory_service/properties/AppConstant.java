@@ -1,4 +1,4 @@
-package com.MSyamsandiYW.inventory_service.config.properties;
+package com.MSyamsandiYW.inventory_service.properties;
 
 public class AppConstant {
 
