@@ -15,6 +15,7 @@ import com.MSyamsandiYW.order_service.order.response.GetUserOrdersResponse;
 import com.MSyamsandiYW.order_service.order.response.GetStatusOrderResponse;
 import com.MSyamsandiYW.order_service.order_item.OrderItem;
 import com.MSyamsandiYW.order_service.order_item.OrderItemRepository;
+import com.MSyamsandiYW.order_service.order_ledger.OrderLedgerService;
 import com.MSyamsandiYW.order_service.properties.AppConstant;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -38,10 +39,12 @@ public class OrderServiceImpl implements OrderService {
     private final OrderItemRepository orderItemRepository;
     private final TransactionalOperator transactionalOperator;
     private final DiscountService discountService;
+    private final OrderLedgerService orderLedgerService;
 
     @Override
     public Mono<ResponseEntity<CreateOrderResponse>> createOrder(String correlationId, String token, CreateOrderRequest request) {
         //TODO validate item prices against inventory-service product catalog
+        //TODO consider implement orderItemService for item validation
         String transactionId = UUID.randomUUID().toString();
         log.info("Creating order - correlationId: {}, transactionId: {}", correlationId, transactionId);
 
@@ -71,6 +74,9 @@ public class OrderServiceImpl implements OrderService {
                 .doOnSuccess(order ->
                         log.info("Order persisted - orderId: {}, correlationId: {}",
                                 order.getId(), correlationId))
+
+                // record order event to ledger
+                .flatMap(order -> orderLedgerService.recordOrderEvent(order).thenReturn(order))
 
                 // produce event to reserve stock consumed by  inventory-service
                 .flatMap(order -> {
@@ -165,7 +171,8 @@ public class OrderServiceImpl implements OrderService {
                 .flatMap(saved -> {
                     List<OrderItem> orderItems = request.getItems().stream()
                             .map(item -> OrderItem.builder()
-                                    .orderId(saved.getId())
+                                    .transactionId(saved.getTransactionId())
+                                    .correlationId(saved.getCorrelationId())
                                     .productId(item.getProductId())
                                     .quantity(item.getQuantity())
                                     .price(item.getPrice())

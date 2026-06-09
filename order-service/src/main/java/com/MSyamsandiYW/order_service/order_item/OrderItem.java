@@ -20,8 +20,10 @@ public class OrderItem {
 
     @Id
     private UUID id;
-    @Column("order_id")
-    private UUID orderId;
+    @Column("correlation_id")
+    private String correlationId;
+    @Column("transaction_id")
+    private String transactionId;
     @Column("product_id")
     private String productId;
     @Column("quantity")

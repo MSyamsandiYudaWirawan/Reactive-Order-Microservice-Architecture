@@ -5,7 +5,7 @@ CREATE TABLE if NOT EXISTS orders
     transaction_id     VARCHAR(255) NOT NULL,
     user_id            VARCHAR(255) NOT NULL,
     payment_id         VARCHAR(255),
-    discount_code        VARCHAR(255),
+    discount_code      VARCHAR(255),
     order_status       VARCHAR(50)  NOT NULL,
     total_amount       DECIMAL      NOT NULL,
     payment_method     VARCHAR(50),
@@ -20,7 +20,8 @@ CREATE TABLE if NOT EXISTS orders
 CREATE TABLE if NOT EXISTS order_items
 (
     id                 UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    order_id           UUID         NOT NULL,
+    correlation_id     VARCHAR(255) NOT NULL,
+    transaction_id     VARCHAR(255) NOT NULL,
     product_id         VARCHAR(255) NOT NULL,
     quantity           INTEGER      NOT NULL,
     price              DECIMAL      NOT NULL,
@@ -32,17 +33,26 @@ CREATE TABLE if NOT EXISTS order_items
 
 CREATE TABLE IF NOT EXISTS discounts
 (
-    id                 UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    code               VARCHAR(50) UNIQUE NOT NULL,
-    discount_type      VARCHAR(20)        NOT NULL, -- 'PERCENTAGE' or 'FIXED'
-    value              DECIMAL            NOT NULL,
-    minimum_order_value    DECIMAL,
+    id                  UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    code                VARCHAR(50) UNIQUE NOT NULL,
+    discount_type       VARCHAR(20)        NOT NULL, -- 'PERCENTAGE' or 'FIXED'
+    value               DECIMAL            NOT NULL,
+    minimum_order_value DECIMAL,
     maximum_order_value DECIMAL,
-    max_usage          INTEGER,
-    valid_from         TIMESTAMPTZ,
-    valid_until        TIMESTAMPTZ,
-    created_by         VARCHAR(255)       NOT NULL,
-    updated_by         VARCHAR(255)       NOT NULL,
-    created_date       TIMESTAMPTZ        NOT NULL,
-    last_modified_date TIMESTAMPTZ
+    max_usage           INTEGER,
+    valid_from          TIMESTAMPTZ,
+    valid_until         TIMESTAMPTZ,
+    created_by          VARCHAR(255)       NOT NULL,
+    updated_by          VARCHAR(255)       NOT NULL,
+    created_date        TIMESTAMPTZ        NOT NULL,
+    last_modified_date  TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS order_ledger
+(
+    id                   UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    order_transaction_id VARCHAR(255) NOT NULL,
+    correlation_id       VARCHAR(255) NOT NULL,
+    event_type           VARCHAR(255) NOT NULL, -- PENDING, WAITING_PAYMENT, PAID, COMPLETED, FAILED, REFUNDED
+    created_date         TIMESTAMPTZ  NOT NULL
 );

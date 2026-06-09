@@ -2,6 +2,7 @@ package com.MSyamsandiYW.order_service.kafka;
 
 import com.MSyamsandiYW.order_service.kafka.request.OrderEventPayload;
 import com.MSyamsandiYW.order_service.order.OrderRepository;
+import com.MSyamsandiYW.order_service.order_ledger.OrderLedgerService;
 import com.MSyamsandiYW.order_service.properties.AppConstant;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -15,6 +16,7 @@ import static com.MSyamsandiYW.order_service.properties.AppConstant.ORDER_STATUS
 @RequiredArgsConstructor
 public class OrderEventHandler {
     private final OrderRepository orderRepository;
+    private final OrderLedgerService orderLedgerService;
 
     public Mono<Void> handleStockReservedCompleted(OrderEventPayload payload) {
         return updateOrderStatus(payload, WAITING_PAYMENT);
@@ -50,6 +52,8 @@ public class OrderEventHandler {
                     }
                     return orderRepository.save(order);
                 })
+                // record order event to ledger
+                .flatMap(orderLedgerService::recordOrderEvent)
                 .then();
     }
 }
