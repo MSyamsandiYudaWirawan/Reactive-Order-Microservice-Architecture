@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS discounts
 CREATE TABLE IF NOT EXISTS order_ledger
 (
     id                   UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    order_transaction_id VARCHAR(255) NOT NULL,
+    transaction_id VARCHAR(255) NOT NULL,
     correlation_id       VARCHAR(255) NOT NULL,
     event_type           VARCHAR(255) NOT NULL, -- PENDING, WAITING_PAYMENT, PAID, COMPLETED, FAILED, REFUNDED
     created_date         TIMESTAMPTZ  NOT NULL

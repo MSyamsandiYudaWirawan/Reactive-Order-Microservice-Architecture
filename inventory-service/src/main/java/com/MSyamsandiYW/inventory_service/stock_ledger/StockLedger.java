@@ -1,5 +1,4 @@
-package com.MSyamsandiYW.order_service.order_ledger;
-
+package com.MSyamsandiYW.inventory_service.stock_ledger;
 
 import lombok.*;
 import org.springframework.data.annotation.CreatedDate;
@@ -15,17 +14,21 @@ import java.util.UUID;
 @Getter
 @Setter
 @Builder
-@Table("order_ledger")
-public class OrderLedger {
+@Table("stock_ledger")
+public class StockLedger {
 
     @Id
     private UUID id;
+    @Column("product_id")
+    private String productId;
     @Column("transaction_id")
     private String transactionId;
     @Column("correlation_id")
     private String correlationId;
     @Column("event_type")
     private String eventType;
+    @Column("qty")
+    private Integer qty;
 
     @CreatedDate
     @Column("created_date")

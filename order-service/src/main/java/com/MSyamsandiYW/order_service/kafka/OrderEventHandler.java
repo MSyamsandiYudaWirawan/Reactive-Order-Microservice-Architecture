@@ -1,6 +1,6 @@
 package com.MSyamsandiYW.order_service.kafka;
 
-import com.MSyamsandiYW.order_service.kafka.request.OrderEventPayload;
+import com.MSyamsandiYW.order_service.kafka.request.OrderEventRequest;
 import com.MSyamsandiYW.order_service.order.OrderRepository;
 import com.MSyamsandiYW.order_service.order_ledger.OrderLedgerService;
 import com.MSyamsandiYW.order_service.properties.AppConstant;
@@ -18,27 +18,27 @@ public class OrderEventHandler {
     private final OrderRepository orderRepository;
     private final OrderLedgerService orderLedgerService;
 
-    public Mono<Void> handleStockReservedCompleted(OrderEventPayload payload) {
+    public Mono<Void> handleStockReservedCompleted(OrderEventRequest payload) {
         return updateOrderStatus(payload, WAITING_PAYMENT);
     }
 
-    public Mono<Void> handlePaymentCompleted(OrderEventPayload payload) {
+    public Mono<Void> handlePaymentCompleted(OrderEventRequest payload) {
         return updateOrderStatus(payload, PAID);
     }
 
-    public Mono<Void> handleOrderCompleted(OrderEventPayload payload) {
+    public Mono<Void> handleOrderCompleted(OrderEventRequest payload) {
         return updateOrderStatus(payload, COMPLETED);
     }
 
-    public Mono<Void> handleOrderFailed(OrderEventPayload payload) {
+    public Mono<Void> handleOrderFailed(OrderEventRequest payload) {
         return updateOrderStatus(payload, FAILED);
     }
 
-    public Mono<Void> handleRefundCompleted(OrderEventPayload payload) {
+    public Mono<Void> handleRefundCompleted(OrderEventRequest payload) {
         return updateOrderStatus(payload, REFUNDED);
     }
 
-    public Mono<Void> updateOrderStatus(OrderEventPayload payload, AppConstant.ORDER_STATUS orderStatus) {
+    public Mono<Void> updateOrderStatus(OrderEventRequest payload, AppConstant.ORDER_STATUS orderStatus) {
         return orderRepository.findByTransactionId(payload.getTransactionId())
                 .switchIfEmpty(Mono.fromRunnable(() ->
                         log.warn("Order not found for transactionId: {}", payload.getTransactionId())))

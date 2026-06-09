@@ -123,6 +123,7 @@ POST /api/v1/orders → Check X-Idempotency-Key header exists → Redis storeIfA
 - Return `transactionId` to client (optimistic — doesn't wait for stock)
 - Consume status update events to sync own DB
 - Event deduplication via Redis (eventId as key)
+- Record order event history to `order_ledger` table (audit trail)
 
 **Order Status:**
 
@@ -174,6 +175,21 @@ Receive Kafka event → Redis storeIfAbsent(eventId) →
   → Always: acknowledge offset
 ```
 
+**Order Ledger (Event History):**
+
+Every order status change is recorded in the `order_ledger` table as an immutable audit trail.
+
+| Column               | Description                          |
+|----------------------|--------------------------------------|
+| order_transaction_id | Links to the order's transactionId   |
+| correlation_id       | Distributed tracing ID               |
+| event_type           | Status at time of recording (PENDING, WAITING_PAYMENT, etc.) |
+| created_date         | Timestamp of the event               |
+
+**Recorded on:**
+- Order creation (PENDING)
+- Every Kafka event consumption that updates order status (WAITING_PAYMENT, PAID, COMPLETED, FAILED, REFUNDED)
+
 **Important Notes:**
 
 - User information extracted from JWT (forwarded by gateway)
@@ -184,34 +200,92 @@ Receive Kafka event → Redis storeIfAbsent(eventId) →
 
 ---
 
-### 4. inventory-service (Planned)
+### 4. inventory-service 🔄 (In Progress)
 
 **Responsibilities:**
 
 - Reserve stock
 - Release stock (compensation)
 - Deduct stock (confirm sold)
-- Get Products
+- Track stock ledger (immutable audit trail)
+- Event deduplication via Redis (eventId as key)
 
-**Kafka Consumer:**
+**Database Tables:**
+
+| Table             | Purpose                                         |
+|-------------------|-------------------------------------------------|
+| products          | Product catalog with available/reserved/sold qty |
+| stock_reservation | Tracks per-order stock reservations with status  |
+| stock_ledger      | Immutable audit trail of all stock events        |
+
+**Reservation Status:**
+
+| Status      | Description                              |
+|-------------|------------------------------------------|
+| RESERVED    | Stock reserved for an order              |
+| OUT_OF_STOCK| Insufficient stock (TODO)                |
+| RELEASED    | Reservation cancelled (compensation)     |
+| DEDUCTED    | Reservation confirmed as sold            |
+
+**Kafka Consumer (StockCommandReceiver):**
 
 | Topic                    | Action                                    |
 |--------------------------|-------------------------------------------|
-| stock-reserve-requested  | Reserve stock                             |
-| release-stock            | Release stock (cancel reservation)        |
-| deduct-stock             | Deduct stock (convert reservation to sold)|
+| stock-reserve-requested  | Reserve stock → update product qty → record ledger → produce STOCK_RESERVE_COMPLETED |
+| release-stock            | Update reservation status → release product qty → record ledger |
+| deduct-stock             | Update reservation status → deduct product qty → record ledger |
 
-**Kafka Producer:**
+**Kafka Producer (StockEventProducer):**
 
 | Topic                    | Condition          |
 |--------------------------|--------------------|
-| out-of-stock             | Stock insufficient |
+| out-of-stock             | Stock insufficient (TODO) |
 | stock-reserve-completed  | Stock reserved OK  |
+
+**Event Deduplication:**
+
+```
+Receive Kafka event → Redis storeIfAbsent(eventId) →
+  → Already exists: Skip (log duplicate)
+  → New: Process event → retry(3) on failure
+  → Always: acknowledge offset
+```
+
+**Stock Reserve Flow:**
+
+```
+Consume STOCK_RESERVE_REQUESTED →
+  1. Create StockReservation records (status=RESERVED)
+  2. Update Product: availableQty -= qty, reservedQty += qty
+  3. Record StockLedger entry
+  4. Produce STOCK_RESERVE_COMPLETED event
+```
+
+**Release Stock Flow (Compensation):**
+
+```
+Consume RELEASE_STOCK →
+  1. Find reservations by transactionId → set status=RELEASED
+  2. Update Product: availableQty += qty, reservedQty -= qty
+  3. Record StockLedger entry
+```
+
+**Deduct Stock Flow (Confirm Sold):**
+
+```
+Consume DEDUCT_STOCK →
+  1. Find reservations by transactionId → set status=DEDUCTED
+  2. Update Product: reservedQty -= qty, soldQty += qty
+  3. Record StockLedger entry
+```
 
 **Important Notes:**
 
 - Inventory reservation is part of saga pattern
 - Each product tracks: available, reserved, sold quantities
+- Stock ledger provides full audit trail of every stock movement
+- Uses reactor-kafka (KafkaReceiver/KafkaSender) for reactive Kafka
+- TODO: Handle out-of-stock scenario (produce OUT_OF_STOCK event instead of going negative)
 
 ---
 
@@ -529,8 +603,17 @@ reactive-order-microservice/
 │       ├── kafka/ (OrderEventReceiver, OrderEventHandler, OrderEventProducer, config/, request/)
 │       ├── order/ (Order, OrderController, OrderService, OrderRepository, impl/, request/, response/, service/)
 │       ├── order_item/ (OrderItem, OrderItemRepository, request/)
+│       ├── order_ledger/ (OrderLedger, OrderLedgerRepository, OrderLedgerService, impl/)
 │       └── properties/ (AppConstant, AppProperties)
-├── inventory-service/              # (Planned)
+├── inventory-service/              # Stock management
+│   └── src/main/java/com/MSyamsandiYW/inventory_service/
+│       ├── config/ (JwtServiceConfig, KafkaConfig, RedisServiceConfig)
+│       ├── kafka/ (StockCommandReceiver, StockCommandHandler, StockEventProducer)
+│       ├── kafka/event/ (StockCommand, StockItem, OrderStatusEvent)
+│       ├── product/ (Product, ProductRepository, ProductService, impl/ProductServiceImpl)
+│       ├── stock_reservation/ (StockReservation, StockReservationRepository, StockReservationService, impl/)
+│       ├── stock_ledger/ (StockLedger, StockLedgerRepository, StockLedgerService, impl/)
+│       └── properties/ (AppConstant)
 ├── payment-service/                # (Planned)
 ├── fulfillment-service/            # (Planned)
 ├── docker-compose.yml              # Infrastructure (Kafka, Zookeeper, Redis)
@@ -550,7 +633,7 @@ reactive-order-microservice/
 - [x] Kafka event producer/consumer (order-service)
 - [x] Event deduplication (Redis, eventId key)
 - [x] common-lib (shared JWT, exceptions, Redis)
-- [ ] inventory-service
+- [x] inventory-service (reserve, release, deduct — TODO: out-of-stock handling)
 - [ ] payment-service (3 dummy payment methods + callbacks)
 - [ ] fulfillment-service (saga coordinator)
 - **Docker Compose** for local development
@@ -599,6 +682,7 @@ reactive-order-microservice/
 | Kubernetes                 | 🔄 (Phase 4) |
 | Docker                     | ✅     |
 | Strategy Pattern           | ✅ (discount) |
+| Event Sourcing (Ledger)    | ✅ (order_ledger) |
 | Database per Service       | ✅     |
 
 ---

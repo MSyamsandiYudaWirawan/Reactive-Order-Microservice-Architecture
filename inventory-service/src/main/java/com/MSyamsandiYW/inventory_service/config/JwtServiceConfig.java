@@ -1,13 +1,14 @@
-package com.MSyamsandiYW.order_service.config;
+package com.MSyamsandiYW.inventory_service.config;
 
 import com.MSyamsandiYW.common.jwt.JwtService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
-public class JwtConfig {
+public class JwtServiceConfig {
+
     @Bean
-    public JwtService jwtService(){
+    public JwtService jwtService() {
         return new JwtService();
     }
 }

@@ -1,4 +1,4 @@
-package com.MSyamsandiYW.order_service.kafka.request;
+package com.MSyamsandiYW.inventory_service.kafka.event;
 
 import lombok.*;
 
@@ -7,8 +7,7 @@ import lombok.*;
 @Getter
 @Setter
 @Builder
-public class OrderEventPayload {
-    private String orderId;
+public class OrderStatusEvent {
     private String correlationId;
     private String transactionId;
     private String failureCode;

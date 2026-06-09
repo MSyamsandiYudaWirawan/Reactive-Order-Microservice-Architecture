@@ -1,7 +1,7 @@
-package com.MSyamsandiYW.order_service.kafka;
+package com.MSyamsandiYW.inventory_service.kafka;
 
 import com.MSyamsandiYW.common.redis.RedisService;
-import com.MSyamsandiYW.order_service.kafka.request.OrderEventRequest;
+import com.MSyamsandiYW.inventory_service.kafka.event.StockCommand;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -10,16 +10,15 @@ import reactor.core.publisher.Mono;
 import reactor.kafka.receiver.KafkaReceiver;
 import reactor.kafka.receiver.ReceiverRecord;
 
-import static com.MSyamsandiYW.order_service.properties.AppConstant.TOPICS.*;
+import static com.MSyamsandiYW.inventory_service.properties.AppConstant.TOPICS.*;
 
 @Service
 @Slf4j
 @RequiredArgsConstructor
-public class OrderEventReceiver {
-
-    private final KafkaReceiver<String, OrderEventRequest> kafkaReceiver;
+public class StockCommandReceiver {
+    private final KafkaReceiver<String, StockCommand> kafkaReceiver;
     private final RedisService redisService;
-    private final OrderEventHandler handler;
+    private final StockCommandHandler handler;
 
     @PostConstruct
     public void receive() {
@@ -29,20 +28,18 @@ public class OrderEventReceiver {
                 .subscribe();
     }
 
-    private Mono<Void> processRecord(ReceiverRecord<String, OrderEventRequest> record) {
+    private Mono<Void> processRecord(ReceiverRecord<String, StockCommand> record) {
         log.info("Received event - topic: {}, key: {}, value: {}", record.topic(), record.key(), record.value());
         Mono<Void> result = switch (record.topic()) {
-            case ORDER_COMPLETED -> handler.handleOrderCompleted(record.value());
-            case ORDER_FAILED -> handler.handleOrderFailed(record.value());
-            case STOCK_RESERVE_COMPLETED -> handler.handleStockReservedCompleted(record.value());
-            case PAYMENT_COMPLETED -> handler.handlePaymentCompleted(record.value());
-            case REFUND_COMPLETED -> handler.handleRefundCompleted(record.value());
+            case STOCK_RESERVE_REQUESTED -> handler.handleStockReserve(record);
+            case RELEASE_STOCK -> handler.handleReleaseStock(record);
+            case DEDUCT_STOCK -> handler.handleDeductStock(record);
             default -> Mono.empty();
         };
-        // check idempotency eventId as a key
+
         return redisService.storeIfAbsent(record.key(), "processed")
                 .flatMap(stored -> {
-                    if(!stored){
+                    if (!stored) {
                         log.info("Duplicate event skipped - key: {}", record.key());
                         // skip if already processed
                         return Mono.empty();
@@ -57,6 +54,5 @@ public class OrderEventReceiver {
                 })
                 //acknowledge on matter what
                 .doFinally(s -> record.receiverOffset().acknowledge());
-
     }
 }

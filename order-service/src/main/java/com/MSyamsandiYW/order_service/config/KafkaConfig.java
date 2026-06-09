@@ -1,6 +1,6 @@
-package com.MSyamsandiYW.order_service.kafka.config;
+package com.MSyamsandiYW.order_service.config;
 
-import com.MSyamsandiYW.order_service.kafka.request.OrderEventPayload;
+import com.MSyamsandiYW.order_service.kafka.request.OrderEventRequest;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.springframework.boot.kafka.autoconfigure.KafkaProperties;
 import org.springframework.context.annotation.Bean;
@@ -25,8 +25,8 @@ public class KafkaConfig {
     }
 
     @Bean
-    public KafkaReceiver<String, OrderEventPayload> kafkaReceiver(KafkaProperties kafkaProperties) {
-        ReceiverOptions<String, OrderEventPayload> receiverOptions = ReceiverOptions.<String, OrderEventPayload>create(kafkaProperties
+    public KafkaReceiver<String, OrderEventRequest> kafkaReceiver(KafkaProperties kafkaProperties) {
+        ReceiverOptions<String, OrderEventRequest> receiverOptions = ReceiverOptions.<String, OrderEventRequest>create(kafkaProperties
                         .buildConsumerProperties())
                 .subscription(List.of(ORDER_COMPLETED, ORDER_FAILED,
                         STOCK_RESERVE_COMPLETED, REFUND_COMPLETED, PAYMENT_COMPLETED));

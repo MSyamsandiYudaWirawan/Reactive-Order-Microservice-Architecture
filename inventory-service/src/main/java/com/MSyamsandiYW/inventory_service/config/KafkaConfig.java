@@ -1,5 +1,6 @@
 package com.MSyamsandiYW.inventory_service.config;
 
+import com.MSyamsandiYW.inventory_service.kafka.event.StockCommand;
 import org.springframework.boot.kafka.autoconfigure.KafkaProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -22,9 +23,9 @@ public class KafkaConfig {
     }
 
     @Bean
-    public KafkaReceiver<String, Object> kafkaReceiver(KafkaProperties kafkaProperties) {
-        ReceiverOptions<String, Object> receiverOptions = ReceiverOptions.<String, Object>create(kafkaProperties.buildConsumerProperties())
-                .subscription(List.of(STOCK_RESERVE_REQUESTED.name(), RELEASE_STOCK.name(), DEDUCT_STOCK.name()));
+    public KafkaReceiver<String, StockCommand> kafkaReceiver(KafkaProperties kafkaProperties) {
+        ReceiverOptions<String, StockCommand> receiverOptions = ReceiverOptions.<String, StockCommand>create(kafkaProperties.buildConsumerProperties())
+                .subscription(List.of(STOCK_RESERVE_REQUESTED, RELEASE_STOCK, DEDUCT_STOCK));
         return KafkaReceiver.create(receiverOptions);
     }
 }

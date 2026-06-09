@@ -1,4 +1,4 @@
-package com.MSyamsandiYW.order_service.kafka;
+package com.MSyamsandiYW.inventory_service.kafka;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -11,16 +11,12 @@ import reactor.kafka.sender.SenderRecord;
 @Service
 @Slf4j
 @RequiredArgsConstructor
-public class OrderEventProducer {
+public class StockEventProducer {
     private final KafkaSender<String, Object> kafkaSender;
 
-    public Mono<Void> send(
-            String topic,
-            String key,
-            Object payload
-    ) {
-        ProducerRecord<String, Object> record = new ProducerRecord<>(topic, key, payload);
-        SenderRecord<String, Object, String> senderRecord = SenderRecord.create(record, key);
+    public Mono<Void> send(String topic, String key, Object payload) {
+        ProducerRecord<String, Object> producerRecord = new ProducerRecord<>(topic, key, payload);
+        SenderRecord<String, Object, String> senderRecord = SenderRecord.create(producerRecord, key);
         return kafkaSender.send(Mono.just(senderRecord)).next().then();
     }
 }

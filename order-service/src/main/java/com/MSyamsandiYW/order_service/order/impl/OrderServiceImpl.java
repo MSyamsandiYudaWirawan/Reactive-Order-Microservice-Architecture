@@ -51,6 +51,7 @@ public class OrderServiceImpl implements OrderService {
         // extract claims
         return jwtService.extractClaims(token)
                 .map(claims -> {
+                    //TODO calculate from inventory-service product catalog not from request
                     //calculate total amount
                     double totalAmount = request.getItems().stream()
                             .mapToDouble(item -> item.getPrice() * item.getQuantity())

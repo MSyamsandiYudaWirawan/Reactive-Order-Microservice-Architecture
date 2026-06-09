@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS products(
 CREATE TABLE IF NOT EXISTS stock_reservation(
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY ,
     product_id VARCHAR(255) NOT NULL ,
-    order_transaction_id VARCHAR(255) NOT NULL ,
+    transaction_id VARCHAR(255) NOT NULL ,
     correlation_id VARCHAR(255) NOT NULL,
     qty INTEGER NOT NULL ,
     status VARCHAR(255) NOT NULL ,
@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS stock_reservation(
 CREATE TABLE IF NOT EXISTS stock_ledger(
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     product_id VARCHAR(255) NOT NULL ,
-    order_transaction_id VARCHAR(255) NOT NULL,
+    transaction_id VARCHAR(255) NOT NULL,
     correlation_id VARCHAR(255) NOT NULL,
     event_type VARCHAR(255) NOT NULL,
     qty INTEGER NOT NULL,
