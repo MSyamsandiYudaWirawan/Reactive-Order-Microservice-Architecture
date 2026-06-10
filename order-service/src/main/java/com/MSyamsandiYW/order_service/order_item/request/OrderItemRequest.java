@@ -14,6 +14,4 @@ public class OrderItemRequest {
     private String productId;
     @NotNull
     private Integer quantity;
-    @NotNull
-    private Double price;
 }
