@@ -1,4 +1,4 @@
-package com.MSyamsandiYW.inventory_service.product.request;
+package com.MSyamsandiYW.inventory_service.product.response;
 
 import lombok.*;
 

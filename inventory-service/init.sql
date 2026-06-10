@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS products(
     reserved_qty INTEGER NOT NULL ,
     sold_qty INTEGER NOT NULL ,
     description TEXT,
-    is_active BOOLEAN DEFAULT FALSE,
+    is_active BOOLEAN DEFAULT TRUE,
     is_deleted BOOLEAN DEFAULT FALSE,
     created_by         VARCHAR(255) NOT NULL,
     updated_by         VARCHAR(255) NOT NULL,

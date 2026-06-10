@@ -42,11 +42,8 @@ public enum ErrorCode {
     TOKEN_SIGNATURE_INVALID("TOKEN_SIGNATURE_INVALID", "Token signature verification failed", UNAUTHORIZED),
     DUPLICATE_REQUEST("DUPLICATE_REQUEST", "Request has already been processed", CONFLICT),
     OUT_OF_STOCK("OUT_OF_STOCK", "Insufficient stock to fulfill the order", BAD_REQUEST),
-
-
-
-
     TRANSACTION_NOT_FOUND("TRANSACTION_NOT_FOUND", "Transaction not found", NOT_FOUND),
+    PRODUCT_NOT_FOUND("PRODUCT_NOT_FOUND", "Product not found", NOT_FOUND),
     ;
 
     private final String code;

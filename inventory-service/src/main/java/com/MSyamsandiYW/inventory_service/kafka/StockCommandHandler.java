@@ -5,6 +5,7 @@ import com.MSyamsandiYW.common.exception.ErrorCode;
 import com.MSyamsandiYW.inventory_service.kafka.event.OrderStatusEvent;
 import com.MSyamsandiYW.inventory_service.kafka.event.StockCommand;
 import com.MSyamsandiYW.inventory_service.product.ProductService;
+import com.MSyamsandiYW.inventory_service.properties.AppConstant;
 import com.MSyamsandiYW.inventory_service.stock_ledger.StockLedgerService;
 import com.MSyamsandiYW.inventory_service.stock_reservation.StockReservationService;
 import lombok.RequiredArgsConstructor;
@@ -74,6 +75,17 @@ public class StockCommandHandler {
         // find reservation by transaction id and set status = OUT_OF_STOCK
         return stockReservationService.updateStatusReservation(payload.getTransactionId(), OUT_OF_STOCK.name())
                 //record the event to stock ledger
-                .flatMap(reservationList -> stockLedgerService.recordStockEvent(reservationList).then());
+                .flatMap(stockLedgerService::recordStockEvent)
+                //produce event reserve failed out of stock
+                .then(Mono.defer( () -> {
+                    OrderStatusEvent eventPayload = OrderStatusEvent.builder()
+                            .correlationId(payload.getCorrelationId())
+                            .transactionId(payload.getTransactionId())
+                            .failureCode(ErrorCode.OUT_OF_STOCK.name())
+                            .failureMessage(ErrorCode.OUT_OF_STOCK.getDefaultMessage())
+                            .build();
+
+                    return stockEventProducer.send(AppConstant.TOPICS.OUT_OF_STOCK,UUID.randomUUID().toString(),eventPayload);
+                }));
     }
 }
