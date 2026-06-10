@@ -57,12 +57,12 @@ public class OrderServiceImpl implements OrderService {
                 .productIds(request.getItems().stream().map(OrderItemRequest::getProductId).toList())
                 .build();
 
-        // extract claims
+        // extract claims and get products by id from inventory-service
         return Mono.zip(jwtService.extractClaims(token),inventoryServiceClient.getProductsById(token,getProductsRequest))
                 .flatMap(tuple2 -> {
                     List<GetProductResponse> products = tuple2.getT2();
 
-                    //validate if not same size some product is not found, it actually already validated in inventory-service
+                    //validate if not same size some product is not found, it actually already validated in inventory-service but just to make sure
                     if(products.size() != request.getItems().size()){
                         return Mono.error(new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
                     }
