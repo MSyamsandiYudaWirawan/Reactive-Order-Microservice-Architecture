@@ -1,5 +1,7 @@
 package com.MSyamsandiYW.inventory_service.product.impl;
 
+import com.MSyamsandiYW.common.exception.BusinessException;
+import com.MSyamsandiYW.common.exception.ErrorCode;
 import com.MSyamsandiYW.inventory_service.product.Product;
 import com.MSyamsandiYW.inventory_service.product.ProductRepository;
 import com.MSyamsandiYW.inventory_service.product.ProductService;
@@ -28,9 +30,6 @@ public class ProductServiceImpl implements ProductService {
                     for (Product p : products) {
                         for (StockReservation r : reservationList) {
                             if (p.getId().toString().equals(r.getProductId())) {
-                                if(p.getAvailableQty() < r.getQty()){
-                                    //TODO handle out of stock
-                                }
                                 p.setAvailableQty(p.getAvailableQty() - r.getQty());
                                 p.setReservedQty(p.getReservedQty() + r.getQty());
                                 p.setUpdatedBy("INVENTORY_SERVICE");
@@ -50,6 +49,10 @@ public class ProductServiceImpl implements ProductService {
                     for (Product p : products) {
                         for (StockReservation r : reservationList) {
                             if (p.getId().toString().equals(r.getProductId())) {
+                                // validate if there is stock
+                                if(p.getAvailableQty() < r.getQty()){
+                                    return Mono.error(new BusinessException(ErrorCode.OUT_OF_STOCK));
+                                }
                                 p.setAvailableQty(p.getAvailableQty() + r.getQty());
                                 p.setReservedQty(p.getReservedQty() - r.getQty());
                                 p.setUpdatedBy("INVENTORY_SERVICE");
@@ -57,6 +60,7 @@ public class ProductServiceImpl implements ProductService {
                             }
                         }
                     }
+                    // save batch if ALL product is valid means we have stock
                     return productRepository.saveAll(products).collectList();
                 });
     }

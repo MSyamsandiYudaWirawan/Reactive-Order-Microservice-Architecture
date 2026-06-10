@@ -1,5 +1,7 @@
 package com.MSyamsandiYW.inventory_service.kafka;
 
+import com.MSyamsandiYW.common.exception.BusinessException;
+import com.MSyamsandiYW.common.exception.ErrorCode;
 import com.MSyamsandiYW.inventory_service.kafka.event.OrderStatusEvent;
 import com.MSyamsandiYW.inventory_service.kafka.event.StockCommand;
 import com.MSyamsandiYW.inventory_service.product.ProductService;
@@ -13,8 +15,7 @@ import reactor.kafka.receiver.ReceiverRecord;
 
 import java.util.UUID;
 
-import static com.MSyamsandiYW.inventory_service.properties.AppConstant.RESERVATION_STATUS.DEDUCTED;
-import static com.MSyamsandiYW.inventory_service.properties.AppConstant.RESERVATION_STATUS.RELEASED;
+import static com.MSyamsandiYW.inventory_service.properties.AppConstant.RESERVATION_STATUS.*;
 import static com.MSyamsandiYW.inventory_service.properties.AppConstant.TOPICS.STOCK_RESERVE_COMPLETED;
 
 @Service
@@ -41,7 +42,14 @@ public class StockCommandHandler {
                             .transactionId(record.value().getTransactionId())
                             .build();
                     return stockEventProducer.send(STOCK_RESERVE_COMPLETED, UUID.randomUUID().toString(), event);
-                }));
+                }))
+                //handle out of stock
+                .onErrorResume(BusinessException.class, e -> {
+                    if (e.getErrorCode().equals(ErrorCode.OUT_OF_STOCK)) {
+                        return handleOutOfStock(record.value());
+                    }
+                    return Mono.empty();
+                });
     }
 
     public Mono<Void> handleReleaseStock(ReceiverRecord<String, StockCommand> record) {
@@ -58,6 +66,13 @@ public class StockCommandHandler {
         return stockReservationService.updateStatusReservation(record.value().getTransactionId(), DEDUCTED.name())
                 //update product available qty and reserved qty
                 .flatMap(reservationList -> productService.deductStock(reservationList).thenReturn(reservationList))
+                //record the event to stock ledger
+                .flatMap(reservationList -> stockLedgerService.recordStockEvent(reservationList).then());
+    }
+
+    private Mono<Void> handleOutOfStock(StockCommand payload) {
+        // find reservation by transaction id and set status = OUT_OF_STOCK
+        return stockReservationService.updateStatusReservation(payload.getTransactionId(), OUT_OF_STOCK.name())
                 //record the event to stock ledger
                 .flatMap(reservationList -> stockLedgerService.recordStockEvent(reservationList).then());
     }

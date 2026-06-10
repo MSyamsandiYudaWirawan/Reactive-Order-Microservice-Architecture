@@ -41,6 +41,8 @@ public enum ErrorCode {
     REFRESH_TOKEN_EXPIRED("REFRESH_TOKEN_EXPIRED", "Refresh Token has expired", UNAUTHORIZED),
     TOKEN_SIGNATURE_INVALID("TOKEN_SIGNATURE_INVALID", "Token signature verification failed", UNAUTHORIZED),
     DUPLICATE_REQUEST("DUPLICATE_REQUEST", "Request has already been processed", CONFLICT),
+    OUT_OF_STOCK("OUT_OF_STOCK", "Insufficient stock to fulfill the order", BAD_REQUEST),
+
 
 
 
