@@ -44,6 +44,7 @@ public enum ErrorCode {
     OUT_OF_STOCK("OUT_OF_STOCK", "Insufficient stock to fulfill the order", BAD_REQUEST),
     TRANSACTION_NOT_FOUND("TRANSACTION_NOT_FOUND", "Transaction not found", NOT_FOUND),
     PRODUCT_NOT_FOUND("PRODUCT_NOT_FOUND", "Product not found", NOT_FOUND),
+    INVENTORY_SERVICE_UNAVAILABLE("INVENTORY_SERVICE_UNAVAILABLE", "Inventory service is currently unavailable", HttpStatus.SERVICE_UNAVAILABLE),
     ;
 
     private final String code;
@@ -56,5 +57,14 @@ public enum ErrorCode {
         this.code = code;
         this.defaultMessage = defaultMessage;
         this.status = status;
+    }
+
+    public static ErrorCode fromCode(String code) {
+        for (ErrorCode errorCode : values()) {
+            if (errorCode.getCode().equals(code)) {
+                return errorCode;
+            }
+        }
+        return INTERNAL_EXCEPTION;
     }
 }

@@ -10,13 +10,17 @@ import com.MSyamsandiYW.order_service.order.Order;
 import com.MSyamsandiYW.order_service.order.OrderRepository;
 import com.MSyamsandiYW.order_service.order.OrderService;
 import com.MSyamsandiYW.order_service.order.request.CreateOrderRequest;
+import com.MSyamsandiYW.order_service.order.request.GetProductsRequest;
 import com.MSyamsandiYW.order_service.order.response.CreateOrderResponse;
+import com.MSyamsandiYW.order_service.order.response.GetProductResponse;
 import com.MSyamsandiYW.order_service.order.response.GetUserOrdersResponse;
 import com.MSyamsandiYW.order_service.order.response.GetStatusOrderResponse;
 import com.MSyamsandiYW.order_service.order_item.OrderItem;
 import com.MSyamsandiYW.order_service.order_item.OrderItemRepository;
+import com.MSyamsandiYW.order_service.order_item.request.OrderItemRequest;
 import com.MSyamsandiYW.order_service.order_ledger.OrderLedgerService;
 import com.MSyamsandiYW.order_service.properties.AppConstant;
+import com.MSyamsandiYW.order_service.service.InventoryServiceClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -27,7 +31,9 @@ import reactor.core.publisher.Mono;
 
 import java.time.ZonedDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -40,38 +46,56 @@ public class OrderServiceImpl implements OrderService {
     private final TransactionalOperator transactionalOperator;
     private final DiscountService discountService;
     private final OrderLedgerService orderLedgerService;
+    private final InventoryServiceClient inventoryServiceClient;
 
     @Override
     public Mono<ResponseEntity<CreateOrderResponse>> createOrder(String correlationId, String token, CreateOrderRequest request) {
-        //TODO validate item prices against inventory-service product catalog
-        //TODO consider implement orderItemService for item validation
         String transactionId = UUID.randomUUID().toString();
         log.info("Creating order - correlationId: {}, transactionId: {}", correlationId, transactionId);
 
-        // extract claims
-        return jwtService.extractClaims(token)
-                .map(claims -> {
-                    //TODO calculate from inventory-service product catalog not from request
-                    //calculate total amount
-                    double totalAmount = request.getItems().stream()
-                            .mapToDouble(item -> item.getPrice() * item.getQuantity())
-                            .sum();
+        GetProductsRequest getProductsRequest = GetProductsRequest.builder()
+                .productIds(request.getItems().stream().map(OrderItemRequest::getProductId).toList())
+                .build();
 
-                    //create order object
-                    return Order.builder()
+        // extract claims
+        return Mono.zip(jwtService.extractClaims(token),inventoryServiceClient.getProductsById(token,getProductsRequest))
+                .flatMap(tuple2 -> {
+                    List<GetProductResponse> products = tuple2.getT2();
+
+                    //validate if not same size some product is not found, it actually already validated in inventory-service
+                    if(products.size() != request.getItems().size()){
+                        return Mono.error(new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
+                    }
+
+                    //build price lookup map
+                    Map<String, Double> priceMap = products.stream()
+                            .collect(Collectors.toMap(GetProductResponse::getProductId, GetProductResponse::getPrice));
+
+                    //calculate total amount
+                    double totalAmount = 0;
+                    for(OrderItemRequest item: request.getItems()){
+                        Double price = priceMap.get(item.getProductId());
+                        if(price == null){
+                            return Mono.error(new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
+                        }
+                        totalAmount += item.getQuantity() * price;
+                    }
+
+                    // build order entity
+                    Order order = Order.builder()
                             .correlationId(correlationId)
                             .transactionId(transactionId)
-                            .userId(claims.get("userId").toString())
+                            .userId(tuple2.getT1().get("userId").toString())
                             .orderStatus(AppConstant.ORDER_STATUS.PENDING.name())
                             .totalAmount(totalAmount)
                             .createdBy("SYSTEM")
                             .createdDate(ZonedDateTime.now())
                             .build();
+
+                    // apply discount then save
+                    return discountService.apply(request, order)
+                            .flatMap(discounted -> saveOrderWithItems(discounted, request, priceMap));
                 })
-                // apply discount if valid
-                .flatMap(order -> discountService.apply(request, order))
-                // save order and items in database
-                .flatMap(order -> saveOrderWithItems(order, request))
                 .doOnSuccess(order ->
                         log.info("Order persisted - orderId: {}, correlationId: {}",
                                 order.getId(), correlationId))
@@ -167,7 +191,7 @@ public class OrderServiceImpl implements OrderService {
                 ;
     }
 
-    private Mono<Order> saveOrderWithItems(Order order, CreateOrderRequest request) {
+    private Mono<Order> saveOrderWithItems(Order order, CreateOrderRequest request, Map<String, Double> priceMap) {
         return orderRepository.save(order)
                 .flatMap(saved -> {
                     List<OrderItem> orderItems = request.getItems().stream()
@@ -176,7 +200,7 @@ public class OrderServiceImpl implements OrderService {
                                     .correlationId(saved.getCorrelationId())
                                     .productId(item.getProductId())
                                     .quantity(item.getQuantity())
-                                    .price(item.getPrice())
+                                    .price(priceMap.get(item.getProductId()))
                                     .createdBy("SYSTEM")
                                     .createdDate(ZonedDateTime.now())
                                     .build())
