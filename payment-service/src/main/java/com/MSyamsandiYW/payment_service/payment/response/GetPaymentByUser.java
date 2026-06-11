@@ -1,4 +1,4 @@
-package com.MSyamsandiYW.order_service.order.response;
+package com.MSyamsandiYW.payment_service.payment.response;
 
 import lombok.*;
 
@@ -9,12 +9,10 @@ import java.time.ZonedDateTime;
 @Getter
 @Setter
 @Builder
-public class GetStatusOrderResponse {
+public class GetPaymentByUser {
     private String transactionId;
-    private String correlationId;
-    private String orderStatus;
-    private String discountCode;
-    private Double totalAmount;
     private String paymentMethod;
+    private Double amount;
+    private String status;
     private ZonedDateTime createdDate;
 }

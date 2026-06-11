@@ -7,7 +7,7 @@ import lombok.*;
 @Getter
 @Setter
 @Builder
-public class OrderStatusEvent {
+public class StockEventPayload {
     private String correlationId;
     private String transactionId;
     private String failureCode;

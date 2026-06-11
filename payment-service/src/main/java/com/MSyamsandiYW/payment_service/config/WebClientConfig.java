@@ -1,4 +1,4 @@
-package com.MSyamsandiYW.order_service.config;
+package com.MSyamsandiYW.payment_service.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -8,8 +8,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 public class WebClientConfig {
 
     @Bean
-    public WebClient webClient() {
-        return WebClient.builder()
-                .build();
+    public WebClient webClient(){
+        return WebClient.builder().build();
     }
 }

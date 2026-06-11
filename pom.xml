@@ -14,5 +14,6 @@
 		<module>auth-service</module>
 		<module>gateway-service</module>
 		<module>order-service</module>
+		<module>payment-service</module>
 	</modules>
 </project>

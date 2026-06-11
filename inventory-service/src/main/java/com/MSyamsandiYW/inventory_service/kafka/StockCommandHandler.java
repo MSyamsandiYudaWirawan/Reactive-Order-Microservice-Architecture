@@ -2,7 +2,7 @@ package com.MSyamsandiYW.inventory_service.kafka;
 
 import com.MSyamsandiYW.common.exception.BusinessException;
 import com.MSyamsandiYW.common.exception.ErrorCode;
-import com.MSyamsandiYW.inventory_service.kafka.event.OrderStatusEvent;
+import com.MSyamsandiYW.inventory_service.kafka.event.StockEventPayload;
 import com.MSyamsandiYW.inventory_service.kafka.event.StockCommand;
 import com.MSyamsandiYW.inventory_service.product.ProductService;
 import com.MSyamsandiYW.inventory_service.properties.AppConstant;
@@ -38,7 +38,7 @@ public class StockCommandHandler {
                 .flatMap(reservationList -> stockLedgerService.recordStockEvent(reservationList).then())
                 //produce event reserve completed
                 .then(Mono.defer(() -> {
-                    OrderStatusEvent event = OrderStatusEvent.builder()
+                    StockEventPayload event = StockEventPayload.builder()
                             .correlationId(record.value().getCorrelationId())
                             .transactionId(record.value().getTransactionId())
                             .build();
@@ -76,9 +76,9 @@ public class StockCommandHandler {
         return stockReservationService.updateStatusReservation(payload.getTransactionId(), OUT_OF_STOCK.name())
                 //record the event to stock ledger
                 .flatMap(stockLedgerService::recordStockEvent)
-                //produce event reserve failed out of stock
+                //produce event reserve failed out of stock will be consumed by fulfillment-service
                 .then(Mono.defer( () -> {
-                    OrderStatusEvent eventPayload = OrderStatusEvent.builder()
+                    StockEventPayload eventPayload = StockEventPayload.builder()
                             .correlationId(payload.getCorrelationId())
                             .transactionId(payload.getTransactionId())
                             .failureCode(ErrorCode.OUT_OF_STOCK.name())

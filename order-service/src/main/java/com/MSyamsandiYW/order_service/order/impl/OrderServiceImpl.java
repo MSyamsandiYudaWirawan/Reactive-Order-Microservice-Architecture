@@ -153,6 +153,7 @@ public class OrderServiceImpl implements OrderService {
                         .body(GetStatusOrderResponse
                                 .builder()
                                 .transactionId(order.getTransactionId())
+                                .correlationId(order.getCorrelationId())
                                 .orderStatus(order.getOrderStatus())
                                 .totalAmount(order.getTotalAmount())
                                 .paymentMethod(order.getPaymentMethod())

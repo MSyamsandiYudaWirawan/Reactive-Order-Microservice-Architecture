@@ -1,7 +1,7 @@
-package com.MSyamsandiYW.order_service.kafka;
+package com.MSyamsandiYW.payment_service.kafka;
 
 import com.MSyamsandiYW.common.redis.RedisService;
-import com.MSyamsandiYW.order_service.kafka.request.OrderEventRequest;
+import com.MSyamsandiYW.payment_service.kafka.event.PaymentCommand;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -10,37 +10,32 @@ import reactor.core.publisher.Mono;
 import reactor.kafka.receiver.KafkaReceiver;
 import reactor.kafka.receiver.ReceiverRecord;
 
-import static com.MSyamsandiYW.order_service.properties.AppConstant.TOPICS.*;
+import static com.MSyamsandiYW.payment_service.properties.AppConstant.TOPICS.REFUND_REQUESTED;
 
 @Service
 @Slf4j
 @RequiredArgsConstructor
-public class OrderEventReceiver {
-
-    private final KafkaReceiver<String, OrderEventRequest> kafkaReceiver;
+public class PaymentCommandReceiver {
+    private final KafkaReceiver<String, PaymentCommand> kafkaReceiver;
+    private final PaymentCommandHandler handler;
     private final RedisService redisService;
-    private final OrderEventHandler handler;
 
     @PostConstruct
-    public void receive() {
+    public void receive(){
         kafkaReceiver.receive()
                 .flatMap(this::processRecord)
                 .doOnError(e -> log.error("Error receiving event", e))
                 .subscribe();
     }
 
-    private Mono<Void> processRecord(ReceiverRecord<String, OrderEventRequest> record) {
+    public Mono<Void> processRecord(ReceiverRecord<String, PaymentCommand> record){
         log.info("Received event - topic: {}, key: {}, value: {}", record.topic(), record.key(), record.value());
         Mono<Void> result = switch (record.topic()) {
-            case ORDER_COMPLETED -> handler.handleOrderCompleted(record.value());
-            case ORDER_FAILED -> handler.handleOrderFailed(record.value());
-            case STOCK_RESERVE_COMPLETED -> handler.handleStockReservedCompleted(record.value());
-            case PAYMENT_COMPLETED -> handler.handlePaymentCompleted(record.value());
-            case REFUND_COMPLETED -> handler.handleRefundCompleted(record.value());
+            case REFUND_REQUESTED -> handler.handleRefundPayment(record.value());
             default -> Mono.empty();
         };
         // check idempotency eventId as a key
-        return redisService.storeIfAbsent(record.key(), "processed")
+        return redisService.storeIfAbsent(record.key(),"processed")
                 .flatMap(stored -> {
                     if(!stored){
                         log.info("Duplicate event skipped - key: {}", record.key());
@@ -57,6 +52,5 @@ public class OrderEventReceiver {
                 })
                 //acknowledge no matter what
                 .doFinally(s -> record.receiverOffset().acknowledge());
-
     }
 }

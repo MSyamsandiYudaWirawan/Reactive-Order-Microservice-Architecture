@@ -318,48 +318,85 @@ Consume STOCK_RESERVE_REQUESTED → Product check fails (qty < requested OR !isA
 
 ---
 
-### 5. payment-service (Planned)
+### 5. payment-service ✅ (Completed)
 
 **Responsibilities:**
 
 - Accept payment request with `transactionId` + payment method
-- Support 3 dummy payment methods (simulating real-world multiple payment types)
-- Handle payment callback/webhook
-- Refund payment
+- Support 4 dummy payment methods (DEBIT_CARD, CREDIT_CARD, BCA_VA, BNI_VA)
+- Handle payment webhook callback (unified endpoint for payment + refund callbacks)
+- Refund payment (consume REFUND_REQUESTED → call third-party → wait webhook)
 - Publish payment events
+- Validate order status before creating payment (rejects if PENDING, PAID, COMPLETED, FAILED, REFUNDED)
+- Track payment ledger (immutable audit trail)
+- Event deduplication via Redis (eventId as key)
+- Calls order-service via WebClient to get order status before payment
+
+**Payment Status:**
+
+| Status       | Description                         |
+|--------------|-------------------------------------|
+| PENDING      | Payment created, awaiting callback  |
+| SUCCESS      | Payment callback success            |
+| FAILED       | Payment callback failed             |
+| REFUNDED     | Refund callback success             |
+| REFUND_FAILED| Refund callback failed              |
 
 **Endpoints:**
 
-| Method | Path                            | Description            |
-|--------|---------------------------------|------------------------|
-| POST   | /payment                        | Initiate payment       |
-| POST   | /payment/callback/success       | Success callback       |
-| POST   | /payment/callback/failed        | Failed callback        |
+| Method | Path                            | Description                              |
+|--------|---------------------------------|------------------------------------------|
+| POST   | /api/v1/payments                | Create payment (returns payment URL)     |
+| POST   | /api/v1/payments/callback       | Webhook callback (payment + refund)      |
+| GET    | /api/v1/payments                | Get user's payments                      |
 
-**Dummy Payment Response:**
+**Create Payment Response:**
 
 ```json
 {
   "transactionId": "order-123",
-  "paymentMethod": "BANK_TRANSFER",
-  "successUrl": "/payment/callback/success?orderId=123",
-  "failedUrl": "/payment/callback/failed?orderId=123"
+  "amount": 100000.0,
+  "paymentMethod": "BCA_VA",
+  "urlPayment": "http://bca.com/payment/xxx"
 }
 ```
 
+**Webhook Callback Request Body:**
+
+```json
+{
+  "transactionId": "order-123",
+  "paymentStatus": "PAYMENT_SUCCESS",
+  "failureCode": null,
+  "failureMessage": null
+}
+```
+
+**Supported `paymentStatus` values in callback:**
+- `PAYMENT_SUCCESS` → payment completed
+- `PAYMENT_FAILED` → payment failed (with failureCode/failureMessage)
+- `REFUND_SUCCESS` → refund completed
+- `REFUND_FAILED` → refund failed (with failureCode/failureMessage)
+
+**Demo Flow (Postman):**
+- Create payment → get `urlPayment` in response
+- Manually call webhook callback endpoint with `PAYMENT_SUCCESS` or `PAYMENT_FAILED` to simulate provider callback
+- Same for refund: fulfillment triggers refund via Kafka → payment-service calls third-party → simulate callback with `REFUND_SUCCESS` or `REFUND_FAILED`
+
 **Kafka Producer:**
 
-| Topic              | Condition        |
-|--------------------|------------------|
-| payment-completed  | Callback success |
-| payment-failed     | Callback failed  |
-| order-refund-completed | Refund completed |
+| Topic                  | Condition              |
+|------------------------|------------------------|
+| payment-completed      | Callback PAYMENT_SUCCESS |
+| payment-failed         | Callback PAYMENT_FAILED  |
+| order-refund-completed | Callback REFUND_SUCCESS  |
+| order-refund-failed    | Callback REFUND_FAILED   |
 
 **Kafka Consumer:**
 
-| Topic            | Action                                      |
-|------------------|---------------------------------------------|
-| refund-requested | Process refund → Publish order-refund-completed |
+| Topic            | Action                                                |
+|------------------|-------------------------------------------------------|
+| refund-requested | Process refund → call third-party → wait webhook callback |
 
 ---
 
@@ -382,23 +419,23 @@ Consume STOCK_RESERVE_REQUESTED → Product check fails (qty < requested OR !isA
 
 **Saga Logic (current — coordinator only):**
 
-| Condition                    | Actions                                  |
-|------------------------------|------------------------------------------|
-| Payment success              | Publish ORDER_COMPLETED + DEDUCT_STOCK   |
-| Payment failed               | Publish ORDER_FAILED + RELEASE_STOCK     |
-| Out of stock (no payment)    | Publish ORDER_FAILED                     |
-| Out of stock (payment exists)| Publish REFUND_REQUESTED + ORDER_FAILED  |
+| Condition                    | Actions                                           |
+|------------------------------|---------------------------------------------------|
+| Payment success              | Publish ORDER_COMPLETED + DEDUCT_STOCK            |
+| Payment failed               | Publish ORDER_FAILED + RELEASE_STOCK              |
+| Out of stock (no payment)    | Publish ORDER_FAILED                              |
+| Out of stock (payment exists)| Publish REFUND_REQUESTED + ORDER_FAILED           |
 
 **Saga Logic (future — with third-party fulfillment):**
 
-| Condition                    | Actions                                        |
-|------------------------------|------------------------------------------------|
-| Payment success              | Call third-party API to fulfill                 |
-| Fulfillment success          | Publish ORDER_COMPLETED + DEDUCT_STOCK         |
-| Fulfillment failed           | Publish REFUND_REQUESTED + RELEASE_STOCK       |
-| Payment failed               | Publish ORDER_FAILED + RELEASE_STOCK           |
-| Out of stock (no payment)    | Publish ORDER_FAILED                           |
-| Out of stock (payment exists)| Publish REFUND_REQUESTED + ORDER_FAILED        |
+| Condition                    | Actions                                              |
+|------------------------------|------------------------------------------------------|
+| Payment success              | Call third-party API to fulfill                      |
+| Fulfillment success          | Publish ORDER_COMPLETED + DEDUCT_STOCK               |
+| Fulfillment failed           | Publish REFUND_REQUESTED + ORDER_FAILED + RELEASE_STOCK |
+| Payment failed               | Publish ORDER_FAILED + RELEASE_STOCK                 |
+| Out of stock (no payment)    | Publish ORDER_FAILED                                 |
+| Out of stock (payment exists)| Publish REFUND_REQUESTED + ORDER_FAILED              |
 
 **Kafka Producer:**
 
@@ -408,7 +445,7 @@ Consume STOCK_RESERVE_REQUESTED → Product check fails (qty < requested OR !isA
 | release-stock     | Payment failed / Fulfillment failed      |
 | refund-requested  | Out of stock (paid) / Fulfillment failed |
 | order-completed   | Payment success / Fulfillment success    |
-| order-failed      | Payment failed / Out of stock            |
+| order-failed      | Payment failed / Out of stock / Fulfillment failed |
 
 **Important Notes:**
 
@@ -416,6 +453,7 @@ Consume STOCK_RESERVE_REQUESTED → Product check fails (qty < requested OR !isA
 - No scattered decision-making across services
 - Currently acts as coordinator only — no external API calls
 - Future: add third-party fulfillment (shipping, supplier purchase) which introduces real "fulfillment failed" scenario
+- Fulfillment failed publishes ALL compensation events at once (REFUND_REQUESTED + ORDER_FAILED + RELEASE_STOCK) — no need to wait for refund to complete before releasing stock
 
 ---
 
@@ -489,11 +527,23 @@ Consume STOCK_RESERVE_REQUESTED → Product check fails (qty < requested OR !isA
 ```
 1. Client → order-service: Create order → Save DB (PENDING) → Publish STOCK_RESERVE_REQUESTED → Return transactionId
 2. inventory-service: Consumes STOCK_RESERVE_REQUESTED → Reserve stock ✅ → Publish STOCK_RESERVE_COMPLETED
-3. Client → payment-service: Send transactionId + payment method → callback success → Publish PAYMENT_COMPLETED
-4. fulfillment-service: Consumes PAYMENT_COMPLETED → Call third-party API → Fails ❌ → Publish REFUND_REQUESTED + RELEASE_STOCK
-5. payment-service: Consumes REFUND_REQUESTED → Process refund → Publish ORDER_REFUND_COMPLETED
-6. inventory-service: Consumes RELEASE_STOCK → Cancel reservation ✅
-7. order-service: Consumes ORDER_REFUND_COMPLETED → Update status → REFUNDED ✅
+3. order-service: Consumes STOCK_RESERVE_COMPLETED → Update status → WAITING_PAYMENT
+4. Client → payment-service: Send transactionId + payment method → callback success → Publish PAYMENT_COMPLETED
+5. order-service: Consumes PAYMENT_COMPLETED → Update status → PAID
+6. fulfillment-service: Consumes PAYMENT_COMPLETED → Call third-party API → Fails ❌ → Publish REFUND_REQUESTED + ORDER_FAILED + RELEASE_STOCK
+7. inventory-service: Consumes RELEASE_STOCK → Cancel reservation ✅
+8. order-service: Consumes ORDER_FAILED → Update status → FAILED
+9. payment-service: Consumes REFUND_REQUESTED → Call third-party refund → Webhook callback REFUND_SUCCESS → Publish ORDER_REFUND_COMPLETED
+10. order-service: Consumes ORDER_REFUND_COMPLETED → Update status → REFUNDED ✅
+```
+
+### Flow 6: Refund Failed (Future — DLQ/Retry)
+
+```
+1. (Continues from any refund flow above)
+2. payment-service: Consumes REFUND_REQUESTED → Call third-party refund → Webhook callback REFUND_FAILED → Publish ORDER_REFUND_FAILED
+3. (Future: DLQ handling, retry mechanism, or manual intervention)
+4. Order remains in FAILED status (does not transition to REFUNDED)
 ```
 
 ---
@@ -539,6 +589,7 @@ Receive Kafka event → Redis storeIfAbsent(eventId) →
 | payment-failed           | payment-service     | fulfillment-service |
 | refund-requested         | fulfillment-service | payment-service     |
 | order-refund-completed   | payment-service     | order-service       |
+| order-refund-failed      | payment-service     | (future: DLQ/retry) |
 | order-completed          | fulfillment-service | order-service       |
 | order-failed             | fulfillment-service | order-service       |
 
@@ -648,7 +699,15 @@ reactive-order-microservice/
 │       ├── stock_reservation/ (StockReservation, StockReservationRepository, StockReservationService, impl/)
 │       ├── stock_ledger/ (StockLedger, StockLedgerRepository, StockLedgerService, impl/)
 │       └── properties/ (AppConstant)
-├── payment-service/                # (Planned)
+├── payment-service/                # Payment processing
+│   └── src/main/java/com/MSyamsandiYW/payment_service/
+│       ├── config/ (JwtServiceConfig, KafkaConfig, R2dbcConfig, RedisServiceConfig, WebClientConfig)
+│       ├── kafka/ (PaymentCommandReceiver, PaymentCommandHandler, PaymentCommandProducer)
+│       ├── kafka/event/ (PaymentCommand, PaymentEventPayload)
+│       ├── payment/ (Payment, PaymentService, PaymentRepository, impl/, request/, response/)
+│       ├── payment_ledger/ (PaymentLedger, PaymentLedgerRepository, PaymentLedgerService, impl/)
+│       ├── properties/ (AppConstant, AppProperties)
+│       └── service/ (OrderServiceClient)
 ├── fulfillment-service/            # (Planned)
 ├── docker-compose.yml              # Infrastructure (Kafka, Zookeeper, Redis)
 └── pom.xml                         # Parent POM (modules: common-lib, auth-service, gateway-service, order-service)
@@ -669,7 +728,7 @@ reactive-order-microservice/
 - [x] common-lib (shared JWT, exceptions, Redis)
 - [x] inventory-service (reserve, release, deduct, out-of-stock handling, product price lookup API)
 - [x] inventory-service infrastructure (docker-compose, application.yaml, R2dbcConfig, .env.example)
-- [ ] payment-service (3 dummy payment methods + callbacks)
+- [x] payment-service (4 dummy payment methods, webhook callback, refund flow, payment ledger)
 - [ ] fulfillment-service (saga coordinator)
 - **Docker Compose** for local development
 

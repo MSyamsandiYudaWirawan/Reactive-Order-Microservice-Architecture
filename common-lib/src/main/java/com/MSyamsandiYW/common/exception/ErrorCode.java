@@ -45,7 +45,12 @@ public enum ErrorCode {
     TRANSACTION_NOT_FOUND("TRANSACTION_NOT_FOUND", "Transaction not found", NOT_FOUND),
     PRODUCT_NOT_FOUND("PRODUCT_NOT_FOUND", "Product not found", NOT_FOUND),
     INVENTORY_SERVICE_UNAVAILABLE("INVENTORY_SERVICE_UNAVAILABLE", "Inventory service is currently unavailable", HttpStatus.SERVICE_UNAVAILABLE),
-    ;
+    ORDER_PENDING("ORDER_PENDING", "Order is still pending try again later", BAD_REQUEST),
+    ORDER_ALREADY_PAID("ORDER_ALREADY_PAID", "Order is already paid", BAD_REQUEST),
+    ORDER_ALREADY_COMPLETED("ORDER_ALREADY_COMPLETED", "Order is already completed", BAD_REQUEST),
+    ORDER_ALREADY_FAILED("ORDER_ALREADY_FAILED", "Order is already failed", BAD_REQUEST),
+    ORDER_ALREADY_REFUNDED("ORDER_ALREADY_REFUNDED", "Order is already refunded", BAD_REQUEST),
+    INVALID_PAYMENT_METHOD("INVALID_PAYMENT_METHOD", "Payment Method is invalid", BAD_REQUEST);
 
     private final String code;
     private final String defaultMessage;
