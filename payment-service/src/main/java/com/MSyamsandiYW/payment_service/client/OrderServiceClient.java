@@ -1,10 +1,10 @@
-package com.MSyamsandiYW.payment_service.service;
+package com.MSyamsandiYW.payment_service.client;
 
 import com.MSyamsandiYW.common.exception.BusinessException;
 import com.MSyamsandiYW.common.exception.ErrorCode;
 import com.MSyamsandiYW.common.exception.ErrorResponse;
+import com.MSyamsandiYW.payment_service.client.response.GetOrderStatusResponse;
 import com.MSyamsandiYW.payment_service.properties.AppProperties;
-import com.MSyamsandiYW.payment_service.service.response.GetOrderStatusResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatusCode;

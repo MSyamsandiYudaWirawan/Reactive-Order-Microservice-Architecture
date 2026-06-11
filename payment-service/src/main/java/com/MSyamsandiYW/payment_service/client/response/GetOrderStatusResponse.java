@@ -1,4 +1,4 @@
-package com.MSyamsandiYW.payment_service.service.response;
+package com.MSyamsandiYW.payment_service.client.response;
 
 import lombok.*;
 

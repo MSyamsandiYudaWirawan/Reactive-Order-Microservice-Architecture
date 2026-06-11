@@ -1,10 +1,10 @@
-package com.MSyamsandiYW.order_service.service;
+package com.MSyamsandiYW.order_service.client;
 
 import com.MSyamsandiYW.common.exception.BusinessException;
 import com.MSyamsandiYW.common.exception.ErrorCode;
 import com.MSyamsandiYW.common.exception.ErrorResponse;
-import com.MSyamsandiYW.order_service.order.request.GetProductsRequest;
-import com.MSyamsandiYW.order_service.order.response.GetProductResponse;
+import com.MSyamsandiYW.order_service.client.request.GetProductsRequest;
+import com.MSyamsandiYW.order_service.client.response.GetProductResponse;
 import com.MSyamsandiYW.order_service.properties.AppProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,11 +36,11 @@ public class InventoryServiceClient {
                 .header("Authorization", token)
                 .bodyValue(request)
                 .retrieve()
+                // intercept error and mapping ErrorCode then throw exception with ErrorCode
                 .onStatus(HttpStatusCode::isError, response ->
                         response.bodyToMono(ErrorResponse.class)
                                 .flatMap(error -> Mono.error(new BusinessException(
-                                        ErrorCode.fromCode(error.getCode()))))
-                )
+                                        ErrorCode.fromCode(error.getCode())))))
                 .bodyToFlux(GetProductResponse.class)
                 .collectList()
                 .onErrorMap(e -> !(e instanceof BusinessException), e -> {
