@@ -147,7 +147,9 @@ POST /api/v1/orders → Check X-Idempotency-Key header exists → Redis storeIfA
 **Flow:**
 
 ```
-Client → Create Order → Extract JWT claims → Calculate total → Apply discount → Save DB (PENDING) → Publish STOCK_RESERVE_REQUESTED → Return transactionId
+Client → Create Order → Extract JWT claims + Get product prices from inventory-service (parallel) →
+  → Validate products → Calculate total → Apply discount → Save DB (PENDING) →
+  → Record order ledger → Publish STOCK_RESERVE_REQUESTED → Return transactionId
 ```
 
 **Kafka Producer:**
@@ -197,18 +199,23 @@ Every order status change is recorded in the `order_ledger` table as an immutabl
 - Does NOT wait for stock reservation (optimistic)
 - Discount system uses Strategy pattern with `Map<String, DiscountStrategy>` injection
 - Supports PERCENTAGE and FIXED discount types
+- Calls inventory-service via WebClient (`POST /api/v1/products/list`) to get product prices at order time
+- Uses `TransactionalOperator` to save order + order items atomically
+- On create order error: sets order status to FAILED in DB before propagating error
 
 ---
 
-### 4. inventory-service 🔄 (In Progress)
+### 4. inventory-service ✅ (Completed)
 
 **Responsibilities:**
 
 - Reserve stock
 - Release stock (compensation)
 - Deduct stock (confirm sold)
+- Handle out-of-stock scenario (produce OUT_OF_STOCK event)
 - Track stock ledger (immutable audit trail)
 - Event deduplication via Redis (eventId as key)
+- Expose REST endpoint for product price lookup (used by order-service)
 
 **Database Tables:**
 
@@ -218,12 +225,18 @@ Every order status change is recorded in the `order_ledger` table as an immutabl
 | stock_reservation | Tracks per-order stock reservations with status  |
 | stock_ledger      | Immutable audit trail of all stock events        |
 
+**Endpoints:**
+
+| Method | Path                    | Description                          |
+|--------|-------------------------|--------------------------------------|
+| POST   | /api/v1/products/list   | Get products by IDs (price lookup)   |
+
 **Reservation Status:**
 
 | Status      | Description                              |
 |-------------|------------------------------------------|
 | RESERVED    | Stock reserved for an order              |
-| OUT_OF_STOCK| Insufficient stock (TODO)                |
+| OUT_OF_STOCK| Insufficient stock                       |
 | RELEASED    | Reservation cancelled (compensation)     |
 | DEDUCTED    | Reservation confirmed as sold            |
 
@@ -239,7 +252,7 @@ Every order status change is recorded in the `order_ledger` table as an immutabl
 
 | Topic                    | Condition          |
 |--------------------------|--------------------|
-| out-of-stock             | Stock insufficient (TODO) |
+| out-of-stock             | Stock insufficient |
 | stock-reserve-completed  | Stock reserved OK  |
 
 **Event Deduplication:**
@@ -257,8 +270,14 @@ Receive Kafka event → Redis storeIfAbsent(eventId) →
 Consume STOCK_RESERVE_REQUESTED →
   1. Create StockReservation records (status=RESERVED)
   2. Update Product: availableQty -= qty, reservedQty += qty
+     → If insufficient stock or product inactive/deleted: throw OUT_OF_STOCK error
   3. Record StockLedger entry
   4. Produce STOCK_RESERVE_COMPLETED event
+
+On OUT_OF_STOCK error:
+  1. Update reservations status → OUT_OF_STOCK
+  2. Record StockLedger entry
+  3. Produce OUT_OF_STOCK event (with failureCode + failureMessage)
 ```
 
 **Release Stock Flow (Compensation):**
@@ -279,13 +298,23 @@ Consume DEDUCT_STOCK →
   3. Record StockLedger entry
 ```
 
+**Out of Stock Flow:**
+
+```
+Consume STOCK_RESERVE_REQUESTED → Product check fails (qty < requested OR !isActive OR isDeleted) →
+  1. Find reservations by transactionId → set status=OUT_OF_STOCK
+  2. Record StockLedger entry
+  3. Produce OUT_OF_STOCK event with failureCode/failureMessage
+```
+
 **Important Notes:**
 
 - Inventory reservation is part of saga pattern
 - Each product tracks: available, reserved, sold quantities
 - Stock ledger provides full audit trail of every stock movement
 - Uses reactor-kafka (KafkaReceiver/KafkaSender) for reactive Kafka
-- TODO: Handle out-of-stock scenario (produce OUT_OF_STOCK event instead of going negative)
+- REST endpoint (`/api/v1/products/list`) called by order-service during order creation to get product prices
+- Validates JWT on REST endpoint via common-lib JwtService
 
 ---
 
@@ -408,7 +437,9 @@ Consume DEDUCT_STOCK →
 ### Flow 1: Happy Path (Order Success)
 
 ```
-1. Client → order-service: Create order → Save DB (PENDING) → Publish STOCK_RESERVE_REQUESTED → Return transactionId
+1. Client → order-service: Create order → Extract JWT + Get prices from inventory-service (parallel) →
+   Validate products → Calculate total → Apply discount → Save DB (PENDING) →
+   Record ledger → Publish STOCK_RESERVE_REQUESTED → Return transactionId
 2. inventory-service: Consumes STOCK_RESERVE_REQUESTED → Reserve stock ✅ → Publish STOCK_RESERVE_COMPLETED
 3. order-service: Consumes STOCK_RESERVE_COMPLETED → Update status → WAITING_PAYMENT
 4. Client → payment-service: Send transactionId + payment method → Return dummy callbacks
@@ -580,7 +611,7 @@ http://payment-service  ← works automatically inside cluster
 reactive-order-microservice/
 ├── common-lib/                     # Shared library
 │   └── src/main/java/com/MSyamsandiYW/common/
-│       ├── exception/ (BusinessException, ErrorCode)
+│       ├── exception/ (BusinessException, ErrorCode, ErrorResponse, ValidationError)
 │       ├── jwt/ (JwtService, KeyUtils)
 │       └── redis/ (RedisConfig, RedisService, impl/RedisServiceImpl)
 ├── auth-service/                   # Authentication service
@@ -598,19 +629,22 @@ reactive-order-microservice/
 │       └── security/ (JwtAuthFilter, RouteValidator, TokenValidator, SecurityConfig)
 ├── order-service/                  # Order processing
 │   └── src/main/java/com/MSyamsandiYW/order_service/
-│       ├── config/ (JwtConfig, R2dbcConfig, RedisServiceConfig)
+│       ├── config/ (JwtServiceConfig, KafkaConfig, R2dbcConfig, RedisServiceConfig, WebClientConfig)
 │       ├── discount/ (Discount, DiscountRepository, DiscountService, DiscountStrategy, impl/)
-│       ├── kafka/ (OrderEventReceiver, OrderEventHandler, OrderEventProducer, config/, request/)
-│       ├── order/ (Order, OrderController, OrderService, OrderRepository, impl/, request/, response/, service/)
+│       ├── handler/ (ApplicationExceptionHandler)
+│       ├── kafka/ (OrderEventReceiver, OrderEventHandler, OrderEventProducer, request/)
+│       ├── order/ (Order, OrderController, OrderService, OrderRepository, impl/, request/, response/)
 │       ├── order_item/ (OrderItem, OrderItemRepository, request/)
 │       ├── order_ledger/ (OrderLedger, OrderLedgerRepository, OrderLedgerService, impl/)
-│       └── properties/ (AppConstant, AppProperties)
+│       ├── properties/ (AppConstant, AppProperties)
+│       └── service/ (InventoryServiceClient)
 ├── inventory-service/              # Stock management
 │   └── src/main/java/com/MSyamsandiYW/inventory_service/
-│       ├── config/ (JwtServiceConfig, KafkaConfig, RedisServiceConfig)
+│       ├── config/ (JwtServiceConfig, KafkaConfig, R2dbcConfig, RedisServiceConfig)
+│       ├── handler/ (ApplicationExceptionHandler)
 │       ├── kafka/ (StockCommandReceiver, StockCommandHandler, StockEventProducer)
 │       ├── kafka/event/ (StockCommand, StockItem, OrderStatusEvent)
-│       ├── product/ (Product, ProductRepository, ProductService, impl/ProductServiceImpl)
+│       ├── product/ (Product, ProductController, ProductRepository, ProductService, impl/, request/, response/)
 │       ├── stock_reservation/ (StockReservation, StockReservationRepository, StockReservationService, impl/)
 │       ├── stock_ledger/ (StockLedger, StockLedgerRepository, StockLedgerService, impl/)
 │       └── properties/ (AppConstant)
@@ -633,7 +667,8 @@ reactive-order-microservice/
 - [x] Kafka event producer/consumer (order-service)
 - [x] Event deduplication (Redis, eventId key)
 - [x] common-lib (shared JWT, exceptions, Redis)
-- [x] inventory-service (reserve, release, deduct — TODO: out-of-stock handling)
+- [x] inventory-service (reserve, release, deduct, out-of-stock handling, product price lookup API)
+- [x] inventory-service infrastructure (docker-compose, application.yaml, R2dbcConfig, .env.example)
 - [ ] payment-service (3 dummy payment methods + callbacks)
 - [ ] fulfillment-service (saga coordinator)
 - **Docker Compose** for local development
