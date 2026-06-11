@@ -4,7 +4,7 @@ import com.MSyamsandiYW.common.exception.BusinessException;
 import com.MSyamsandiYW.common.exception.ErrorCode;
 import com.MSyamsandiYW.common.jwt.JwtService;
 import com.MSyamsandiYW.order_service.discount.DiscountService;
-import com.MSyamsandiYW.order_service.kafka.OrderEventProducer;
+import com.MSyamsandiYW.order_service.kafka.OrderCommandProducer;
 import com.MSyamsandiYW.order_service.kafka.request.StockReserveRequest;
 import com.MSyamsandiYW.order_service.order.Order;
 import com.MSyamsandiYW.order_service.order.OrderRepository;
@@ -40,7 +40,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class OrderServiceImpl implements OrderService {
     private final OrderRepository orderRepository;
-    private final OrderEventProducer orderEventProducer;
+    private final OrderCommandProducer orderCommandProducer;
     private final JwtService jwtService;
     private final OrderItemRepository orderItemRepository;
     private final TransactionalOperator transactionalOperator;
@@ -113,7 +113,7 @@ public class OrderServiceImpl implements OrderService {
                             .build();
 
                     //key is UUID random purposely for eventId
-                    return orderEventProducer.send(
+                    return orderCommandProducer.send(
                             AppConstant.TOPICS.STOCK_RESERVE_REQUESTED, UUID.randomUUID().toString(), stockReserveRequest);
                 })
                 .doOnSuccess(unused ->

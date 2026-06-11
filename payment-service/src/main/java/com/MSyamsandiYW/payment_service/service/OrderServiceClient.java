@@ -4,7 +4,7 @@ import com.MSyamsandiYW.common.exception.BusinessException;
 import com.MSyamsandiYW.common.exception.ErrorCode;
 import com.MSyamsandiYW.common.exception.ErrorResponse;
 import com.MSyamsandiYW.payment_service.properties.AppProperties;
-import com.MSyamsandiYW.payment_service.service.request.GetStatusOrderResponse;
+import com.MSyamsandiYW.payment_service.service.response.GetOrderStatusResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatusCode;
@@ -20,7 +20,7 @@ public class OrderServiceClient {
     private final WebClient webClient;
     private final AppProperties appProperties;
 
-    public Mono<GetStatusOrderResponse> getStatusOrder(String transactionId, String token) {
+    public Mono<GetOrderStatusResponse> getStatusOrder(String transactionId, String token) {
         String url = UriComponentsBuilder.fromUriString(appProperties.getOrderServiceUrl())
                 .path(appProperties.getGetStatusOrder())
                 .buildAndExpand(transactionId)
@@ -34,6 +34,6 @@ public class OrderServiceClient {
                         response.bodyToMono(ErrorResponse.class)
                         .flatMap(error ->
                                 Mono.error(new BusinessException(ErrorCode.fromCode(error.getCode())))))
-                .bodyToMono(GetStatusOrderResponse.class);
+                .bodyToMono(GetOrderStatusResponse.class);
     }
 }

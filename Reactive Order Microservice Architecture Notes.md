@@ -344,11 +344,11 @@ Consume STOCK_RESERVE_REQUESTED → Product check fails (qty < requested OR !isA
 
 **Endpoints:**
 
-| Method | Path                            | Description                              |
-|--------|---------------------------------|------------------------------------------|
-| POST   | /api/v1/payments                | Create payment (returns payment URL)     |
-| POST   | /api/v1/payments/callback       | Webhook callback (payment + refund)      |
-| GET    | /api/v1/payments                | Get user's payments                      |
+| Method | Path                                | Description                              |
+|--------|-------------------------------------|------------------------------------------|
+| POST   | /api/v1/payments                    | Create payment (returns payment URL)     |
+| POST   | /api/v1/payments/webhook/callback   | Webhook callback (payment + refund)      |
+| GET    | /api/v1/payments/list               | Get user's payments                      |
 
 **Create Payment Response:**
 
@@ -710,7 +710,7 @@ reactive-order-microservice/
 │       └── service/ (OrderServiceClient)
 ├── fulfillment-service/            # (Planned)
 ├── docker-compose.yml              # Infrastructure (Kafka, Zookeeper, Redis)
-└── pom.xml                         # Parent POM (modules: common-lib, auth-service, gateway-service, order-service)
+└── pom.xml                         # Parent POM (modules: common-lib, auth-service, gateway-service, order-service, payment-service)
 ```
 
 ---

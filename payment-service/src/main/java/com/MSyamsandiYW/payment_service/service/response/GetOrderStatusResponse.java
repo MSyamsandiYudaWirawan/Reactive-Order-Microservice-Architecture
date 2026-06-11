@@ -1,4 +1,4 @@
-package com.MSyamsandiYW.payment_service.service.request;
+package com.MSyamsandiYW.payment_service.service.response;
 
 import lombok.*;
 
@@ -9,7 +9,7 @@ import java.time.ZonedDateTime;
 @Getter
 @Setter
 @Builder
-public class GetStatusOrderResponse {
+public class GetOrderStatusResponse {
     private String transactionId;
     private String correlationId;
     private String orderStatus;

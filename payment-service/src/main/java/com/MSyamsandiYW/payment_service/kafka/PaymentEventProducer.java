@@ -11,7 +11,7 @@ import reactor.kafka.sender.SenderRecord;
 @Service
 @Slf4j
 @RequiredArgsConstructor
-public class PaymentCommandProducer {
+public class PaymentEventProducer {
     private final KafkaSender<String,Object> kafkaSender;
 
     public Mono<Void> send(

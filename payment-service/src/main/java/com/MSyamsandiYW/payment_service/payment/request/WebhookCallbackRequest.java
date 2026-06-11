@@ -1,4 +1,4 @@
-package com.MSyamsandiYW.payment_service.payment.response;
+package com.MSyamsandiYW.payment_service.payment.request;
 
 import lombok.*;
 
@@ -7,7 +7,7 @@ import lombok.*;
 @Getter
 @Setter
 @Builder
-public class CallbackPaymentMethodResponse {
+public class WebhookCallbackRequest {
 
     private String transactionId;
     private String paymentStatus;
