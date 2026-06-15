@@ -15,5 +15,6 @@
 		<module>gateway-service</module>
 		<module>order-service</module>
 		<module>payment-service</module>
+        <module>orchestrator-service</module>
 	</modules>
 </project>

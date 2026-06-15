@@ -57,9 +57,6 @@ public class PaymentServiceImpl implements PaymentService {
                     }
 
                     // validate order status
-                    if (order.getOrderStatus().equalsIgnoreCase(AppConstant.ORDER_STATUS.PENDING.name())) {
-                        return Mono.error(new BusinessException(ErrorCode.ORDER_PENDING));
-                    }
                     if (order.getOrderStatus().equalsIgnoreCase(PAID.name())) {
                         return Mono.error(new BusinessException(ErrorCode.ORDER_ALREADY_PAID));
                     }
@@ -115,7 +112,7 @@ public class PaymentServiceImpl implements PaymentService {
                 .flatMap(paymentRepository::save)
                 // save payment ledger
                 .flatMap(payment -> paymentLedgerService.recordEventPayment(payment).thenReturn(payment))
-                // produce payment event and will be consumed by fulfillment-service or order-service
+                // produce payment event and will be consumed by orchestrator-service or order-service
                 .flatMap(this::produceEventPayment)
                 .then();
     }
