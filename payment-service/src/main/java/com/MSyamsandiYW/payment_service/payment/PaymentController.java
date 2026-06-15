@@ -3,7 +3,7 @@ package com.MSyamsandiYW.payment_service.payment;
 import com.MSyamsandiYW.payment_service.payment.request.CreatePaymentRequest;
 import com.MSyamsandiYW.payment_service.payment.request.WebhookCallbackRequest;
 import com.MSyamsandiYW.payment_service.payment.response.CreatePaymentResponse;
-import com.MSyamsandiYW.payment_service.payment.response.GetPaymentsResponse;
+import com.MSyamsandiYW.payment_service.payment.response.GetPaymentResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -41,9 +41,18 @@ public class PaymentController {
 
     @GetMapping("/list")
     @ResponseStatus(code = OK)
-    public Mono<ResponseEntity<List<GetPaymentsResponse>>> getPaymentsByUser(
+    public Mono<ResponseEntity<List<GetPaymentResponse>>> getPaymentsByUser(
             @RequestHeader("Authorization") String token
     ) {
         return paymentService.getPaymentsByUser(token);
+    }
+
+    @GetMapping("/status/{transactionId}")
+    @ResponseStatus(code = OK)
+    public Mono<ResponseEntity<GetPaymentResponse>> getPaymentByTransactionId(
+            @PathVariable("transactionId") String transactionId,
+            @RequestHeader("Authorization") String token
+    ){
+        return paymentService.getPaymentStatus(transactionId, token);
     }
 }

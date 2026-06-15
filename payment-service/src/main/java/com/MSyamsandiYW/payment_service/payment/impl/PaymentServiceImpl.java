@@ -3,6 +3,8 @@ package com.MSyamsandiYW.payment_service.payment.impl;
 import com.MSyamsandiYW.common.exception.BusinessException;
 import com.MSyamsandiYW.common.exception.ErrorCode;
 import com.MSyamsandiYW.common.jwt.JwtService;
+import com.MSyamsandiYW.payment_service.client.OrderServiceClient;
+import com.MSyamsandiYW.payment_service.client.response.GetOrderStatusResponse;
 import com.MSyamsandiYW.payment_service.kafka.PaymentEventProducer;
 import com.MSyamsandiYW.payment_service.kafka.event.PaymentCommand;
 import com.MSyamsandiYW.payment_service.kafka.event.PaymentEventPayload;
@@ -12,12 +14,10 @@ import com.MSyamsandiYW.payment_service.payment.PaymentService;
 import com.MSyamsandiYW.payment_service.payment.request.CreatePaymentRequest;
 import com.MSyamsandiYW.payment_service.payment.request.WebhookCallbackRequest;
 import com.MSyamsandiYW.payment_service.payment.response.CreatePaymentResponse;
-import com.MSyamsandiYW.payment_service.payment.response.GetPaymentsResponse;
+import com.MSyamsandiYW.payment_service.payment.response.GetPaymentResponse;
 import com.MSyamsandiYW.payment_service.payment_ledger.PaymentLedgerService;
 import com.MSyamsandiYW.payment_service.properties.AppConstant;
 import com.MSyamsandiYW.payment_service.properties.AppProperties;
-import com.MSyamsandiYW.payment_service.client.OrderServiceClient;
-import com.MSyamsandiYW.payment_service.client.response.GetOrderStatusResponse;
 import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -108,6 +108,7 @@ public class PaymentServiceImpl implements PaymentService {
         log.info("Received webhook callback for transactionId: {}, status: {}", request.getTransactionId(), request.getPaymentStatus());
 
         return paymentRepository.findByTransactionId(request.getTransactionId())
+                .switchIfEmpty(Mono.error(new BusinessException(ErrorCode.PAYMENT_NOT_FOUND)))
                 // update status payment
                 .flatMap(payment -> updatePaymentEntity(payment, request))
                 // save payment
@@ -125,6 +126,7 @@ public class PaymentServiceImpl implements PaymentService {
         log.info("Processing refund for transactionId: {}", request.getTransactionId());
 
         return paymentRepository.findByTransactionId(request.getTransactionId())
+                .switchIfEmpty(Mono.error(new BusinessException(ErrorCode.PAYMENT_NOT_FOUND)))
                 .flatMap(payment -> {
                     // Build request body
                     // Request refund to third party
@@ -135,7 +137,7 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     @Override
-    public Mono<ResponseEntity<List<GetPaymentsResponse>>> getPaymentsByUser(String token) {
+    public Mono<ResponseEntity<List<GetPaymentResponse>>> getPaymentsByUser(String token) {
         log.info("Fetching payments for user");
 
         return jwtService.extractClaims(token)
@@ -143,7 +145,7 @@ public class PaymentServiceImpl implements PaymentService {
                 .flatMap(claims -> paymentRepository.findByUserId(claims.getId()).collectList())
                 // mapping to response
                 .map(payments -> {
-                    List<GetPaymentsResponse> response = payments.stream().map(p -> GetPaymentsResponse.builder()
+                    List<GetPaymentResponse> response = payments.stream().map(p -> GetPaymentResponse.builder()
                                     .transactionId(p.getTransactionId())
                                     .paymentMethod(p.getPaymentMethod())
                                     .amount(p.getAmount())
@@ -154,6 +156,38 @@ public class PaymentServiceImpl implements PaymentService {
 
                     return ResponseEntity.ok().body(response);
                 });
+    }
+
+    @Override
+    public Mono<ResponseEntity<GetPaymentResponse>> getPaymentStatus(String transactionId, String token) {
+
+        //extract token and get payment by transactionId
+        return Mono.zip(
+                        jwtService.extractClaims(token),
+                        paymentRepository.findByTransactionId(transactionId)
+                                .switchIfEmpty(Mono.error(new BusinessException(ErrorCode.PAYMENT_NOT_FOUND))))
+                .flatMap(tuple -> {
+                    Claims claims = tuple.getT1();
+                    Payment payment = tuple.getT2();
+
+                    // validate is user authorized
+                    if (claims.getId() == null || !claims.getId().equals(payment.getUserId())) {
+                        return Mono.error(new BusinessException(ErrorCode.USER_UNAUTHORIZED));
+                    }
+                    return Mono.just(payment);
+                })
+
+                // mapping response to client
+                .flatMap(payment -> Mono.just(ResponseEntity.ok().body(
+                        GetPaymentResponse.builder()
+                                .transactionId(payment.getTransactionId())
+                                .paymentMethod(payment.getPaymentMethod())
+                                .amount(payment.getAmount())
+                                .status(payment.getStatus())
+                                .createdDate(payment.getCreatedDate())
+                                .build()
+                )))
+                ;
     }
 
     private Mono<Payment> updatePaymentEntity(Payment payment, WebhookCallbackRequest request) {
@@ -199,8 +233,7 @@ public class PaymentServiceImpl implements PaymentService {
 
         if (payment.getStatus().equalsIgnoreCase(AppConstant.PAYMENT_STATUS.SUCCESS.name())) {
             return paymentEventProducer.send(AppConstant.TOPICS.PAYMENT_COMPLETED, UUID.randomUUID().toString(), payload);
-        }
-        else if (payment.getStatus().equalsIgnoreCase(AppConstant.PAYMENT_STATUS.FAILED.name())) {
+        } else if (payment.getStatus().equalsIgnoreCase(AppConstant.PAYMENT_STATUS.FAILED.name())) {
             payload.setFailureCode(payment.getFailureCode());
             payload.setFailureMessage(payment.getFailureMessage());
             return paymentEventProducer.send(AppConstant.TOPICS.PAYMENT_FAILED, UUID.randomUUID().toString(), payload);

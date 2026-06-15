@@ -135,7 +135,10 @@ public class OrderServiceImpl implements OrderService {
     @Override
     public Mono<ResponseEntity<GetStatusOrderResponse>> getStatusOrder(String token, String transactionId) {
         // extract claims and validate userId from token
-        return Mono.zip(jwtService.extractClaims(token), orderRepository.findByTransactionId(transactionId))
+        return Mono.zip(
+                jwtService.extractClaims(token),
+                orderRepository.findByTransactionId(transactionId)
+                        .switchIfEmpty(Mono.error(new BusinessException(ErrorCode.TRANSACTION_NOT_FOUND))))
                 //validate userId with order user
                 .flatMap(tuple -> {
                     String userId = tuple.getT1().get("userId").toString();
@@ -213,6 +216,7 @@ public class OrderServiceImpl implements OrderService {
 
     private Mono<Void> handleError(String transactionId) {
         return orderRepository.findByTransactionId(transactionId)
+                .switchIfEmpty(Mono.error(new BusinessException(ErrorCode.TRANSACTION_NOT_FOUND)))
                 .flatMap(order -> {
                     order.setOrderStatus(AppConstant.ORDER_STATUS.FAILED.name());
                     return orderRepository.save(order);

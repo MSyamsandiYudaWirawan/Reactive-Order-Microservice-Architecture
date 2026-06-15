@@ -30,6 +30,10 @@ public class DiscountServiceImpl implements DiscountService {
         log.info("Applying discount code: {}", request.getDiscountCode());
         // find discount
         return discountRepository.findByCode(request.getDiscountCode())
+                .switchIfEmpty(Mono.defer(() -> {
+                    log.info("Discount code not found: {}, skipping", request.getDiscountCode());
+                    return Mono.empty();
+                }))
                 .flatMap(discount -> {
                     DiscountStrategy strategy = discountStrategy.get(discount.getDiscountType());
                     // apply discount if valid
@@ -44,6 +48,7 @@ public class DiscountServiceImpl implements DiscountService {
                     log.info("Discount not applicable, type: {}, code: {}", discount.getDiscountType(), discount.getCode());
                     return Mono.just(order);
                 })
+                .defaultIfEmpty(order)
                 .doOnError(e -> log.error("Error applying discount code: {}", request.getDiscountCode(), e));
     }
 }

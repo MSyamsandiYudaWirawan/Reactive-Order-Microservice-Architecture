@@ -4,7 +4,7 @@ import com.MSyamsandiYW.payment_service.kafka.event.PaymentCommand;
 import com.MSyamsandiYW.payment_service.payment.request.CreatePaymentRequest;
 import com.MSyamsandiYW.payment_service.payment.request.WebhookCallbackRequest;
 import com.MSyamsandiYW.payment_service.payment.response.CreatePaymentResponse;
-import com.MSyamsandiYW.payment_service.payment.response.GetPaymentsResponse;
+import com.MSyamsandiYW.payment_service.payment.response.GetPaymentResponse;
 import org.springframework.http.ResponseEntity;
 import reactor.core.publisher.Mono;
 
@@ -18,5 +18,7 @@ public interface PaymentService {
 
     Mono<Void> refundPayment(PaymentCommand request);
 
-    Mono<ResponseEntity<List<GetPaymentsResponse>>> getPaymentsByUser(String token);
+    Mono<ResponseEntity<List<GetPaymentResponse>>> getPaymentsByUser(String token);
+
+    Mono<ResponseEntity<GetPaymentResponse>> getPaymentStatus(String transactionId, String token);
 }

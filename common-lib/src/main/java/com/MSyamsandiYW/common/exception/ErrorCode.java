@@ -43,6 +43,7 @@ public enum ErrorCode {
     DUPLICATE_REQUEST("DUPLICATE_REQUEST", "Request has already been processed", CONFLICT),
     OUT_OF_STOCK("OUT_OF_STOCK", "Insufficient stock to fulfill the order", BAD_REQUEST),
     TRANSACTION_NOT_FOUND("TRANSACTION_NOT_FOUND", "Transaction not found", NOT_FOUND),
+    PAYMENT_NOT_FOUND("PAYMENT_NOT_FOUND", "Payment not found", NOT_FOUND),
     PRODUCT_NOT_FOUND("PRODUCT_NOT_FOUND", "Product not found", NOT_FOUND),
     INVENTORY_SERVICE_UNAVAILABLE("INVENTORY_SERVICE_UNAVAILABLE", "Inventory service is currently unavailable", HttpStatus.SERVICE_UNAVAILABLE),
     ORDER_PENDING("ORDER_PENDING", "Order is still pending try again later", BAD_REQUEST),

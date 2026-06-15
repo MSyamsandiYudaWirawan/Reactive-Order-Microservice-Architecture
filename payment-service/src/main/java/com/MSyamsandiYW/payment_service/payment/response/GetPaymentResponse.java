@@ -9,7 +9,7 @@ import java.time.ZonedDateTime;
 @Getter
 @Setter
 @Builder
-public class GetPaymentsResponse {
+public class GetPaymentResponse {
     private String transactionId;
     private String paymentMethod;
     private Double amount;
