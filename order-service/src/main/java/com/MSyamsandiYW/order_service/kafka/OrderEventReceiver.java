@@ -36,12 +36,10 @@ public class OrderEventReceiver {
             case STOCK_RESERVE_COMPLETED -> handler.handleStockReservedCompleted(record.value());
             case OUT_OF_STOCK -> handler.handleStockOutOfStock(record.value());
             case PAYMENT_COMPLETED -> handler.handlePaymentCompleted(record.value());
-            case PAYMENT_FAILED -> handler.handlePaymentFailed(record.value());
             case ORDER_COMPLETED -> handler.handleOrderCompleted(record.value());
             case REFUND_COMPLETED -> handler.handleRefundCompleted(record.value());
             case REFUND_FAILED -> handler.handleRefundFailed(record.value());
             case ORDER_EXPIRED -> handler.handleOrderExpired(record.value());
-            case ORDER_TIMEOUT -> handler.handleOrderTimeout(record.value());
             default -> Mono.empty();
         };
         // check idempotency eventId as a key

@@ -46,7 +46,9 @@ public class PaymentServiceImpl implements PaymentService {
     public Mono<ResponseEntity<CreatePaymentResponse>> createPayment(CreatePaymentRequest request, String token) {
         log.info("Creating payment for transactionId: {}", request.getTransactionId());
 
-        return Mono.zip(jwtService.extractClaims(token), orderServiceClient.getStatusOrder(request.getTransactionId(), token))
+        return Mono.zip(jwtService.extractClaims(token),
+                        orderServiceClient.getStatusOrder(request.getTransactionId(), token).switchIfEmpty(Mono.error(new BusinessException(ErrorCode.ORDER_SERVICE_UNAVAILABLE)))
+                )
                 .flatMap(tuple -> {
                     Claims claims = tuple.getT1();
                     GetOrderStatusResponse order = tuple.getT2();
@@ -63,11 +65,17 @@ public class PaymentServiceImpl implements PaymentService {
                     if (order.getOrderStatus().equalsIgnoreCase(COMPLETED.name())) {
                         return Mono.error(new BusinessException(ErrorCode.ORDER_ALREADY_COMPLETED));
                     }
-                    if (order.getOrderStatus().equalsIgnoreCase(FAILED.name())) {
-                        return Mono.error(new BusinessException(ErrorCode.ORDER_ALREADY_COMPLETED));
-                    }
                     if (order.getOrderStatus().equalsIgnoreCase(REFUNDED.name())) {
                         return Mono.error(new BusinessException(ErrorCode.ORDER_ALREADY_REFUNDED));
+                    }
+                    if (order.getOrderStatus().equalsIgnoreCase(OUT_OF_STOCK.name())) {
+                        return Mono.error(new BusinessException(ErrorCode.ORDER_OUT_OF_STOCK));
+                    }
+                    if (order.getOrderStatus().equalsIgnoreCase(EXPIRED.name())) {
+                        return Mono.error(new BusinessException(ErrorCode.ORDER_ALREADY_EXPIRED));
+                    }
+                    if (order.getOrderStatus().equalsIgnoreCase(REFUND_FAILED.name())) {
+                        return Mono.error(new BusinessException(ErrorCode.ORDER_ALREADY_COMPLETED));
                     }
 
                     // build payment entity
@@ -82,6 +90,9 @@ public class PaymentServiceImpl implements PaymentService {
                             .createdDate(ZonedDateTime.now())
                             .build());
                 })
+                // validate current active payment
+                .flatMap(payment -> validateCurrentPayment(payment, request.getTransactionId())
+                )
                 // save payment
                 .flatMap(paymentRepository::save)
                 .doOnNext(payment -> log.info("Payment created successfully for transactionId: {}, status: {}", payment.getTransactionId(), payment.getStatus()))
@@ -242,4 +253,19 @@ public class PaymentServiceImpl implements PaymentService {
         return Mono.error(new BusinessException(ErrorCode.INTERNAL_EXCEPTION));
 
     }
+
+    private Mono<Payment> validateCurrentPayment(Payment newPayment, String transactionId) {
+        // find active current payment
+        return paymentRepository.findFirstByTransactionIdAndStatus(transactionId, AppConstant.PAYMENT_STATUS.PENDING.name())
+                // cancel current payment if exist
+                .flatMap(existingPayment -> { // only runs if PENDING found
+                    existingPayment.setStatus(AppConstant.PAYMENT_STATUS.CANCELLED.name());
+                    existingPayment.setUpdatedBy("PAYMENT_SERVICE");
+                    existingPayment.setLastModifiedDate(ZonedDateTime.now());
+                    return paymentRepository.save(existingPayment);
+                })
+                .thenReturn(newPayment);  // always returns newPayment regardless
+    }
+
+
 }

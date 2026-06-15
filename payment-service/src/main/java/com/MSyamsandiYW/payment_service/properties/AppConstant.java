@@ -4,6 +4,7 @@ package com.MSyamsandiYW.payment_service.properties;
 public class AppConstant {
     public enum PAYMENT_STATUS {
         PENDING,
+        CANCELLED,
         SUCCESS,
         FAILED,
         TIMEOUT,
@@ -15,8 +16,10 @@ public class AppConstant {
         WAITING_PAYMENT,
         PAID,
         COMPLETED,
-        FAILED,
-        REFUNDED
+        REFUNDED,
+        OUT_OF_STOCK,
+        EXPIRED,
+        REFUND_FAILED
     }
     public static class TOPICS {
         public static final String PAYMENT_COMPLETED = "payment-completed"; //produce -> consumed by orchestrator-service

@@ -29,8 +29,8 @@ public class KafkaConfig {
         ReceiverOptions<String, OrderEventRequest> receiverOptions = ReceiverOptions.<String, OrderEventRequest>create(kafkaProperties
                         .buildConsumerProperties())
                 .subscription(List.of(ORDER_COMPLETED,
-                        STOCK_RESERVE_COMPLETED, OUT_OF_STOCK, REFUND_COMPLETED, REFUND_FAILED, PAYMENT_COMPLETED, PAYMENT_FAILED,
-                        ORDER_EXPIRED, ORDER_TIMEOUT));
+                        STOCK_RESERVE_COMPLETED, OUT_OF_STOCK, REFUND_COMPLETED, REFUND_FAILED, PAYMENT_COMPLETED,
+                        ORDER_EXPIRED));
         return KafkaReceiver.create(receiverOptions);
     }
 

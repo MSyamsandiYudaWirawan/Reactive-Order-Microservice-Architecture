@@ -11,4 +11,6 @@ public interface PaymentRepository extends R2dbcRepository<Payment, UUID> {
     Mono<Payment> findByTransactionId(String transactionId);
 
     Flux<Payment> findByUserId(String transactionId);
+
+    Mono<Payment> findFirstByTransactionIdAndStatus(String transactionId, String status);
 }

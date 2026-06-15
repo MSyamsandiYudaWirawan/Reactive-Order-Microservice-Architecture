@@ -58,19 +58,11 @@ public class OrderEventHandler {
         return updateOrderStatus(payload, OUT_OF_STOCK);
     }
 
-    public Mono<Void> handlePaymentFailed(OrderEventRequest payload) {
-        return updateOrderStatus(payload,PAYMENT_FAILED);
-    }
-
     public Mono<Void> handleRefundFailed(OrderEventRequest payload) {
         return updateOrderStatus(payload, REFUND_FAILED);
     }
 
     public Mono<Void> handleOrderExpired(OrderEventRequest payload) {
         return updateOrderStatus(payload, EXPIRED);
-    }
-
-    public Mono<Void> handleOrderTimeout(OrderEventRequest payload) {
-        return updateOrderStatus(payload, TIMEOUT);
     }
 }
