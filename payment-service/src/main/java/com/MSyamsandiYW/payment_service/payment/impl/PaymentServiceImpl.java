@@ -259,6 +259,10 @@ public class PaymentServiceImpl implements PaymentService {
         return paymentRepository.findFirstByTransactionIdAndStatus(transactionId, AppConstant.PAYMENT_STATUS.PENDING.name())
                 // cancel current payment if exist
                 .flatMap(existingPayment -> { // only runs if PENDING found
+
+                    // future: call third-party cancel API
+                    // return paymentProviderClient.cancelPayment(existingPayment.getProviderRef())
+                    //     .then(...)
                     existingPayment.setStatus(AppConstant.PAYMENT_STATUS.CANCELLED.name());
                     existingPayment.setUpdatedBy("PAYMENT_SERVICE");
                     existingPayment.setLastModifiedDate(ZonedDateTime.now());
