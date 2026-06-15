@@ -21,7 +21,7 @@
 
 - Reactive microservices (non-blocking end-to-end)
 - Event-driven architecture
-- Saga pattern (fulfillment-service as coordinator)
+- Saga pattern (orchestrator-service as coordinator)
 - Compensation transaction
 - Idempotency & deduplication (Redis-based, 24h TTL)
 - Distributed tracing (X-Correlation-Id)
@@ -381,7 +381,7 @@ Consume STOCK_RESERVE_REQUESTED → Product check fails (qty < requested OR !isA
 **Demo Flow (Postman):**
 - Create payment → get `urlPayment` in response
 - Manually call webhook callback endpoint with `PAYMENT_SUCCESS` or `PAYMENT_FAILED` to simulate provider callback
-- Same for refund: fulfillment triggers refund via Kafka → payment-service calls third-party → simulate callback with `REFUND_SUCCESS` or `REFUND_FAILED`
+- Same for refund: orchestrator triggers refund via Kafka → payment-service calls third-party → simulate callback with `REFUND_SUCCESS` or `REFUND_FAILED`
 
 **Kafka Producer:**
 
@@ -400,14 +400,13 @@ Consume STOCK_RESERVE_REQUESTED → Product check fails (qty < requested OR !isA
 
 ---
 
-### 6. fulfillment-service (Planned)
+### 6. orchestrator-service (Planned)
 
 **Responsibilities:**
 
 - Saga coordinator for all outcomes
 - Decide final order result
 - Handle all compensation logic
-- (Future) Call third-party API for actual fulfillment (e.g. shipping, purchasing from supplier)
 
 **Kafka Consumer:**
 
@@ -417,7 +416,7 @@ Consume STOCK_RESERVE_REQUESTED → Product check fails (qty < requested OR !isA
 | payment-failed     | payment-service   |
 | out-of-stock       | inventory-service |
 
-**Saga Logic (current — coordinator only):**
+**Saga Logic:**
 
 | Condition                    | Actions                                           |
 |------------------------------|---------------------------------------------------|
@@ -426,34 +425,21 @@ Consume STOCK_RESERVE_REQUESTED → Product check fails (qty < requested OR !isA
 | Out of stock (no payment)    | Publish ORDER_FAILED                              |
 | Out of stock (payment exists)| Publish REFUND_REQUESTED + ORDER_FAILED           |
 
-**Saga Logic (future — with third-party fulfillment):**
-
-| Condition                    | Actions                                              |
-|------------------------------|------------------------------------------------------|
-| Payment success              | Call third-party API to fulfill                      |
-| Fulfillment success          | Publish ORDER_COMPLETED + DEDUCT_STOCK               |
-| Fulfillment failed           | Publish REFUND_REQUESTED + ORDER_FAILED + RELEASE_STOCK |
-| Payment failed               | Publish ORDER_FAILED + RELEASE_STOCK                 |
-| Out of stock (no payment)    | Publish ORDER_FAILED                                 |
-| Out of stock (payment exists)| Publish REFUND_REQUESTED + ORDER_FAILED              |
-
 **Kafka Producer:**
 
 | Topic             | Condition                                |
 |-------------------|------------------------------------------|
-| deduct-stock      | Payment success / Fulfillment success    |
-| release-stock     | Payment failed / Fulfillment failed      |
-| refund-requested  | Out of stock (paid) / Fulfillment failed |
-| order-completed   | Payment success / Fulfillment success    |
-| order-failed      | Payment failed / Out of stock / Fulfillment failed |
+| deduct-stock      | Payment success                          |
+| release-stock     | Payment failed                           |
+| refund-requested  | Out of stock (paid)                      |
+| order-completed   | Payment success                          |
+| order-failed      | Payment failed / Out of stock            |
 
 **Important Notes:**
 
 - This is the single source of truth for saga decisions
 - No scattered decision-making across services
-- Currently acts as coordinator only — no external API calls
-- Future: add third-party fulfillment (shipping, supplier purchase) which introduces real "fulfillment failed" scenario
-- Fulfillment failed publishes ALL compensation events at once (REFUND_REQUESTED + ORDER_FAILED + RELEASE_STOCK) — no need to wait for refund to complete before releasing stock
+- Acts as coordinator only — no external API calls
 
 ---
 
@@ -483,7 +469,7 @@ Consume STOCK_RESERVE_REQUESTED → Product check fails (qty < requested OR !isA
 4. Client → payment-service: Send transactionId + payment method → Return dummy callbacks
 5. Client → payment callback success → payment-service: Publish PAYMENT_COMPLETED
 6. order-service: Consumes PAYMENT_COMPLETED → Update status → PAID
-7. fulfillment-service: Consumes PAYMENT_COMPLETED → Publish ORDER_COMPLETED + DEDUCT_STOCK
+7. orchestrator-service: Consumes PAYMENT_COMPLETED → Publish ORDER_COMPLETED + DEDUCT_STOCK
 8. inventory-service: Consumes DEDUCT_STOCK → Convert reservation to sold ✅
 9. order-service: Consumes ORDER_COMPLETED → Update status → COMPLETED ✅
 ```
@@ -496,7 +482,7 @@ Consume STOCK_RESERVE_REQUESTED → Product check fails (qty < requested OR !isA
 3. order-service: Consumes STOCK_RESERVE_COMPLETED → Update status → WAITING_PAYMENT
 4. Client → payment-service: Send transactionId + payment method → Return dummy callbacks
 5. Client → payment callback failed → payment-service: Publish PAYMENT_FAILED
-6. fulfillment-service: Consumes PAYMENT_FAILED → Publish ORDER_FAILED + RELEASE_STOCK
+6. orchestrator-service: Consumes PAYMENT_FAILED → Publish ORDER_FAILED + RELEASE_STOCK
 7. inventory-service: Consumes RELEASE_STOCK → Cancel reservation ✅
 8. order-service: Consumes ORDER_FAILED → Update status → FAILED ✅
 ```
@@ -506,7 +492,7 @@ Consume STOCK_RESERVE_REQUESTED → Product check fails (qty < requested OR !isA
 ```
 1. Client → order-service: Create order → Save DB (PENDING) → Publish STOCK_RESERVE_REQUESTED → Return transactionId
 2. inventory-service: Consumes STOCK_RESERVE_REQUESTED → Stock insufficient → Publish OUT_OF_STOCK
-3. fulfillment-service: Consumes OUT_OF_STOCK → No payment exists → Publish ORDER_FAILED
+3. orchestrator-service: Consumes OUT_OF_STOCK → No payment exists → Publish ORDER_FAILED
 4. order-service: Consumes ORDER_FAILED → Update status → FAILED ✅
 ```
 
@@ -516,28 +502,13 @@ Consume STOCK_RESERVE_REQUESTED → Product check fails (qty < requested OR !isA
 1. Client → order-service: Create order → Save DB (PENDING) → Publish STOCK_RESERVE_REQUESTED → Return transactionId
 2. Client → payment-service: Send transactionId + payment method → callback success → Publish PAYMENT_COMPLETED
 3. inventory-service: Consumes STOCK_RESERVE_REQUESTED → Stock insufficient → Publish OUT_OF_STOCK
-4. fulfillment-service: Consumes OUT_OF_STOCK → Payment exists → Publish REFUND_REQUESTED + ORDER_FAILED
+4. orchestrator-service: Consumes OUT_OF_STOCK → Payment exists → Publish REFUND_REQUESTED + ORDER_FAILED
 5. payment-service: Consumes REFUND_REQUESTED → Process refund → Publish ORDER_REFUND_COMPLETED
 6. order-service: Consumes ORDER_FAILED → Update status → FAILED
 7. order-service: Consumes ORDER_REFUND_COMPLETED → Update status → REFUNDED ✅
 ```
 
-### Flow 5: Fulfillment Failed (Future — with third-party API)
-
-```
-1. Client → order-service: Create order → Save DB (PENDING) → Publish STOCK_RESERVE_REQUESTED → Return transactionId
-2. inventory-service: Consumes STOCK_RESERVE_REQUESTED → Reserve stock ✅ → Publish STOCK_RESERVE_COMPLETED
-3. order-service: Consumes STOCK_RESERVE_COMPLETED → Update status → WAITING_PAYMENT
-4. Client → payment-service: Send transactionId + payment method → callback success → Publish PAYMENT_COMPLETED
-5. order-service: Consumes PAYMENT_COMPLETED → Update status → PAID
-6. fulfillment-service: Consumes PAYMENT_COMPLETED → Call third-party API → Fails ❌ → Publish REFUND_REQUESTED + ORDER_FAILED + RELEASE_STOCK
-7. inventory-service: Consumes RELEASE_STOCK → Cancel reservation ✅
-8. order-service: Consumes ORDER_FAILED → Update status → FAILED
-9. payment-service: Consumes REFUND_REQUESTED → Call third-party refund → Webhook callback REFUND_SUCCESS → Publish ORDER_REFUND_COMPLETED
-10. order-service: Consumes ORDER_REFUND_COMPLETED → Update status → REFUNDED ✅
-```
-
-### Flow 6: Refund Failed (Future — DLQ/Retry)
+### Flow 5: Refund Failed (Future — DLQ/Retry)
 
 ```
 1. (Continues from any refund flow above)
@@ -603,16 +574,16 @@ Receive Kafka event → Redis storeIfAbsent(eventId) →
 |--------------------------|---------------------|---------------------|
 | stock-reserve-requested  | order-service       | inventory-service   |
 | stock-reserve-completed  | inventory-service   | order-service       |
-| deduct-stock             | fulfillment-service | inventory-service   |
-| release-stock            | fulfillment-service | inventory-service   |
-| out-of-stock             | inventory-service   | fulfillment-service |
-| payment-completed        | payment-service     | order-service, fulfillment-service |
-| payment-failed           | payment-service     | fulfillment-service |
-| refund-requested         | fulfillment-service | payment-service     |
+| deduct-stock             | orchestrator-service | inventory-service   |
+| release-stock            | orchestrator-service | inventory-service   |
+| out-of-stock             | inventory-service   | orchestrator-service |
+| payment-completed        | payment-service     | order-service, orchestrator-service |
+| payment-failed           | payment-service     | orchestrator-service |
+| refund-requested         | orchestrator-service | payment-service     |
 | order-refund-completed   | payment-service     | order-service       |
 | order-refund-failed      | payment-service     | (future: DLQ/retry) |
-| order-completed          | fulfillment-service | order-service       |
-| order-failed             | fulfillment-service | order-service       |
+| order-completed          | orchestrator-service | order-service       |
+| order-failed             | orchestrator-service | order-service       |
 
 **Note:** order-service is both a producer (`stock-reserve-requested`) and consumer (`order-completed`, `order-failed`, `stock-reserve-completed`, `payment-completed`, `order-refund-completed`) because each service owns its own DB — status updates must flow back via events.
 
@@ -729,7 +700,7 @@ reactive-order-microservice/
 │       ├── payment_ledger/ (PaymentLedger, PaymentLedgerRepository, PaymentLedgerService, impl/)
 │       ├── properties/ (AppConstant, AppProperties)
 │       └── service/ (OrderServiceClient)
-├── fulfillment-service/            # (Planned)
+├── orchestrator-service/           # (Planned)
 ├── docker-compose.yml              # Infrastructure (Kafka, Zookeeper, Redis)
 └── pom.xml                         # Parent POM (modules: common-lib, auth-service, gateway-service, order-service, payment-service)
 ```
@@ -750,7 +721,7 @@ reactive-order-microservice/
 - [x] inventory-service (reserve, release, deduct, out-of-stock handling, product price lookup API)
 - [x] inventory-service infrastructure (docker-compose, application.yaml, R2dbcConfig, .env.example)
 - [x] payment-service (4 dummy payment methods, webhook callback, refund flow, payment ledger)
-- [ ] fulfillment-service (saga coordinator)
+- [ ] orchestrator-service (saga coordinator)
 - **Docker Compose** for local development
 
 ### Phase 2 — Reliability
@@ -786,7 +757,7 @@ reactive-order-microservice/
 | Role-based Authorization   | ✅     |
 | API Gateway                | ✅     |
 | Reactive Programming       | ✅     |
-| Saga Pattern               | 🔄 (planned in fulfillment-service) |
+| Saga Pattern               | 🔄 (planned in orchestrator-service) |
 | Compensation Transaction   | 🔄     |
 | Event-Driven Architecture  | ✅     |
 | Kafka Messaging            | ✅     |

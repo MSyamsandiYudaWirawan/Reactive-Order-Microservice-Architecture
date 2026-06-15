@@ -30,7 +30,7 @@ public class StockCommandHandler {
     private final StockEventProducer stockEventProducer;
 
     public Mono<Void> handleStockReserve(ReceiverRecord<String, StockCommand> record) {
-        //create stock reservation
+        //create stock reservations
         return stockReservationService.reserveStock(record.value())
                 //update product available qty and reserved qty
                 .flatMap(reservationList -> productService.reserveStock(reservationList).thenReturn(reservationList))
