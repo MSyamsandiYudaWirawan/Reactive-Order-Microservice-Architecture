@@ -30,9 +30,6 @@ public class OrderEventHandler {
         return updateOrderStatus(payload, COMPLETED);
     }
 
-    public Mono<Void> handleOrderFailed(OrderEventRequest payload) {
-        return updateOrderStatus(payload, FAILED);
-    }
 
     public Mono<Void> handleRefundCompleted(OrderEventRequest payload) {
         return updateOrderStatus(payload, REFUNDED);
@@ -55,5 +52,25 @@ public class OrderEventHandler {
                 // record order event to ledger
                 .flatMap(orderLedgerService::recordOrderEvent)
                 .then();
+    }
+
+    public Mono<Void> handleStockOutOfStock(OrderEventRequest payload) {
+        return updateOrderStatus(payload, OUT_OF_STOCK);
+    }
+
+    public Mono<Void> handlePaymentFailed(OrderEventRequest payload) {
+        return updateOrderStatus(payload,PAYMENT_FAILED);
+    }
+
+    public Mono<Void> handleRefundFailed(OrderEventRequest payload) {
+        return updateOrderStatus(payload, REFUND_FAILED);
+    }
+
+    public Mono<Void> handleOrderExpired(OrderEventRequest payload) {
+        return updateOrderStatus(payload, EXPIRED);
+    }
+
+    public Mono<Void> handleOrderTimeout(OrderEventRequest payload) {
+        return updateOrderStatus(payload, TIMEOUT);
     }
 }

@@ -58,7 +58,8 @@ public class OrderServiceImpl implements OrderService {
                 .build();
 
         // extract claims and get products by id from inventory-service
-        return Mono.zip(jwtService.extractClaims(token),inventoryServiceClient.getProductsById(token,getProductsRequest))
+        return Mono.zip(jwtService.extractClaims(token),
+                        inventoryServiceClient.getProductsById(token,getProductsRequest).switchIfEmpty(Mono.error(new BusinessException(ErrorCode.INVENTORY_SERVICE_UNAVAILABLE))))
                 .flatMap(tuple2 -> {
                     List<GetProductResponse> products = tuple2.getT2();
 
@@ -121,8 +122,6 @@ public class OrderServiceImpl implements OrderService {
                 .doOnError(e ->
                         log.error("Failed to create order - correlationId: {}, error: {}",
                                 correlationId, e.getMessage()))
-                // handle order failed
-                .onErrorResume(e -> handleError(transactionId).then(Mono.error(e)))
                 // return to client
                 .then(Mono.just(
                         ResponseEntity.status(HttpStatus.CREATED)
@@ -212,15 +211,5 @@ public class OrderServiceImpl implements OrderService {
                     return orderItemRepository.saveAll(orderItems).collectList().thenReturn(saved);
                 })
                 .as(transactionalOperator::transactional);
-    }
-
-    private Mono<Void> handleError(String transactionId) {
-        return orderRepository.findByTransactionId(transactionId)
-                .switchIfEmpty(Mono.error(new BusinessException(ErrorCode.TRANSACTION_NOT_FOUND)))
-                .flatMap(order -> {
-                    order.setOrderStatus(AppConstant.ORDER_STATUS.FAILED.name());
-                    return orderRepository.save(order);
-                })
-                .then();
     }
 }
