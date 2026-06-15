@@ -548,6 +548,27 @@ Consume STOCK_RESERVE_REQUESTED → Product check fails (qty < requested OR !isA
 
 ---
 
+## Service Ports
+
+| Service | Port |
+|---------|------|
+| gateway-service | 8080 (default) |
+| auth-service | 8081 |
+| order-service | 8082 |
+| inventory-service | 8083 |
+| payment-service | 8084 |
+
+## Database Ports
+
+| Service | DB Name | Host Port |
+|---------|---------|----------|
+| auth-service | auth_service_db | 5432 |
+| order-service | order_service_db | 5433 |
+| inventory-service | inventory_service_db | 5434 |
+| payment-service | payment_service_db | 5435 |
+
+---
+
 ## Infrastructure Components
 
 ### Redis

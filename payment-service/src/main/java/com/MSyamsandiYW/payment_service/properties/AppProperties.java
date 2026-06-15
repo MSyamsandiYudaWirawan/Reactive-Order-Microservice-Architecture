@@ -14,7 +14,7 @@ import java.util.Map;
 @Component
 public class AppProperties {
 
-    private String orderServiceUrl = "http://localhost:8081";
+    private String orderServiceUrl = "http://localhost:8082";
     private String getStatusOrder = "/api/v1/orders/status/{transactionId}";
     private Map<String, String> paymentMethodUrlMap = new HashMap<>(
             Map.of(

@@ -15,7 +15,11 @@ spring:
                predicates:
                  - Path=/api/v1/orders/**
              - id: inventory-service
-               uri: http://inventory-service:8084
+               uri: http://inventory-service:8083
                predicates:
-                 - Path=/api/v1/inventory/**
+                 - Path=/api/v1/inventory/**,/api/v1/products/**
+             - id: payment-service
+               uri: http://payment-service:8084
+               predicates:
+                 - Path=/api/v1/payments/**
 

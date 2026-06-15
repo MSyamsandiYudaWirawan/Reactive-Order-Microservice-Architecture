@@ -12,14 +12,15 @@ public class RouteValidator {
             "/api/v1/auth"
     );
 
-    //todo save this in kubs config
     private final Map<String, List<String>> roleProtectedPaths = Map.of(
             "/api/v1/admin", List.of("ADMIN"),
-            "/api/v1/orders", List.of("USER","ADMIN")
+            "/api/v1/orders", List.of("USER","ADMIN"),
+            "/api/v1/payments", List.of("USER","ADMIN")
     );
 
     private final Map<String, List<String>> idemKeyPaths = Map.of(
-            "/api/v1/orders", List.of("POST") // matches /api/v1/orders/**
+            "/api/v1/orders", List.of("POST"), // matches /api/v1/orders/**
+            "/api/v1/payments", List.of("POST")
     );
 
     public boolean isOpen(String path) {
