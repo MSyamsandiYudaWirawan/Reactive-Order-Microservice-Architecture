@@ -416,7 +416,7 @@ Consume STOCK_RESERVE_REQUESTED → Product check fails (qty < requested OR !isA
 
 ---
 
-### 6. orchestrator-service (Planned)
+### 6. orchestrator-service ✅ (Completed)
 
 **Responsibilities:**
 
@@ -425,7 +425,7 @@ Consume STOCK_RESERVE_REQUESTED → Product check fails (qty < requested OR !isA
 - Handle all compensation logic
 - Track saga state per transaction (stateful coordinator)
 - Handle events arriving in any order (race condition handling)
-- Payment timeout — auto-cancel orders if unpaid after X minutes
+- Payment timeout — auto-expire orders if unpaid after configurable duration (scheduler)
 
 **Database Tables:**
 
@@ -435,16 +435,18 @@ Consume STOCK_RESERVE_REQUESTED → Product check fails (qty < requested OR !isA
 
 **Saga State Table:**
 
-| Column          | Type      | Description                                      |
-|-----------------|-----------|--------------------------------------------------|
-| id              | BIGSERIAL | Primary key                                      |
-| transaction_id  | VARCHAR   | Order identifier (unique)                        |
-| correlation_id  | VARCHAR   | Distributed tracing ID                           |
-| stock_status    | VARCHAR   | NULL → RESERVED / OUT_OF_STOCK                   |
-| payment_status  | VARCHAR   | NULL → INITIATED / PAID / FAILED                 |
-| saga_status     | VARCHAR   | IN_PROGRESS / COMPLETED / COMPENSATING / FAILED  |
-| created_date    | TIMESTAMP | Saga creation time                               |
-| last_modified   | TIMESTAMP | Last event received                              |
+| Column          | Type        | Description                                      |
+|-----------------|-------------|--------------------------------------------------|
+| id              | UUID        | Primary key (gen_random_uuid())                  |
+| transaction_id  | VARCHAR     | Order identifier                                 |
+| correlation_id  | VARCHAR     | Distributed tracing ID                           |
+| stock_status    | VARCHAR     | NULL → RESERVED / OUT_OF_STOCK                   |
+| payment_status  | VARCHAR     | NULL → INITIATED / PAID / FAILED                 |
+| saga_status     | VARCHAR     | IN_PROGRESS / COMPLETED / COMPENSATING / FAILED  |
+| created_by      | VARCHAR     | Service that created the record                  |
+| updated_by      | VARCHAR     | Service that last updated                        |
+| created_date    | TIMESTAMPTZ | Saga creation time                               |
+| last_modified_date | TIMESTAMPTZ | Last event received                           |
 
 **Kafka Consumer:**
 
@@ -549,6 +551,18 @@ return sagaRepository.updateStatusIfInProgress(transactionId, newStatus)
 
 Whoever commits first wins. The loser sees 0 rows and does nothing. No duplicate events.
 
+**Payment Expiry Scheduler:**
+
+Runs every 30 minutes (`0 */30 * * * *`). Configurable expiry via `app.payment-expiry-seconds` (default: 3600s).
+
+Handles 3 categories of expired IN_PROGRESS sagas:
+
+| Condition                              | Action                                         |
+|----------------------------------------|------------------------------------------------|
+| stock=RESERVED, payment≠PAID           | FAILED + ORDER_EXPIRED + RELEASE_STOCK         |
+| stock≠RESERVED, payment=PAID           | COMPENSATING + ORDER_EXPIRED + REFUND_REQUESTED|
+| stock≠RESERVED, payment≠PAID           | FAILED + ORDER_EXPIRED                         |
+
 **Important Notes:**
 
 - This is the single source of truth for saga decisions
@@ -560,7 +574,7 @@ Whoever commits first wins. The loser sees 0 rows and does nothing. No duplicate
 - Uses R2DBC for reactive DB access (same pattern as other services)
 - Event deduplication via Redis (same pattern as other services)
 - Saga state created when first event arrives for a transactionId
-- Payment timeout prevents infinite stock reservation
+- Payment expiry scheduler prevents infinite stock reservation
 
 ---
 
@@ -841,7 +855,14 @@ reactive-order-microservice/
 │       ├── payment_ledger/ (PaymentLedger, PaymentLedgerRepository, PaymentLedgerService, impl/)
 │       ├── properties/ (AppConstant, AppProperties)
 │       └── service/ (OrderServiceClient)
-├── orchestrator-service/           # (Planned)
+├── orchestrator-service/           # Saga coordinator
+│   └── src/main/java/com/MSyamsandiYW/orchestrator_service/
+│       ├── config/ (KafkaConfig, R2dbcConfig, RedisServiceConfig, SchedulerConfig)
+│       ├── kafka/ (OrchestrationCommandHandler, OrchestratorCommandReceiver, OrchestratorEventProducer)
+│       ├── kafka/event/ (OrchestratorCommand, OrchestratorEventPayload)
+│       ├── properties/ (AppConstant, AppProperties)
+│       ├── saga_state/ (SagaState, SagaStateRepository, SagaStateService, impl/SagaStateServiceImpl)
+│       └── scheduler/ (SchedulerController, SchedulerService, impl/SchedulerServiceImpl)
 ├── docker-compose.yml              # Infrastructure (Kafka, Zookeeper, Redis)
 └── pom.xml                         # Parent POM (modules: common-lib, auth-service, gateway-service, order-service, payment-service)
 ```
@@ -862,7 +883,7 @@ reactive-order-microservice/
 - [x] inventory-service (reserve, release, deduct, out-of-stock handling, product price lookup API)
 - [x] inventory-service infrastructure (docker-compose, application.yaml, R2dbcConfig, .env.example)
 - [x] payment-service (4 dummy payment methods, webhook callback, refund flow, payment ledger)
-- [ ] orchestrator-service (saga coordinator)
+- [x] orchestrator-service (saga coordinator, payment expiry scheduler)
 - **Docker Compose** for local development
 
 ### Phase 2 — Reliability
@@ -906,8 +927,8 @@ x
 | Role-based Authorization   | ✅     |
 | API Gateway                | ✅     |
 | Reactive Programming       | ✅     |
-| Saga Pattern               | 🔄 (planned in orchestrator-service) |
-| Compensation Transaction   | 🔄     |
+| Saga Pattern               | ✅     |
+| Compensation Transaction   | ✅     |
 | Event-Driven Architecture  | ✅     |
 | Kafka Messaging            | ✅     |
 | Idempotency (Redis)        | ✅     |

@@ -15,8 +15,7 @@ import java.util.UUID;
 
 import static com.MSyamsandiYW.orchestrator_service.properties.AppConstant.PAYMENT_STATUS.INITIATED;
 import static com.MSyamsandiYW.orchestrator_service.properties.AppConstant.PAYMENT_STATUS.PAID;
-import static com.MSyamsandiYW.orchestrator_service.properties.AppConstant.SAGA_STATUS.COMPENSATING;
-import static com.MSyamsandiYW.orchestrator_service.properties.AppConstant.SAGA_STATUS.COMPLETED;
+import static com.MSyamsandiYW.orchestrator_service.properties.AppConstant.SAGA_STATUS.*;
 import static com.MSyamsandiYW.orchestrator_service.properties.AppConstant.STOCK_STATUS.OUT_OF_STOCK;
 import static com.MSyamsandiYW.orchestrator_service.properties.AppConstant.STOCK_STATUS.RESERVED;
 
@@ -36,8 +35,8 @@ public class OrchestrationCommandHandler {
                 // set stock status to reserved
                 .flatMap(sagaState -> {
                     // if payment status is paid then handle saga completed
-                    if (sagaState.getPaymentStatus().equalsIgnoreCase(PAID.name())) {
-                        return handleSagaCompensated(sagaState);
+                    if (PAID.name().equalsIgnoreCase(sagaState.getPaymentStatus())) {
+                        return handleSagaCompleted(sagaState);
                     }
                     sagaState.setStockStatus(RESERVED.name());
                     return sagaStateService.save(sagaState);
@@ -103,9 +102,9 @@ public class OrchestrationCommandHandler {
                         return handleSagaCompensated(sagaState);
                     }
                     sagaState.setStockStatus(OUT_OF_STOCK.name());
+                    sagaState.setSagaStatus(FAILED.name());
                     return sagaStateService.save(sagaState);
-                })
-                .then();
+                }).then();
     }
 
     private Mono<SagaState> handleSagaCompleted(SagaState sagaState) {
