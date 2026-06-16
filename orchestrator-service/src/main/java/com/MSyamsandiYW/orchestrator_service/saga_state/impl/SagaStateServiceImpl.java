@@ -6,9 +6,11 @@ import com.MSyamsandiYW.orchestrator_service.saga_state.SagaStateService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.time.ZonedDateTime;
+import java.util.List;
 
 import static com.MSyamsandiYW.orchestrator_service.properties.AppConstant.SAGA_STATUS.IN_PROGRESS;
 
@@ -36,9 +38,27 @@ public class SagaStateServiceImpl implements SagaStateService {
     }
 
     @Override
+    public Mono<Integer> updateStatusIfInProgress(String transactionId, String newSagaStatus, String newPaymentStatus) {
+        return sagaStateRepository.updateStatusIfInProgress(transactionId, newSagaStatus, newPaymentStatus);
+    }
+
+    @Override
     public Mono<SagaState> save(SagaState sagaState) {
         sagaState.setUpdatedBy("ORCHESTRATION_SERVICE");
         sagaState.setLastModifiedDate(ZonedDateTime.now());
         return sagaStateRepository.save(sagaState);
+    }
+
+    @Override
+    public Flux<SagaState> saveAll(List<SagaState> sagaStateList) {
+        return sagaStateRepository.saveAll(sagaStateList.stream().peek(sagaState -> {
+            sagaState.setUpdatedBy("ORCHESTRATION_SERVICE");
+            sagaState.setLastModifiedDate(ZonedDateTime.now());
+        }).toList());
+    }
+
+    @Override
+    public Flux<SagaState> findAllExpiredTransaction(ZonedDateTime cutoff) {
+        return sagaStateRepository.findAllExpiredTransaction(cutoff);
     }
 }

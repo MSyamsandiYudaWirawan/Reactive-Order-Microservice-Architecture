@@ -109,46 +109,48 @@ public class OrchestrationCommandHandler {
     }
 
     private Mono<SagaState> handleSagaCompleted(SagaState sagaState) {
-        // set saga status to completed and send event to order completed topic
-        sagaState.setSagaStatus(COMPLETED.name());
-        sagaState.setUpdatedBy("ORCHESTRATION_SERVICE");
-        sagaState.setLastModifiedDate(ZonedDateTime.now());
-
-        //create payload for event
-        OrchestratorEventPayload producePayload = OrchestratorEventPayload.builder()
-                .transactionId(sagaState.getTransactionId())
-                .correlationId(sagaState.getCorrelationId())
-                .build();
-
-        // save saga state
-        return sagaStateService.save(sagaState)
-                //send event order complete
-                .flatMap(updatedSaga ->
-                        producer.send(AppConstant.TOPICS.ORDER_COMPLETED, UUID.randomUUID().toString(), producePayload)
-                                .thenReturn(updatedSaga))
-                //send event deduct stock and return updated saga
-                .flatMap(updatedSaga ->
-                        producer.send(AppConstant.TOPICS.DEDUCT_STOCK, UUID.randomUUID().toString(), producePayload)
-                                .thenReturn(updatedSaga));
+        //update saga status to completed and payment status to paid
+        //update using Conditional UPDATE CAS for atomic
+        return sagaStateService.updateStatusIfInProgress(
+                        sagaState.getTransactionId(),
+                        COMPLETED.name(),
+                        PAID.name()
+                )
+                // if no rows updated return mono empty
+                .filter(rowsUpdated -> rowsUpdated > 0)
+                // flatMap will skip if its mono empty
+                .flatMap(__ -> {
+                    OrchestratorEventPayload payload = OrchestratorEventPayload.builder()
+                            .transactionId(sagaState.getTransactionId())
+                            .correlationId(sagaState.getCorrelationId())
+                            .build();
+                    return producer.send(AppConstant.TOPICS.ORDER_COMPLETED, UUID.randomUUID().toString(), payload)
+                            .then(producer.send(AppConstant.TOPICS.DEDUCT_STOCK, UUID.randomUUID().toString(), payload));
+                })
+                .thenReturn(sagaState);
     }
 
+
     private Mono<SagaState> handleSagaCompensated(SagaState sagaState) {
-        // set saga status to completed and send event to order completed topic
-        sagaState.setSagaStatus(COMPENSATING.name());
-        sagaState.setUpdatedBy("ORCHESTRATION_SERVICE");
-        sagaState.setLastModifiedDate(ZonedDateTime.now());
 
-        //create payload for event
-        OrchestratorEventPayload producePayload = OrchestratorEventPayload.builder()
-                .transactionId(sagaState.getTransactionId())
-                .correlationId(sagaState.getCorrelationId())
-                .build();
-
-        // save saga state
-        return sagaStateService.save(sagaState)
-                //send event refund requested and return updated saga
-                .flatMap(updatedSaga ->
-                        producer.send(AppConstant.TOPICS.REFUND_REQUESTED, UUID.randomUUID().toString(), producePayload)
-                                .thenReturn(updatedSaga));
+        //update saga status to compensating and payment status to paid
+        //update using Conditional UPDATE CAS for atomic
+        return sagaStateService.updateStatusIfInProgress(
+                        sagaState.getTransactionId(),
+                        COMPENSATING.name(),
+                        // this already paid
+                        PAID.name()
+                )
+                // if no rows updated return mono empty
+                .filter(rowsUpdated -> rowsUpdated > 0)
+                // flatMap will skip if its mono empty
+                .flatMap(__ -> {
+                    OrchestratorEventPayload payload = OrchestratorEventPayload.builder()
+                            .transactionId(sagaState.getTransactionId())
+                            .correlationId(sagaState.getCorrelationId())
+                            .build();
+                    return producer.send(AppConstant.TOPICS.REFUND_REQUESTED, UUID.randomUUID().toString(), payload);
+                })
+                .thenReturn(sagaState);
     }
 }
