@@ -346,7 +346,6 @@ Consume STOCK_RESERVE_REQUESTED → Product check fails (qty < requested OR !isA
 | CANCELLED    | Superseded by new payment attempt (user switched method) |
 | SUCCESS      | Payment callback success                     |
 | FAILED       | Payment callback failed                      |
-| TIMEOUT      | Payment timed out (cancelled by orchestrator)|
 | REFUNDED     | Refund callback success                      |
 | REFUND_FAILED| Refund callback failed                       |
 
@@ -414,7 +413,6 @@ Consume STOCK_RESERVE_REQUESTED → Product check fails (qty < requested OR !isA
 | Topic            | Action                                                |
 |------------------|-------------------------------------------------------|
 | refund-requested | Process refund → call third-party → wait webhook callback |
-| payment-timeout  | Find payment by transactionId → mark status=TIMEOUT   |
 
 ---
 
@@ -466,7 +464,7 @@ When `STOCK_RESERVE_COMPLETED` arrives:
 | NULL           | Update stock_status=RESERVED, wait for payment      |
 | INITIATED      | Update stock_status=RESERVED, wait for payment result |
 | PAID           | Publish ORDER_COMPLETED + DEDUCT_STOCK → saga_status=COMPLETED |
-| FAILED         | Publish ORDER_FAILED + RELEASE_STOCK → saga_status=FAILED |
+| FAILED         | Update stock_status=RESERVED, wait for payment (user can retry) |
 
 When `PAYMENT_INITIATED` arrives:
 | saga_status    | Action                                              |
@@ -478,7 +476,7 @@ When `PAYMENT_COMPLETED` arrives:
 |----------------|-----------------------------------------------------|
 | NULL           | Update payment_status=PAID, wait for stock result   |
 | RESERVED       | Publish ORDER_COMPLETED + DEDUCT_STOCK → saga_status=COMPLETED |
-| OUT_OF_STOCK   | Publish REFUND_REQUESTED + ORDER_FAILED → saga_status=COMPENSATING |
+| OUT_OF_STOCK   | Publish REFUND_REQUESTED → saga_status=COMPENSATING |
 
 When `PAYMENT_FAILED` arrives:
 | stock_status   | Action                                              |
@@ -488,10 +486,10 @@ When `PAYMENT_FAILED` arrives:
 When `OUT_OF_STOCK` arrives:
 | payment_status | Action                                              |
 |----------------|-----------------------------------------------------|
-| NULL           | Update stock_status=OUT_OF_STOCK, wait for payment  |
+| NULL           | Update stock_status=OUT_OF_STOCK → saga_status=FAILED |
 | INITIATED      | Update stock_status=OUT_OF_STOCK, wait for payment result |
-| PAID           | Publish REFUND_REQUESTED + ORDER_FAILED → saga_status=COMPENSATING |
-| FAILED         | Publish ORDER_FAILED → saga_status=FAILED           |
+| PAID           | Publish REFUND_REQUESTED → saga_status=COMPENSATING |
+| FAILED         | Update stock_status=OUT_OF_STOCK → saga_status=FAILED |
 
 **Payment Timeout / Order Expiry (Scheduler):**
 
@@ -500,11 +498,10 @@ Two separate timeout scenarios:
 ```
 Find saga_state WHERE stock_status=RESERVED AND saga_status=IN_PROGRESS
   AND created_date < (now - order_expiry_duration) →
-  Publish ORDER_EXPIRED + RELEASE_STOCK (+ PAYMENT_TIMEOUT if payment_status=INITIATED) → saga_status=FAILED
+  Publish ORDER_EXPIRED + RELEASE_STOCK → saga_status=FAILED
 ```
 
 - Order expiry: configurable (e.g. 1 hour)
-- `PAYMENT_TIMEOUT` only published when payment record exists (payment_status=INITIATED)
 - Prevents stock being locked indefinitely
 - Payment failure does NOT trigger order expiry — only the scheduler does
 
@@ -515,10 +512,8 @@ Find saga_state WHERE stock_status=RESERVED AND saga_status=IN_PROGRESS
 | deduct-stock      | Payment success + stock reserved                  |
 | release-stock     | Order expired + stock reserved                    |
 | refund-requested  | Out of stock + payment already paid               |
-| payment-timeout   | Order expired + payment_status=INITIATED          |
 | order-completed   | Payment success + stock reserved                  |
 | order-expired     | Scheduler: order expiry                           |
-| order-failed      | Out of stock (no payment paid)                    |
 
 **Race Condition Handling: Scheduler vs Late Payment**
 
@@ -646,10 +641,9 @@ Whoever commits first wins. The loser sees 0 rows and does nothing. No duplicate
 3. orchestrator-service: Consumes STOCK_RESERVE_COMPLETED → saga_state (stock_status=RESERVED, payment_status=NULL)
 4. order-service: Consumes STOCK_RESERVE_COMPLETED → Update status → WAITING_PAYMENT
 5. (Client never pays or all payment attempts fail — order expiry timer expires)
-6. orchestrator-service: Scheduler detects expired saga → Publish ORDER_EXPIRED + RELEASE_STOCK (+ PAYMENT_TIMEOUT if payment_status=INITIATED) → saga_status=FAILED
-7. payment-service: (if PAYMENT_TIMEOUT received) → Mark active payment status=TIMEOUT
-8. inventory-service: Consumes RELEASE_STOCK → Cancel reservation ✅
-9. order-service: Consumes ORDER_EXPIRED → Update status → EXPIRED ✅
+6. orchestrator-service: Scheduler detects expired saga → Publish ORDER_EXPIRED + RELEASE_STOCK → saga_status=FAILED
+7. inventory-service: Consumes RELEASE_STOCK → Cancel reservation ✅
+8. order-service: Consumes ORDER_EXPIRED → Update status → EXPIRED ✅
 ```
 
 ### Flow 6: Refund Failed (Future — DLQ/Retry)
@@ -727,14 +721,12 @@ Receive Kafka event → Redis storeIfAbsent(eventId) →
 | payment-failed           | payment-service     | orchestrator-service |
 | payment-initiated        | payment-service     | orchestrator-service |
 | refund-requested         | orchestrator-service | payment-service     |
-| payment-timeout          | orchestrator-service | payment-service     |
 | order-refund-completed   | payment-service     | order-service       |
 | order-refund-failed      | payment-service     | (future: DLQ/retry) |
 | order-completed          | orchestrator-service | order-service       |
-| order-failed             | orchestrator-service | order-service       |
 | order-expired            | orchestrator-service | order-service       |
 
-**Note:** order-service is both a producer (`stock-reserve-requested`) and consumer (`order-completed`, `order-failed`, `stock-reserve-completed`, `payment-completed`, `order-refund-completed`) because each service owns its own DB — status updates must flow back via events.
+**Note:** order-service is both a producer (`stock-reserve-requested`) and consumer (`order-completed`, `stock-reserve-completed`, `payment-completed`, `order-refund-completed`, `order-refund-failed`, `order-expired`) because each service owns its own DB — status updates must flow back via events.
 
 ---
 

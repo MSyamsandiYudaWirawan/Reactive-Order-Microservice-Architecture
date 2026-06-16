@@ -1,6 +1,6 @@
 package com.MSyamsandiYW.orchestrator_service.config;
 
-import com.MSyamsandiYW.orchestrator_service.config.kafka.event.OrchestratorCommand;
+import com.MSyamsandiYW.orchestrator_service.kafka.event.OrchestratorCommand;
 import org.springframework.boot.kafka.autoconfigure.KafkaProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
