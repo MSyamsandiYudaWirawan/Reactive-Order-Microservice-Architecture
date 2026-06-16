@@ -890,11 +890,19 @@ reactive-order-microservice/
 - [ ] Centralized logging
 
 ### Phase 4 — Kubernetes
-
+x
 - [ ] Kubernetes deployment manifests
 - [ ] ConfigMap & Secret
 - [ ] Horizontal scaling
 - [ ] Health checks / readiness probes
+
+### Phase 5 — Advanced Streaming (Optional)
+
+- [ ] analytics-service (Kafka Streams)
+- [ ] Real-time order count / revenue aggregation (windowed)
+- [ ] Join payment-completed + stock-reserve-completed streams for monitoring
+- [ ] KTable materialized view of order statuses (queryable store)
+- [ ] Anomaly detection (e.g., too many FAILED payments in 5 min)
 
 ---
 
@@ -926,6 +934,7 @@ reactive-order-microservice/
 
 After MVP is stable:
 
+- Kafka Streams analytics module (real-time order metrics, dashboards)
 - Outbox Pattern
 - mTLS
 - Service Mesh

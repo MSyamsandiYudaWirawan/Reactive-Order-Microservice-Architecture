@@ -9,7 +9,9 @@ import java.util.Map;
 public class RouteValidator {
 
     private final List<String> openPaths = List.of(
-            "/api/v1/auth"
+            "/api/v1/auth",
+            //bypass webhook callback for ease testing
+            "/api/v1/payments/webhook/callback"
     );
 
     private final Map<String, List<String>> roleProtectedPaths = Map.of(
