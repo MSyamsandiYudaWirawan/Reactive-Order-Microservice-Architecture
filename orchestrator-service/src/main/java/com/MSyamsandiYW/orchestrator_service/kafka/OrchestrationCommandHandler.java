@@ -73,8 +73,8 @@ public class OrchestrationCommandHandler {
                         return handleSagaCompleted(sagaState);
                     }
                     // if stock status is out of stock then handle saga compensate
-                    if (sagaState.getSagaStatus() != null &&
-                            sagaState.getSagaStatus().equalsIgnoreCase(OUT_OF_STOCK.name())) {
+                    if (sagaState.getStockStatus() != null &&
+                            sagaState.getStockStatus().equalsIgnoreCase(OUT_OF_STOCK.name())) {
                         return handleSagaCompensated(sagaState);
                     }
 

@@ -10,6 +10,7 @@ import com.MSyamsandiYW.orchestrator_service.scheduler.SchedulerService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.time.ZonedDateTime;
@@ -66,53 +67,71 @@ public class SchedulerServiceImpl implements SchedulerService {
     private Mono<Void> handleExpiredReservedStock(List<SagaState> sagaStateList) {
         if (sagaStateList.isEmpty()) return Mono.empty();
         log.info("Handling {} expired reserved-stock transactions — releasing stock", sagaStateList.size());
-        return sagaStateService.saveAll(sagaStateList.stream().peek(sagaState ->
-                        sagaState.setSagaStatus(AppConstant.SAGA_STATUS.FAILED.name())
-                ).toList())
-                .flatMap(sagaState -> {
-                    OrchestratorEventPayload payload = OrchestratorEventPayload.builder()
-                            .transactionId(sagaState.getTransactionId())
-                            .correlationId(sagaState.getCorrelationId())
-                            .build();
-                    // notify order expiry and release reserved stock
-                    return producer.send(AppConstant.TOPICS.ORDER_EXPIRED, UUID.randomUUID().toString(), payload)
-                            .then(producer.send(AppConstant.TOPICS.RELEASE_STOCK, UUID.randomUUID().toString(), payload));
-                })
+        return Flux.fromIterable(sagaStateList)
+                .flatMap(sagaState ->
+                        //update using Conditional UPDATE CAS for atomic
+                        sagaStateService.updateStatusIfInProgress(
+                                        sagaState.getTransactionId(),
+                                        AppConstant.SAGA_STATUS.FAILED.name(),
+                                        sagaState.getPaymentStatus()
+                                )
+                                .filter(rows -> rows > 0)
+                                .flatMap(__ -> {
+                                    OrchestratorEventPayload payload = OrchestratorEventPayload.builder()
+                                            .transactionId(sagaState.getTransactionId())
+                                            .correlationId(sagaState.getCorrelationId())
+                                            .build();
+                                    return producer.send(AppConstant.TOPICS.ORDER_EXPIRED, UUID.randomUUID().toString(), payload)
+                                            .then(producer.send(AppConstant.TOPICS.RELEASE_STOCK, UUID.randomUUID().toString(), payload));
+                                })
+                )
                 .then();
     }
 
     private Mono<Void> handleExpiredPaidTransaction(List<SagaState> sagaStateList) {
         if (sagaStateList.isEmpty()) return Mono.empty();
         log.info("Handling {} expired paid transactions — requesting refund", sagaStateList.size());
-        return sagaStateService.saveAll(sagaStateList.stream().peek(sagaState ->
-                        sagaState.setSagaStatus(AppConstant.SAGA_STATUS.COMPENSATING.name())
-                ).toList())
-                .flatMap(sagaState -> {
-                    OrchestratorEventPayload payload = OrchestratorEventPayload.builder()
-                            .transactionId(sagaState.getTransactionId())
-                            .correlationId(sagaState.getCorrelationId())
-                            .build();
-                    // notify order expiry and request payment refund
-                    return producer.send(AppConstant.TOPICS.ORDER_EXPIRED, UUID.randomUUID().toString(), payload)
-                            .then(producer.send(AppConstant.TOPICS.REFUND_REQUESTED, UUID.randomUUID().toString(), payload));
-                })
+        return Flux.fromIterable(sagaStateList)
+                .flatMap(sagaState ->
+                        //update using Conditional UPDATE CAS for atomic
+                        sagaStateService.updateStatusIfInProgress(
+                                        sagaState.getTransactionId(),
+                                        AppConstant.SAGA_STATUS.COMPENSATING.name(),
+                                        sagaState.getPaymentStatus()
+                                )
+                                .filter(rows -> rows > 0)
+                                .flatMap(__ -> {
+                                    OrchestratorEventPayload payload = OrchestratorEventPayload.builder()
+                                            .transactionId(sagaState.getTransactionId())
+                                            .correlationId(sagaState.getCorrelationId())
+                                            .build();
+                                    return producer.send(AppConstant.TOPICS.ORDER_EXPIRED, UUID.randomUUID().toString(), payload)
+                                            .then(producer.send(AppConstant.TOPICS.REFUND_REQUESTED, UUID.randomUUID().toString(), payload));
+                                })
+                )
                 .then();
     }
 
     private Mono<Void> handleExpiredFailTransaction(List<SagaState> sagaStateList) {
         if (sagaStateList.isEmpty()) return Mono.empty();
         log.info("Handling {} expired failed transactions — marking as failed", sagaStateList.size());
-        return sagaStateService.saveAll(sagaStateList.stream().peek(sagaState ->
-                        sagaState.setSagaStatus(AppConstant.SAGA_STATUS.FAILED.name())
-                ).toList())
-                .flatMap(sagaState -> {
-                    OrchestratorEventPayload payload = OrchestratorEventPayload.builder()
-                            .transactionId(sagaState.getTransactionId())
-                            .correlationId(sagaState.getCorrelationId())
-                            .build();
-                    // notify order expiry only — no compensation needed
-                    return producer.send(AppConstant.TOPICS.ORDER_EXPIRED, UUID.randomUUID().toString(), payload);
-                })
+        return Flux.fromIterable(sagaStateList)
+                .flatMap(sagaState ->
+                        //update using Conditional UPDATE CAS for atomic
+                        sagaStateService.updateStatusIfInProgress(
+                                        sagaState.getTransactionId(),
+                                        AppConstant.SAGA_STATUS.FAILED.name(),
+                                        sagaState.getPaymentStatus()
+                                )
+                                .filter(rows -> rows > 0)
+                                .flatMap(__ -> {
+                                    OrchestratorEventPayload payload = OrchestratorEventPayload.builder()
+                                            .transactionId(sagaState.getTransactionId())
+                                            .correlationId(sagaState.getCorrelationId())
+                                            .build();
+                                    return producer.send(AppConstant.TOPICS.ORDER_EXPIRED, UUID.randomUUID().toString(), payload);
+                                })
+                )
                 .then();
     }
 
