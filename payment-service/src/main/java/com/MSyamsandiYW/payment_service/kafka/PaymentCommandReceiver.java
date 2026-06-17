@@ -34,11 +34,12 @@ public class PaymentCommandReceiver {
             case REFUND_REQUESTED -> handler.handleRefundPayment(record.value());
             default -> Mono.empty();
         };
-        // check idempotency eventId as a key
-        return redisService.storeIfAbsent(record.key(),"processed")
+        // check idempotency eventId as a key, prefixed with service name to avoid conflict with other consumers
+        String deduplicationKey = "payment-service:" + record.key();
+        return redisService.storeIfAbsent(deduplicationKey, "processed")
                 .flatMap(stored -> {
                     if(!stored){
-                        log.info("Duplicate event skipped - key: {}", record.key());
+                        log.info("Duplicate event skipped - key: {}", deduplicationKey);
                         // skip if already processed
                         return Mono.empty();
                     }

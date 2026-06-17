@@ -37,10 +37,12 @@ public class StockCommandReceiver {
             default -> Mono.empty();
         };
 
-        return redisService.storeIfAbsent(record.key(), "processed")
+        // prefixed with service name to avoid conflict with other consumers
+        String deduplicationKey = "inventory-service:" + record.key();
+        return redisService.storeIfAbsent(deduplicationKey, "processed")
                 .flatMap(stored -> {
                     if (!stored) {
-                        log.info("Duplicate event skipped - key: {}", record.key());
+                        log.info("Duplicate event skipped - key: {}", deduplicationKey);
                         // skip if already processed
                         return Mono.empty();
                     }
