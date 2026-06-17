@@ -792,6 +792,128 @@ Receive Kafka event → Redis storeIfAbsent(eventId) →
 
 ---
 
+## PgBouncer (Connection Pooling — Critical for K8s Auto-Scaling)
+
+### Why PgBouncer Is Needed
+
+Without a connection pooler, auto-scaling in Kubernetes creates connection explosion:
+
+```
+order-service: 10 pods × 10 connections per pod = 100 connections to order_service_db
+PostgreSQL default max_connections = 100 → DISASTER
+```
+
+With database-per-service, each service's DB faces this independently. Scale to 15 pods during peak traffic and the database is overwhelmed. Even with R2DBC's reactive connection pool (r2dbc-pool), each pod still creates its own pool. Auto-scaling multiplies the total connections linearly.
+
+### Architecture
+
+```
+[Pod 1] ─┐                              ┌─ [PostgreSQL]
+[Pod 2] ─┼─→ [PgBouncer (max 20)] ─────→│  (max_connections=100)
+[Pod 3] ─┤                              └─
+[Pod N] ─┘
+```
+
+PgBouncer sits between services and PostgreSQL as a lightweight connection multiplexer. It queues requests when all DB connections are busy, preventing connection exhaustion.
+
+### Why R2DBC + PgBouncer Transaction Mode Is Perfect
+
+PostgreSQL has 2 wire protocols:
+
+| Protocol | How it works | Prepared statements? |
+|----------|-------------|---------------------|
+| **Simple Query** | Plain text SQL in one message | No |
+| **Extended Query** | Parse → Bind → Execute (3-step) | Yes |
+
+R2DBC uses **Extended Query** but with **unnamed prepared statements** (`PARSE name=""`):
+
+```
+JDBC:   PARSE name="s1" → BIND "s1" → EXECUTE "s1"  (server remembers "s1")
+R2DBC:  PARSE name=""   → BIND ""   → EXECUTE ""    (server forgets immediately)
+```
+
+- **JDBC (HikariCP)**: Uses **named** prepared statements that persist on the server connection. When PgBouncer reassigns the connection in transaction mode, those statements are gone → errors (pre-1.21).
+- **R2DBC**: Uses **unnamed** prepared statements that are destroyed after each query cycle. No state persists → PgBouncer can safely reassign connections → **zero issues**.
+
+This is why R2DBC + PgBouncer transaction mode is a perfect combination without any workaround.
+
+### PgBouncer 1.21+ Prepared Statement Cache (For JDBC Compatibility)
+
+PgBouncer 1.21 (2023) introduced `prepared_statement_cache_size`:
+
+```ini
+[pgbouncer]
+prepared_statement_cache_size = 100   # Cache named prepared statements
+```
+
+This maps client-side named prepared statements to server-side ones, transparently re-preparing them when connections are reassigned. This fixes the JDBC compatibility issue in transaction mode.
+
+**For this project (R2DBC)**: We don't need this cache — R2DBC is inherently compatible. But it's good to enable it anyway for mixed environments.
+
+### Pool Modes
+
+| Mode        | Description                                     | Use Case           |
+|-------------|------------------------------------------------|--------------------|
+| transaction | Connection returned after each transaction      | ✅ Best for microservices |
+| session     | Connection held for entire client session        | Legacy apps        |
+| statement   | Connection returned after each statement         | Simple queries     |
+
+→ Use **transaction mode** for this project (stateless microservices, short-lived queries, R2DBC unnamed statements).
+
+### Deployment Strategy (Per Service DB)
+
+Each service gets its own PgBouncer sidecar or shared pool:
+
+```
+order-service pods ──→ PgBouncer (order) ──→ order_service_db
+payment-service pods ──→ PgBouncer (payment) ──→ payment_service_db
+inventory-service pods ──→ PgBouncer (inventory) ──→ inventory_service_db
+```
+
+### Configuration Example (pgbouncer.ini)
+
+```ini
+[databases]
+order_service_db = host=postgres-order port=5432 dbname=order_service_db
+
+[pgbouncer]
+pool_mode = transaction
+max_client_conn = 200        # Total connections from all pods
+default_pool_size = 20       # Actual connections to PostgreSQL
+min_pool_size = 5
+reserve_pool_size = 5
+prepared_statement_cache_size = 100  # Optional — for JDBC compatibility
+```
+
+### R2DBC Connection Config (Per Service)
+
+With PgBouncer, reduce the per-pod pool size since PgBouncer handles multiplexing:
+
+```yaml
+spring:
+  r2dbc:
+    url: r2dbc:postgresql://pgbouncer-order:6432/order_service_db
+    pool:
+      initial-size: 2
+      max-size: 5          # Small per-pod pool — PgBouncer handles the rest
+```
+
+### Kubernetes Deployment Options
+
+| Option             | Pros                          | Cons                          |
+|--------------------|-------------------------------|-------------------------------|
+| Sidecar per pod    | Isolation, simple config      | Resource overhead per pod     |
+| Shared Deployment  | Efficient, centralized        | Single point of failure       |
+| Operator (e.g. Crunchy) | Managed, HA built-in    | Complexity                    |
+
+→ Recommended: **Shared PgBouncer Deployment per database** (1 PgBouncer per service DB).
+
+### Phase
+
+PgBouncer deployment belongs to **Phase 5 (Kubernetes)** — essential before any production auto-scaling.
+
+---
+
 ## Kubernetes Architecture (Phase 4)
 
 ### No Eureka Needed
@@ -1078,6 +1200,7 @@ After MVP is stable:
 - Multi-tenancy
 - CQRS / Event Sourcing
 - gRPC internal communication
+- PgBouncer (connection pooling proxy)
 
 ---
 

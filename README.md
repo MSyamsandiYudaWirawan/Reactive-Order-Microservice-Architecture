@@ -36,6 +36,7 @@ Each service owns its **PostgreSQL database** (database-per-service pattern) and
 | **Order Expiry** | Scheduler auto-expires unpaid orders, releases stock |
 | **Audit Trail** | Immutable ledger tables (order, stock, payment) |
 | **Kubernetes-Native** | No Eureka/Config Server — uses K8s service discovery, ConfigMaps, and Secrets |
+| **Connection Pooling** | PgBouncer (transaction mode) prevents connection exhaustion on auto-scaling |
 
 ---
 
@@ -125,6 +126,7 @@ Payment FAILED → Order stays WAITING_PAYMENT → User picks new payment method
 | **Build** | Maven (multi-module) |
 | **Containers** | Docker / Docker Compose |
 | **Orchestration** | Kubernetes |
+| **Connection Pooler** | PgBouncer 1.21+ (transaction mode) |
 | **API Docs** | SpringDoc OpenAPI 2.8.13 |
 
 ---
@@ -286,6 +288,7 @@ service/src/main/java/com/MSyamsandiYW/<service_name>/
 | **Database-per-service** | Full autonomy, independent scaling and schema evolution |
 | **Ledger tables** | Immutable audit trail for compliance and debugging |
 | **Payment method switching** | Cancel existing PENDING payment, create new one (no double-charge) |
+| **PgBouncer + R2DBC** | R2DBC uses unnamed prepared statements — no stale state on connection reassignment, perfect for PgBouncer transaction mode |
 
 ---
 
@@ -307,6 +310,76 @@ service/src/main/java/com/MSyamsandiYW/<service_name>/
 - ✅ Circuit Breaker (Resilience4j)
 - ✅ Rate Limiting
 - ✅ Dead Letter Queue (DLQ)
+- ✅ Connection Pooling (PgBouncer)
+
+---
+
+## PgBouncer — Connection Pooling for Auto-Scaling
+
+### The Problem
+
+Microservices + Kubernetes auto-scaling + PostgreSQL = **connection explosion**:
+
+```
+order-service: 10 pods × 10 connections per pod = 100 connections to order_service_db
+PostgreSQL default max_connections = 100 → DB refuses connections → cascading failures
+```
+
+With database-per-service, each service's DB faces this independently. Scale to 15 pods during peak traffic and the database is overwhelmed. Even with R2DBC's reactive pool (non-blocking), each pod still opens its own pool. Auto-scaling multiplies connections linearly.
+
+### The Solution
+
+```
+[Pod 1] ─┐                              ┌─ [PostgreSQL]
+[Pod 2] ─┼─→ [PgBouncer (max 20)] ─────→│  (max_connections=100)
+[Pod 3] ─┤                              └─
+[Pod N] ─┘
+```
+
+PgBouncer sits between services and PostgreSQL as a lightweight proxy, multiplexing hundreds of client connections into a small pool of actual DB connections.
+
+### Why R2DBC + PgBouncer Is a Perfect Combination
+
+| Driver | Prepared Statement Behavior | PgBouncer Compatibility |
+|--------|----------------------------|-------------------------|
+| **JDBC (HikariCP)** | Named prepared statements (`PARSE name="s1"`) — persist on server connection | ⚠️ Breaks in transaction mode (pre-1.21) |
+| **R2DBC** | Unnamed prepared statements (`PARSE name=""`) — destroyed after each query cycle | ✅ Works perfectly in transaction mode |
+
+R2DBC uses **unnamed prepared statements** by default:
+```
+JDBC:   PARSE name="s1" → BIND "s1" → EXECUTE "s1"  (server remembers "s1")
+R2DBC:  PARSE name=""   → BIND ""   → EXECUTE ""    (server forgets immediately)
+```
+
+Since no statement state persists on the server, PgBouncer can safely reassign the connection to another client after each transaction — zero stale state issues.
+
+> **Note:** PgBouncer 1.21+ also added `prepared_statement_cache_size` which handles named prepared statements (JDBC) correctly via caching. But R2DBC doesn't need this — it's inherently compatible.
+
+### Configuration
+
+```ini
+# pgbouncer.ini
+[databases]
+order_service_db = host=postgres-order port=5432 dbname=order_service_db
+
+[pgbouncer]
+pool_mode = transaction
+max_client_conn = 200          # Accept up to 200 connections from all pods
+default_pool_size = 20         # Only 20 actual connections to PostgreSQL
+min_pool_size = 5
+reserve_pool_size = 5
+prepared_statement_cache_size = 100  # Optional — for JDBC compatibility
+```
+
+```yaml
+# R2DBC per-service config (small pool — PgBouncer handles multiplexing)
+spring:
+  r2dbc:
+    url: r2dbc:postgresql://pgbouncer-order:6432/order_service_db
+    pool:
+      initial-size: 2
+      max-size: 5
+```
 
 ---
 
@@ -317,6 +390,7 @@ The system is designed to be Kubernetes-native:
 - **Service Discovery**: K8s DNS (no Eureka)
 - **Configuration**: ConfigMaps + Secrets (no Config Server)
 - **Scaling**: Horizontal Pod Autoscaler per service
+- **Connection Pooling**: PgBouncer per service DB (prevents connection exhaustion)
 - **Health Checks**: Spring Actuator readiness/liveness probes
 
 ```bash
