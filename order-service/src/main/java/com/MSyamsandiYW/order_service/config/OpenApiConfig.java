@@ -1,4 +1,4 @@
-package com.MSyamsandiYW.auth_service.config;
+package com.MSyamsandiYW.order_service.config;
 
 import io.swagger.v3.oas.annotations.OpenAPIDefinition;
 import io.swagger.v3.oas.annotations.enums.SecuritySchemeIn;
@@ -12,11 +12,11 @@ import io.swagger.v3.oas.annotations.security.SecurityScheme;
 @OpenAPIDefinition(
         info = @Info(
                 contact = @Contact(
-                        name = "auth-service",
+                        name = "order-service",
                         email = "zxvcklh@gmail.com",
                         url = "https://github.com/MSyamsandiYudaWirawan"
                 ),
-                description = "Openapi documentation auth-service",
+                description = "Openapi documentation oorder-service",
                 title = "OpenApi Specification",
                 version = "1.0",
                 license = @License(

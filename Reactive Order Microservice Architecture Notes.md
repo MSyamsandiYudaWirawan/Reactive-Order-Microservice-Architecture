@@ -457,6 +457,8 @@ Consume STOCK_RESERVE_REQUESTED → Product check fails (qty < requested OR !isA
 | payment-completed       | payment-service   |
 | payment-failed          | payment-service   |
 | out-of-stock            | inventory-service |
+| order-refund-completed  | payment-service   |
+| order-refund-failed     | payment-service   |
 
 **Saga Decision Logic (handles events in any order):**
 
@@ -506,6 +508,18 @@ Find saga_state WHERE stock_status=RESERVED AND saga_status=IN_PROGRESS
 - Order expiry: configurable (e.g. 1 hour)
 - Prevents stock being locked indefinitely
 - Payment failure does NOT trigger order expiry — only the scheduler does
+
+**Refund Result Handling:**
+
+When `ORDER_REFUND_COMPLETED` arrives:
+| saga_status    | Action                                              |
+|----------------|-----------------------------------------------------|
+| COMPENSATING   | Update saga_status=COMPLETED (compensation done)    |
+
+When `ORDER_REFUND_FAILED` arrives:
+| saga_status    | Action                                              |
+|----------------|-----------------------------------------------------|
+| COMPENSATING   | Update saga_status=FAILED (needs manual intervention) |
 
 **Kafka Producer:**
 
@@ -643,8 +657,9 @@ Handles 3 categories of expired IN_PROGRESS sagas:
 5. inventory-service: Consumes STOCK_RESERVE_REQUESTED → Stock insufficient → Publish OUT_OF_STOCK
 6. orchestrator-service: Consumes OUT_OF_STOCK → saga_state (stock_status=OUT_OF_STOCK) → payment_status=PAID → Publish REFUND_REQUESTED + ORDER_FAILED → saga_status=COMPENSATING
 7. payment-service: Consumes REFUND_REQUESTED → Process refund → Webhook callback → Publish ORDER_REFUND_COMPLETED
-8. order-service: Consumes OUT_OF_STOCK → Update status → OUT_OF_STOCK
-9. order-service: Consumes ORDER_REFUND_COMPLETED → Update status → REFUNDED ✅
+8. orchestrator-service: Consumes ORDER_REFUND_COMPLETED → Update saga_status → COMPLETED (compensation done)
+9. order-service: Consumes OUT_OF_STOCK → Update status → OUT_OF_STOCK
+10. order-service: Consumes ORDER_REFUND_COMPLETED → Update status → REFUNDED ✅
 ```
 
 ### Flow 5: Order Expired (Stock Reserved, User Never Paid Successfully)
@@ -660,13 +675,13 @@ Handles 3 categories of expired IN_PROGRESS sagas:
 8. order-service: Consumes ORDER_EXPIRED → Update status → EXPIRED ✅
 ```
 
-### Flow 6: Refund Failed (Future — DLQ/Retry)
+### Flow 6: Refund Failed
 
 ```
 1. (Continues from any refund flow above)
 2. payment-service: Consumes REFUND_REQUESTED → Call third-party refund → Webhook callback REFUND_FAILED → Publish ORDER_REFUND_FAILED
-3. (Future: DLQ handling, retry mechanism, or manual intervention)
-4. Order remains in FAILED status (does not transition to REFUNDED)
+3. orchestrator-service: Consumes ORDER_REFUND_FAILED → Update saga_status → FAILED (needs manual intervention)
+4. order-service: Consumes ORDER_REFUND_FAILED → Update status → REFUND_FAILED
 ```
 
 ---
@@ -735,8 +750,8 @@ Receive Kafka event → Redis storeIfAbsent(eventId) →
 | payment-failed           | payment-service     | orchestrator-service |
 | payment-initiated        | payment-service     | orchestrator-service |
 | refund-requested         | orchestrator-service | payment-service     |
-| order-refund-completed   | payment-service     | order-service       |
-| order-refund-failed      | payment-service     | (future: DLQ/retry) |
+| order-refund-completed   | payment-service     | order-service, orchestrator-service |
+| order-refund-failed      | payment-service     | order-service, orchestrator-service |
 | order-completed          | orchestrator-service | order-service       |
 | order-expired            | orchestrator-service | order-service       |
 

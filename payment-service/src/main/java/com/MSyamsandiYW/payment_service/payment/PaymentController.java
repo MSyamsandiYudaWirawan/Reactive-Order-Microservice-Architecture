@@ -41,7 +41,7 @@ public class PaymentController {
 
     @GetMapping("/list")
     @ResponseStatus(code = OK)
-    public Mono<ResponseEntity<List<GetPaymentResponse>>> getPaymentsByUser(
+    public Mono<ResponseEntity<List<GetPaymentResponse>>> getUserPayments(
             @RequestHeader("Authorization") String token
     ) {
         return paymentService.getPaymentsByUser(token);
@@ -49,7 +49,7 @@ public class PaymentController {
 
     @GetMapping("/status/{transactionId}")
     @ResponseStatus(code = OK)
-    public Mono<ResponseEntity<GetPaymentResponse>> getPaymentByTransactionId(
+    public Mono<ResponseEntity<GetPaymentResponse>> getStatusPayment(
             @PathVariable("transactionId") String transactionId,
             @RequestHeader("Authorization") String token
     ){

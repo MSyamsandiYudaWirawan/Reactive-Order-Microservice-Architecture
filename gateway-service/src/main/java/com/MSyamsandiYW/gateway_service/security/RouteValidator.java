@@ -17,7 +17,7 @@ public class RouteValidator {
     private final Map<String, List<String>> roleProtectedPaths = Map.of(
             "/api/v1/admin", List.of("ADMIN"),
             "/api/v1/orders", List.of("USER","ADMIN"),
-            "/api/v1/products", List.of("USER","ADMIN"),
+            "/api/v1/products", List.of("ADMIN"),
             "/api/v1/payments", List.of("USER","ADMIN")
     );
 
