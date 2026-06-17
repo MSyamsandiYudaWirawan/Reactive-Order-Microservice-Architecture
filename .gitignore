@@ -35,3 +35,4 @@ build/
 ### VS Code ###
 .vscode/
 .env
+Reactive Order Microservice Architecture Notes.md
