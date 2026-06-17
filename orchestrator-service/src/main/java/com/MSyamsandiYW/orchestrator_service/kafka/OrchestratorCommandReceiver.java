@@ -37,6 +37,8 @@ public class OrchestratorCommandReceiver {
             case PAYMENT_COMPLETED -> handler.handlePaymentCompleted(record.value());
             case PAYMENT_FAILED -> handler.handlePaymentFailed(record.value());
             case OUT_OF_STOCK -> handler.handleOutOfStock(record.value());
+            case ORDER_REFUND_COMPLETED -> handler.handleOrderRefundCompleted(record.value());
+            case ORDER_REFUND_FAILED -> handler.handleOrderRefundFailed(record.value());
             default -> Mono.empty();
         };
         // check idempotency eventId as a key, prefixed with service name to avoid conflict with other consumers

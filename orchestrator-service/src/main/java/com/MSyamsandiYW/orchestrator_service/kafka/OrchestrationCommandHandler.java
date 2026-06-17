@@ -152,4 +152,20 @@ public class OrchestrationCommandHandler {
                 })
                 .thenReturn(sagaState);
     }
+
+    public Mono<Void> handleOrderRefundCompleted(OrchestratorCommand payload) {
+        return sagaStateService.findByTransactionId(payload.getTransactionId())
+                .flatMap(sagaState -> {
+                    sagaState.setSagaStatus(COMPLETED.name());
+                    return sagaStateService.save(sagaState);
+                }).then();
+    }
+
+    public Mono<Void> handleOrderRefundFailed(OrchestratorCommand payload) {
+        return sagaStateService.findByTransactionId(payload.getTransactionId())
+                .flatMap(sagaState -> {
+                    sagaState.setSagaStatus(FAILED.name());
+                    return sagaStateService.save(sagaState);
+                }).then();
+    }
 }

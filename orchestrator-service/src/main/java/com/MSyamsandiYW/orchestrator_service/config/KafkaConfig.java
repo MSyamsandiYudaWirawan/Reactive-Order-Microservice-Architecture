@@ -28,7 +28,8 @@ public class KafkaConfig {
     public KafkaReceiver<String, OrchestratorCommand> kafkaReceiver(KafkaProperties kafkaProperties) {
         ReceiverOptions<String, OrchestratorCommand> receiverOptions = ReceiverOptions.
                 <String, OrchestratorCommand>create(kafkaProperties.buildConsumerProperties())
-                .subscription(List.of(STOCK_RESERVE_COMPLETED, PAYMENT_INITIATED, PAYMENT_COMPLETED, PAYMENT_FAILED, OUT_OF_STOCK));
+                .subscription(List.of(STOCK_RESERVE_COMPLETED, PAYMENT_INITIATED, PAYMENT_COMPLETED, PAYMENT_FAILED,
+                        OUT_OF_STOCK, ORDER_REFUND_COMPLETED, ORDER_REFUND_FAILED));
         return KafkaReceiver.create(receiverOptions);
     }
 

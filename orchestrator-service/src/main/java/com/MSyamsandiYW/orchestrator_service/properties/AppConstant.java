@@ -24,6 +24,8 @@ public class AppConstant {
         public static final String PAYMENT_COMPLETED = "payment-completed";
         public static final String PAYMENT_FAILED = "payment-failed";
         public static final String OUT_OF_STOCK = "out-of-stock";
+        public static final String ORDER_REFUND_COMPLETED = "order-refund-completed";
+        public static final String ORDER_REFUND_FAILED = "order-refund-failed";
 
         //produce
         public static final String DEDUCT_STOCK = "deduct-stock";
