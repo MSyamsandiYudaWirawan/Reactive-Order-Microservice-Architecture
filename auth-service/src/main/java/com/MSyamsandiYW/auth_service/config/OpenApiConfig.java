@@ -8,7 +8,6 @@ import io.swagger.v3.oas.annotations.info.Info;
 import io.swagger.v3.oas.annotations.info.License;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.security.SecurityScheme;
-import io.swagger.v3.oas.annotations.servers.Server;
 
 @OpenAPIDefinition(
         info = @Info(
@@ -26,16 +25,6 @@ import io.swagger.v3.oas.annotations.servers.Server;
                 ),
                 termsOfService = "https://github.com/MSyamsandiYudaWirawan/Reactive-Order-Microservice-Architecture/blob/master/TERMS"
         ),
-        servers = {
-                @Server(
-                        url = "http://localhost:8080",
-                        description = "Local ENV"
-                ),
-                @Server(
-                        url = "http://localhost:8081",
-                        description = "Staging ENV"
-                )
-        },
         security = {
                 @SecurityRequirement(
                         name = "bearerAuth"

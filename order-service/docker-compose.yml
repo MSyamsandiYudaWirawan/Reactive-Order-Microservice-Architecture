@@ -1,0 +1,31 @@
+services:
+  postgres:
+    container_name: order-service
+    image: postgres:17.5
+    environment:
+      POSTGRES_DB: order_service_db
+      POSTGRES_USER: username
+      POSTGRES_PASSWORD: password
+      PGDATA: /data/postgres
+    volumes:
+      - postgres:/data/postgres
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5433:5432"
+    restart: unless-stopped
+
+  pgbouncer:
+    image: edoburu/pgbouncer:1.25.1
+    depends_on:
+      - postgres
+    ports:
+      - "6433:6432"
+    environment:
+      DATABASE_URL: postgres://username:password@postgres:5432/order_service_db
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 200
+      DEFAULT_POOL_SIZE: 20
+      MIN_POOL_SIZE: 5
+
+volumes:
+  postgres:

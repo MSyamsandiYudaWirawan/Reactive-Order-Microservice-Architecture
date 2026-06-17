@@ -1,7 +1,7 @@
 package com.MSyamsandiYW.auth_service.user.impl;
 
-import com.MSyamsandiYW.auth_service.exception.BusinessException;
-import com.MSyamsandiYW.auth_service.exception.ErrorCode;
+import com.MSyamsandiYW.common.exception.BusinessException;
+import com.MSyamsandiYW.common.exception.ErrorCode;
 import com.MSyamsandiYW.auth_service.user.User;
 import com.MSyamsandiYW.auth_service.user.UserMapper;
 import com.MSyamsandiYW.auth_service.user.UserRepository;

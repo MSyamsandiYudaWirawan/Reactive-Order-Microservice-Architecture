@@ -1,0 +1,31 @@
+services:
+  postgres:
+    container_name: orchestrator-service
+    image: postgres:17.5
+    environment:
+      POSTGRES_DB: orchestrator_service_db
+      POSTGRES_USER: username
+      POSTGRES_PASSWORD: password
+      PGDATA: /data/postgres
+    volumes:
+      - postgres:/data/postgres
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5436:5432"
+    restart: unless-stopped
+
+  pgbouncer:
+    image: edoburu/pgbouncer:1.25.1
+    depends_on:
+      - postgres
+    ports:
+      - "6436:6432"
+    environment:
+      DATABASE_URL: postgres://username:password@postgres:5432/orchestrator_service_db
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 200
+      DEFAULT_POOL_SIZE: 20
+      MIN_POOL_SIZE: 5
+
+volumes:
+  postgres:

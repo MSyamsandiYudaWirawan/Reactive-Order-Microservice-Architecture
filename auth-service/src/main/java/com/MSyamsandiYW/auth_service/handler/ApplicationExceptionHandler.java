@@ -1,12 +1,13 @@
 package com.MSyamsandiYW.auth_service.handler;
 
-import com.MSyamsandiYW.auth_service.exception.BusinessException;
+import com.MSyamsandiYW.common.exception.BusinessException;
+import com.MSyamsandiYW.common.exception.ErrorResponse;
+import com.MSyamsandiYW.common.exception.ValidationError;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
-import org.springframework.validation.FieldError;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.bind.support.WebExchangeBindException;
@@ -15,7 +16,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
 
-import static com.MSyamsandiYW.auth_service.exception.ErrorCode.*;
+import static com.MSyamsandiYW.common.exception.ErrorCode.*;
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
@@ -85,9 +86,8 @@ public class ApplicationExceptionHandler {
         final List<ValidationError> errors = new ArrayList<>();
         e.getBindingResult()
                 .getFieldErrors()
-                .stream()
                 .forEach(error -> {
-                    final String fieldName = ((FieldError) error).getField();
+                    final String fieldName = error.getField();
                     final String errorCode = error.getDefaultMessage();
                     errors.add(ValidationError.builder()
                             .field(fieldName)
