@@ -14,7 +14,7 @@ A production-grade, event-driven order processing system built with **Spring Web
 
 ## Architecture Overview
 
-![Reactive Order Microservice Architecture.png](diagram/Reactive%20Order%20Microservice%20Architecture.png)
+![Reactive_Order_Microservice_Architecture.png](diagram/Reactive_Order_Microservice_Architecture.png)![Reactive Order Microservice Architecture.png](diagram/Reactive%20Order%20Microservice%20Architecture.png)
 
 Each service owns its **PostgreSQL database** (database-per-service pattern) and communicates asynchronously via **Kafka events**.
 
@@ -219,34 +219,7 @@ cd orchestrator-service && ../mvnw spring-boot:run
 
 ## Kafka Event Flow
 
-```
-┌──────────────┐     stock-reserve-requested     ┌───────────────────┐
-│ order-service│ ──────────────────────────────► │ inventory-service  │
-└──────────────┘                                 └─────────┬─────────┘
-       ▲                                                   │
-       │ order-completed                    stock-reserve-completed
-       │ order-expired                              out-of-stock
-       │ payment-completed                             │
-       │ order-refund-completed                        ▼
-       │ order-refund-failed          ┌─────────────────────────────┐
-       │                              │   orchestrator-service       │
-       └──────────────────────────────┤   (Saga Coordinator)        │
-                                      │                             │
-                                      │ ◄── order-refund-completed  │
-                                      │ ◄── order-refund-failed     │
-                                      └──────────┬──────────────────┘
-                                                 │
-                              deduct-stock       │    refund-requested
-                              release-stock      │    order-completed
-                              order-expired      │    order-expired
-                                                 │
-                                                 ▼
-                                      ┌─────────────────────┐
-                                      │  payment-service     │
-                                      └─────────────────────┘
-```
-
----
+![Kafka_Event_Flow.drawio.png](diagram/Kafka_Event_Flow.drawio.png)
 
 ## Saga State Machine
 
