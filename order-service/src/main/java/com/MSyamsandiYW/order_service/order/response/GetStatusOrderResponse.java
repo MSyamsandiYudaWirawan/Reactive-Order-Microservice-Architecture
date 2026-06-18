@@ -15,6 +15,5 @@ public class GetStatusOrderResponse {
     private String orderStatus;
     private String discountCode;
     private Double totalAmount;
-    private String paymentMethod;
     private Instant createdDate;
 }

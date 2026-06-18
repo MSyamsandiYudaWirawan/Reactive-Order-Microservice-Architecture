@@ -34,8 +34,6 @@ public class Order {
     private String orderStatus;
     @Column("total_amount")
     private Double totalAmount;
-    @Column("payment_method")
-    private String paymentMethod;
     @Column("failure_code")
     private String failureCode;
     @Column("failure_message")
