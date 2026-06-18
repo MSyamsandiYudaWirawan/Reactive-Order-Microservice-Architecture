@@ -238,7 +238,7 @@ public class PaymentServiceImpl implements PaymentService {
         //extract token and get payment by transactionId
         return Mono.zip(
                         jwtService.extractClaims(token),
-                        paymentRepository.findByTransactionId(transactionId)
+                        paymentRepository.findFirstByTransactionIdOrderByCreatedDateDesc(transactionId)
                                 .switchIfEmpty(Mono.error(new BusinessException(ErrorCode.PAYMENT_NOT_FOUND))))
                 .flatMap(tuple -> {
                     Claims claims = tuple.getT1();

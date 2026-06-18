@@ -8,7 +8,7 @@ import java.util.UUID;
 
 public interface PaymentRepository extends R2dbcRepository<Payment, UUID> {
 
-    Mono<Payment> findByTransactionId(String transactionId);
+    Mono<Payment> findFirstByTransactionIdOrderByCreatedDateDesc(String transactionId);
 
     Flux<Payment> findByUserId(String transactionId);
 
