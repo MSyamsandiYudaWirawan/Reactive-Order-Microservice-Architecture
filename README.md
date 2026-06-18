@@ -3,7 +3,7 @@
 A production-grade, event-driven order processing system built with **Spring WebFlux** and **Apache Kafka**. Implements the **Saga pattern** for distributed transactions with automatic compensation, fully reactive (non-blocking) end-to-end.
 
 ![Java](https://img.shields.io/badge/Java-21-orange)
-![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.0.6-brightgreen)
+![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.1.0-brightgreen)
 ![Kafka](https://img.shields.io/badge/Apache%20Kafka-7.9.0-black)
 ![Redis](https://img.shields.io/badge/Redis-7-red)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17.5-blue)
@@ -117,7 +117,7 @@ Payment FAILED → Order stays WAITING_PAYMENT → User picks new payment method
 | Layer | Technology |
 |-------|-----------|
 | **Language** | Java 21 |
-| **Framework** | Spring Boot 4.0.6, Spring WebFlux |
+| **Framework** | Spring Boot 4.1.0, Spring WebFlux |
 | **Gateway** | Spring Cloud Gateway 2025.1.1 |
 | **Database** | PostgreSQL 17.5 (R2DBC — reactive) |
 | **Messaging** | Apache Kafka (Confluent 7.9.0) |
@@ -375,63 +375,31 @@ Each service uses `.env` files for local development. See `.env.example` in each
 
 ---
 
-## Refactoring TODO (Payment Service — Webhook Race Conditions)
+## Payment Webhook State Machine
 
-Currently the webhook handler blindly overrides payment status without validating the current state. This causes race conditions when a user switches payment methods (cancel prev + create new) and webhooks arrive concurrently.
-
-### Problems Identified
-
-1. **No `paymentId` in webhook** — `findByTransactionId` can hit the wrong payment when multiple payments exist for the same transaction
-2. **No state validation on webhook** — webhook SUCCESS can override a CANCELLED payment, causing silent money loss
-3. **No `paymentId` in `PaymentCommand`** — orchestrator's `REFUND_REQUESTED` uses `findByTransactionId` which is ambiguous
-4. **No `paymentId` in `PaymentEventPayload`** — orchestrator can't track which specific payment succeeded
-5. **`validatePayment` returns `null` instead of `Mono.empty()`** — causes NPE
-
-### Refactor Steps (in order)
-
-1. **Add `paymentId` to `WebhookCallbackRequest`** — third-party provider must send back our payment UUID in callback
-2. **Add `paymentId` to `PaymentEventPayload`** — so orchestrator knows which payment completed
-3. **Add `payment_id` column to orchestrator's `saga_state` table** — persist which payment is active
-4. **Add `paymentId` to `PaymentCommand`** — orchestrator sends exact payment ID in `REFUND_REQUESTED`
-5. **Refactor `webhookCallbackPaymentMethod`** — find by `paymentId` (exact match), then validate state:
+The payment-service validates webhook callbacks against the current payment state using `paymentId` for exact lookup (not `transactionId`). This prevents race conditions when users switch payment methods.
 
 ```
-Webhook PAYMENT_SUCCESS + paymentId:
+Webhook PAYMENT_SUCCESS:
 ├── Payment is PENDING       → mark SUCCESS, produce PAYMENT_COMPLETED
-├── Payment is CANCELLED     → trigger refund to provider, DON'T produce event
-├── Payment is SUCCESS       → reject (duplicate webhook)
-├── Payment is FAILED        → reject (impossible, log warning)
-├── Payment is REFUNDED      → reject (already handled)
-├── Payment is REFUND_FAILED → reject (already handled)
+├── Payment is CANCELLED     → trigger silent refund to provider, no event produced
+├── Any other status         → ignore (log warning)
 
-Webhook PAYMENT_FAILED + paymentId:
+Webhook PAYMENT_FAILED:
 ├── Payment is PENDING       → mark FAILED, produce PAYMENT_FAILED
-├── Payment is CANCELLED     → ignore (no money lost)
-├── Payment is SUCCESS       → reject (impossible, log warning)
-├── Payment is FAILED        → reject (duplicate webhook)
-├── Payment is REFUNDED      → reject (already handled)
-├── Payment is REFUND_FAILED → reject (already handled)
+├── Any other status         → ignore (log warning)
 
-Webhook REFUND_SUCCESS + paymentId:
-├── Payment is PENDING       → reject (impossible, log warning)
-├── Payment is CANCELLED     → mark REFUNDED, DON'T produce event (silent refund)
+Webhook REFUND_SUCCESS:
+├── Payment is CANCELLED     → mark REFUNDED, no event produced (silent refund)
 ├── Payment is SUCCESS       → mark REFUNDED, produce ORDER_REFUND_COMPLETED
-├── Payment is FAILED        → reject (impossible, log warning)
-├── Payment is REFUNDED      → reject (duplicate webhook)
 ├── Payment is REFUND_FAILED → mark REFUNDED, produce ORDER_REFUND_COMPLETED (retry succeeded)
+├── Any other status         → ignore (log warning)
 
-Webhook REFUND_FAILED + paymentId:
-├── Payment is PENDING       → reject (impossible, log warning)
-├── Payment is CANCELLED     → mark REFUND_FAILED, produce ORDER_REFUND_FAILED (manual intervention)
+Webhook REFUND_FAILED:
+├── Payment is CANCELLED     → mark REFUND_FAILED, produce ORDER_REFUND_FAILED
 ├── Payment is SUCCESS       → mark REFUND_FAILED, produce ORDER_REFUND_FAILED
-├── Payment is FAILED        → reject (impossible, log warning)
-├── Payment is REFUNDED      → reject (impossible, log warning)
-├── Payment is REFUND_FAILED → reject (duplicate webhook)
+├── Any other status         → ignore (log warning)
 ```
-
-6. **Refactor `refundPayment`** — use `paymentRepository.findById(paymentId)` instead of `findByTransactionId`
-7. **Conditional DB update on cancel** — `UPDATE payments SET status='CANCELLED' WHERE id=? AND status='PENDING'` to prevent overwriting a webhook-updated status
-8. **Fix `validatePayment`** — return `Mono.empty()` instead of `null`
 
 ---
 
