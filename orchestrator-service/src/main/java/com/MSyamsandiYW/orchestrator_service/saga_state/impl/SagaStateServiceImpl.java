@@ -9,7 +9,7 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-import java.time.ZonedDateTime;
+import java.time.Instant;
 import java.util.List;
 
 import static com.MSyamsandiYW.orchestrator_service.properties.AppConstant.SAGA_STATUS.IN_PROGRESS;
@@ -32,7 +32,7 @@ public class SagaStateServiceImpl implements SagaStateService {
                 .correlationId(correlationId)
                 .sagaStatus(IN_PROGRESS.name())
                 .createdBy("ORCHESTRATION_SERVICE")
-                .createdDate(ZonedDateTime.now())
+                .createdDate(Instant.now())
                 .build();
         return sagaStateRepository.save(sagaState);
     }
@@ -45,7 +45,7 @@ public class SagaStateServiceImpl implements SagaStateService {
     @Override
     public Mono<SagaState> save(SagaState sagaState) {
         sagaState.setUpdatedBy("ORCHESTRATION_SERVICE");
-        sagaState.setLastModifiedDate(ZonedDateTime.now());
+        sagaState.setLastModifiedDate(Instant.now());
         return sagaStateRepository.save(sagaState);
     }
 
@@ -53,12 +53,12 @@ public class SagaStateServiceImpl implements SagaStateService {
     public Flux<SagaState> saveAll(List<SagaState> sagaStateList) {
         return sagaStateRepository.saveAll(sagaStateList.stream().peek(sagaState -> {
             sagaState.setUpdatedBy("ORCHESTRATION_SERVICE");
-            sagaState.setLastModifiedDate(ZonedDateTime.now());
+            sagaState.setLastModifiedDate(Instant.now());
         }).toList());
     }
 
     @Override
-    public Flux<SagaState> findAllExpiredTransaction(ZonedDateTime cutoff) {
+    public Flux<SagaState> findAllExpiredTransaction(Instant cutoff) {
         return sagaStateRepository.findAllExpiredTransaction(cutoff);
     }
 }

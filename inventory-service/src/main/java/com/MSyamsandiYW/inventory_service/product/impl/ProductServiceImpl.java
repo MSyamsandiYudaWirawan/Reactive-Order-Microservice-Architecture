@@ -15,7 +15,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
-import java.time.ZonedDateTime;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -49,7 +49,7 @@ public class ProductServiceImpl implements ProductService {
                             p.setAvailableQty(p.getAvailableQty() - r.getQty());
                             p.setReservedQty(p.getReservedQty() + r.getQty());
                             p.setUpdatedBy("INVENTORY_SERVICE");
-                            p.setLastModifiedDate(ZonedDateTime.now());
+                            p.setLastModifiedDate(Instant.now());
                         }
                     }
                     return productRepository.saveAll(products).collectList();
@@ -72,7 +72,7 @@ public class ProductServiceImpl implements ProductService {
                             p.setAvailableQty(p.getAvailableQty() + r.getQty());
                             p.setReservedQty(p.getReservedQty() - r.getQty());
                             p.setUpdatedBy("INVENTORY_SERVICE");
-                            p.setLastModifiedDate(ZonedDateTime.now());
+                            p.setLastModifiedDate(Instant.now());
                         }
                     }
                     // save batch if ALL product is valid means we have stock
@@ -95,7 +95,7 @@ public class ProductServiceImpl implements ProductService {
                             p.setReservedQty(p.getReservedQty() - r.getQty());
                             p.setSoldQty(p.getSoldQty() + r.getQty());
                             p.setUpdatedBy("INVENTORY_SERVICE");
-                            p.setLastModifiedDate(ZonedDateTime.now());
+                            p.setLastModifiedDate(Instant.now());
                         }
 
                     }

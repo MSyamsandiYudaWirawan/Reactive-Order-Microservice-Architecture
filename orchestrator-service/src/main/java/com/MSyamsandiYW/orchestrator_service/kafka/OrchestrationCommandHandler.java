@@ -10,7 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
-import java.time.ZonedDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 import static com.MSyamsandiYW.orchestrator_service.properties.AppConstant.PAYMENT_STATUS.INITIATED;
@@ -53,7 +53,7 @@ public class OrchestrationCommandHandler {
                 .flatMap(sagaState -> {
                     sagaState.setPaymentStatus(INITIATED.name());
                     sagaState.setUpdatedBy("ORCHESTRATION_SERVICE");
-                    sagaState.setLastModifiedDate(ZonedDateTime.now());
+                    sagaState.setLastModifiedDate(Instant.now());
                     return sagaStateService.save(sagaState);
                 })
                 .then();

@@ -2,7 +2,7 @@ package com.MSyamsandiYW.order_service.order.response;
 
 import lombok.*;
 
-import java.time.ZonedDateTime;
+import java.time.Instant;
 
 @AllArgsConstructor
 @NoArgsConstructor
@@ -16,5 +16,5 @@ public class GetStatusOrderResponse {
     private String discountCode;
     private Double totalAmount;
     private String paymentMethod;
-    private ZonedDateTime createdDate;
+    private Instant createdDate;
 }

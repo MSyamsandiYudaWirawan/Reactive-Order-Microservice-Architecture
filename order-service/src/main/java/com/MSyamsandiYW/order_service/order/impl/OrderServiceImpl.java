@@ -29,7 +29,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.reactive.TransactionalOperator;
 import reactor.core.publisher.Mono;
 
-import java.time.ZonedDateTime;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -90,7 +90,7 @@ public class OrderServiceImpl implements OrderService {
                             .orderStatus(AppConstant.ORDER_STATUS.PENDING.name())
                             .totalAmount(totalAmount)
                             .createdBy("SYSTEM")
-                            .createdDate(ZonedDateTime.now())
+                            .createdDate(Instant.now())
                             .build();
 
                     // apply discount then save
@@ -205,7 +205,7 @@ public class OrderServiceImpl implements OrderService {
                                     .quantity(item.getQuantity())
                                     .price(priceMap.get(item.getProductId()))
                                     .createdBy("SYSTEM")
-                                    .createdDate(ZonedDateTime.now())
+                                    .createdDate(Instant.now())
                                     .build())
                             .toList();
                     return orderItemRepository.saveAll(orderItems).collectList().thenReturn(saved);

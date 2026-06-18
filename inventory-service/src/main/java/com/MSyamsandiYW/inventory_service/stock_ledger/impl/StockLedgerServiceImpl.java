@@ -9,7 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
-import java.time.ZonedDateTime;
+import java.time.Instant;
 import java.util.List;
 
 @Service
@@ -27,7 +27,7 @@ public class StockLedgerServiceImpl implements StockLedgerService {
                                 .correlationId(reservation.getCorrelationId())
                                 .eventType(reservation.getStatus())
                                 .qty(reservation.getQty())
-                                .createdDate(ZonedDateTime.now())
+                                .createdDate(Instant.now())
                                 .build())
                 .toList();
         return repository.saveAll(ledgerList).then();

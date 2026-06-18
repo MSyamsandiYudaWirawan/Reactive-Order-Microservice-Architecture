@@ -25,7 +25,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
-import java.time.ZonedDateTime;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -87,7 +87,7 @@ public class PaymentServiceImpl implements PaymentService {
                             .amount(order.getTotalAmount())
                             .status(AppConstant.PAYMENT_STATUS.PENDING.name())
                             .createdBy("PAYMENT_SERVICE")
-                            .createdDate(ZonedDateTime.now())
+                            .createdDate(Instant.now())
                             .build());
                 })
                 // validate current active payment
@@ -204,27 +204,27 @@ public class PaymentServiceImpl implements PaymentService {
         if ("PAYMENT_SUCCESS".equalsIgnoreCase(request.getPaymentStatus())) {
             payment.setStatus(AppConstant.PAYMENT_STATUS.SUCCESS.name());
             payment.setUpdatedBy("PAYMENT_SERVICE");
-            payment.setLastModifiedDate(ZonedDateTime.now());
+            payment.setLastModifiedDate(Instant.now());
             return Mono.just(payment);
         } else if ("PAYMENT_FAILED".equalsIgnoreCase(request.getPaymentStatus())) {
             payment.setStatus(AppConstant.PAYMENT_STATUS.FAILED.name());
             payment.setFailureCode(request.getFailureCode());
             payment.setFailureMessage(request.getFailureMessage());
             payment.setUpdatedBy("PAYMENT_SERVICE");
-            payment.setLastModifiedDate(ZonedDateTime.now());
+            payment.setLastModifiedDate(Instant.now());
             return Mono.just(payment);
         }
         if ("REFUND_SUCCESS".equalsIgnoreCase(request.getPaymentStatus())) {
             payment.setStatus(AppConstant.PAYMENT_STATUS.REFUNDED.name());
             payment.setUpdatedBy("PAYMENT_SERVICE");
-            payment.setLastModifiedDate(ZonedDateTime.now());
+            payment.setLastModifiedDate(Instant.now());
             return Mono.just(payment);
         } else if ("REFUND_FAILED".equalsIgnoreCase(request.getPaymentStatus())) {
             payment.setStatus(AppConstant.PAYMENT_STATUS.REFUND_FAILED.name());
             payment.setFailureCode(request.getFailureCode());
             payment.setFailureMessage(request.getFailureMessage());
             payment.setUpdatedBy("PAYMENT_SERVICE");
-            payment.setLastModifiedDate(ZonedDateTime.now());
+            payment.setLastModifiedDate(Instant.now());
             return Mono.just(payment);
         }
         return Mono.error(new BusinessException(ErrorCode.INTERNAL_EXCEPTION));
@@ -265,7 +265,7 @@ public class PaymentServiceImpl implements PaymentService {
                     //     .then(...)
                     existingPayment.setStatus(AppConstant.PAYMENT_STATUS.CANCELLED.name());
                     existingPayment.setUpdatedBy("PAYMENT_SERVICE");
-                    existingPayment.setLastModifiedDate(ZonedDateTime.now());
+                    existingPayment.setLastModifiedDate(Instant.now());
                     return paymentRepository.save(existingPayment);
                 })
                 .thenReturn(newPayment);  // always returns newPayment regardless

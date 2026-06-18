@@ -13,7 +13,7 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-import java.time.ZonedDateTime;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -30,7 +30,7 @@ public class SchedulerServiceImpl implements SchedulerService {
 
     @Override
     public Mono<Void> executeScheduler() {
-        ZonedDateTime cutoff = ZonedDateTime.now().minusSeconds(appProperties.getPaymentExpirySeconds());
+        Instant cutoff = Instant.now().minusSeconds(appProperties.getPaymentExpirySeconds());
         log.info("Finding expired transactions with cutoff: {}", cutoff);
         return sagaStateService.findAllExpiredTransaction(cutoff).collectList()
                 .flatMap(expiredList -> {
