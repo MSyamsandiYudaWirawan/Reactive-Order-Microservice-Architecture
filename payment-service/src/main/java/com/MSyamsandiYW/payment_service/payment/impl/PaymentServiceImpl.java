@@ -27,9 +27,14 @@ import reactor.core.publisher.Mono;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import static com.MSyamsandiYW.payment_service.properties.AppConstant.ORDER_STATUS.*;
+import static com.MSyamsandiYW.payment_service.properties.AppConstant.ORDER_STATUS.REFUND_FAILED;
+import static com.MSyamsandiYW.payment_service.properties.AppConstant.PAYMENT_STATUS.CANCELLED;
+import static com.MSyamsandiYW.payment_service.properties.AppConstant.PAYMENT_STATUS.SUCCESS;
+import static com.MSyamsandiYW.payment_service.properties.AppConstant.WEBHOOK_CALLBACK_PAYMENT_STATUS.*;
 
 @Service
 @Slf4j
@@ -80,7 +85,7 @@ public class PaymentServiceImpl implements PaymentService {
 
                     // build payment entity
                     return Mono.just(Payment.builder()
-                            .userId(claims.getId())
+                            .userId(claims.get("userId").toString())
                             .transactionId(request.getTransactionId())
                             .correlationId(order.getCorrelationId())
                             .paymentMethod(request.getPaymentMethod())
@@ -113,10 +118,11 @@ public class PaymentServiceImpl implements PaymentService {
 
     @Override
     public Mono<Void> webhookCallbackPaymentMethod(WebhookCallbackRequest request) {
-        log.info("Received webhook callback for transactionId: {}, status: {}", request.getTransactionId(), request.getPaymentStatus());
+        log.info("Received webhook callback for paymentId: {}, status: {}", request.getPaymentId(), request.getPaymentStatus());
 
-        return paymentRepository.findByTransactionId(request.getTransactionId())
+        return paymentRepository.findById(UUID.fromString(request.getPaymentId()))
                 .switchIfEmpty(Mono.error(new BusinessException(ErrorCode.PAYMENT_NOT_FOUND)))
+                .flatMap(payment -> validatePayment(payment, request))
                 // update status payment
                 .flatMap(payment -> updatePaymentEntity(payment, request))
                 // save payment
@@ -128,12 +134,70 @@ public class PaymentServiceImpl implements PaymentService {
                 .then();
     }
 
+    private Mono<Payment> validatePayment(Payment payment, WebhookCallbackRequest request) {
+        String currentStatus = payment.getStatus();
+        String webhookStatus = request.getPaymentStatus();
+
+        // === PAYMENT_SUCCESS webhook ===
+        if (webhookStatus.equalsIgnoreCase(PAYMENT_SUCCESS.name())) {
+            // CANCELLED + SUCCESS → silent refund (don't produce event)
+            if (currentStatus.equalsIgnoreCase(CANCELLED.name())) {
+                log.info("Payment {} was CANCELLED but provider charged — triggering silent refund", payment.getId());
+                return refundPayment(payment.getId()).then(Mono.empty());
+            }
+            // Only PENDING is valid for PAYMENT_SUCCESS
+            if (!currentStatus.equalsIgnoreCase(AppConstant.PAYMENT_STATUS.PENDING.name())) {
+                log.warn("Ignoring PAYMENT_SUCCESS webhook for paymentId: {} — current status: {}", payment.getId(), currentStatus);
+                return Mono.empty();
+            }
+        }
+
+        // === PAYMENT_FAILED webhook ===
+        if (webhookStatus.equalsIgnoreCase(PAYMENT_FAILED.name())) {
+            // Only PENDING is valid for PAYMENT_FAILED
+            if (!currentStatus.equalsIgnoreCase(AppConstant.PAYMENT_STATUS.PENDING.name())) {
+                log.warn("Ignoring PAYMENT_FAILED webhook for paymentId: {} — current status: {}", payment.getId(), currentStatus);
+                return Mono.empty();
+            }
+        }
+
+        // === REFUND_SUCCESS webhook ===
+        if (webhookStatus.equalsIgnoreCase(REFUND_SUCCESS.name())) {
+            // CANCELLED + REFUND_SUCCESS → mark REFUNDED, DON'T produce event (silent refund completion)
+            if (currentStatus.equalsIgnoreCase(CANCELLED.name())) {
+                log.info("Silent refund completed for CANCELLED paymentId: {}", payment.getId());
+                payment.setStatus(AppConstant.PAYMENT_STATUS.REFUNDED.name());
+                payment.setUpdatedBy("PAYMENT_SERVICE");
+                payment.setLastModifiedDate(Instant.now());
+                return paymentRepository.save(payment)
+                        .flatMap(saved -> paymentLedgerService.recordEventPayment(saved).thenReturn(saved))
+                        .then(Mono.empty());
+            }
+            // Only SUCCESS or REFUND_FAILED are valid for REFUND_SUCCESS
+            if (!Set.of(SUCCESS.name(), AppConstant.PAYMENT_STATUS.REFUND_FAILED.name()).contains(currentStatus)) {
+                log.warn("Ignoring REFUND_SUCCESS webhook for paymentId: {} — current status: {}", payment.getId(), currentStatus);
+                return Mono.empty();
+            }
+        }
+
+        // === REFUND_FAILED webhook ===
+        if (webhookStatus.equalsIgnoreCase(REFUND_FAILED.name())) {
+            // Only CANCELLED or SUCCESS are valid for REFUND_FAILED
+            if (!Set.of(CANCELLED.name(), SUCCESS.name()).contains(currentStatus)) {
+                log.warn("Ignoring REFUND_FAILED webhook for paymentId: {} — current status: {}", payment.getId(), currentStatus);
+                return Mono.empty();
+            }
+        }
+
+        return Mono.just(payment);
+    }
+
 
     @Override
     public Mono<Void> refundPayment(PaymentCommand request) {
         log.info("Processing refund for transactionId: {}", request.getTransactionId());
 
-        return paymentRepository.findByTransactionId(request.getTransactionId())
+        return paymentRepository.findById(UUID.fromString(request.getPaymentId()))
                 .switchIfEmpty(Mono.error(new BusinessException(ErrorCode.PAYMENT_NOT_FOUND)))
                 .flatMap(payment -> {
                     // Build request body
@@ -150,7 +214,7 @@ public class PaymentServiceImpl implements PaymentService {
 
         return jwtService.extractClaims(token)
                 // find payments by user id
-                .flatMap(claims -> paymentRepository.findByUserId(claims.getId()).collectList())
+                .flatMap(claims -> paymentRepository.findByUserId(claims.get("userId").toString()).collectList())
                 // mapping to response
                 .map(payments -> {
                     List<GetPaymentResponse> response = payments.stream().map(p -> GetPaymentResponse.builder()
@@ -179,7 +243,8 @@ public class PaymentServiceImpl implements PaymentService {
                     Payment payment = tuple.getT2();
 
                     // validate is user authorized
-                    if (claims.getId() == null || !claims.getId().equals(payment.getUserId())) {
+                    String userId = claims.get("userId").toString();
+                    if (userId == null || !userId.equals(payment.getUserId())) {
                         return Mono.error(new BusinessException(ErrorCode.USER_UNAUTHORIZED));
                     }
                     return Mono.just(payment);
@@ -201,25 +266,24 @@ public class PaymentServiceImpl implements PaymentService {
     private Mono<Payment> updatePaymentEntity(Payment payment, WebhookCallbackRequest request) {
         log.debug("Updating payment entity for transactionId: {}, new status: {}", payment.getTransactionId(), request.getPaymentStatus());
 
-        if ("PAYMENT_SUCCESS".equalsIgnoreCase(request.getPaymentStatus())) {
-            payment.setStatus(AppConstant.PAYMENT_STATUS.SUCCESS.name());
+        if (PAYMENT_SUCCESS.name().equalsIgnoreCase(request.getPaymentStatus())) {
+            payment.setStatus(SUCCESS.name());
             payment.setUpdatedBy("PAYMENT_SERVICE");
             payment.setLastModifiedDate(Instant.now());
             return Mono.just(payment);
-        } else if ("PAYMENT_FAILED".equalsIgnoreCase(request.getPaymentStatus())) {
+        } else if (PAYMENT_FAILED.name().equalsIgnoreCase(request.getPaymentStatus())) {
             payment.setStatus(AppConstant.PAYMENT_STATUS.FAILED.name());
             payment.setFailureCode(request.getFailureCode());
             payment.setFailureMessage(request.getFailureMessage());
             payment.setUpdatedBy("PAYMENT_SERVICE");
             payment.setLastModifiedDate(Instant.now());
             return Mono.just(payment);
-        }
-        if ("REFUND_SUCCESS".equalsIgnoreCase(request.getPaymentStatus())) {
+        } else if (REFUND_SUCCESS.name().equalsIgnoreCase(request.getPaymentStatus())) {
             payment.setStatus(AppConstant.PAYMENT_STATUS.REFUNDED.name());
             payment.setUpdatedBy("PAYMENT_SERVICE");
             payment.setLastModifiedDate(Instant.now());
             return Mono.just(payment);
-        } else if ("REFUND_FAILED".equalsIgnoreCase(request.getPaymentStatus())) {
+        } else if (REFUND_FAILED.name().equalsIgnoreCase(request.getPaymentStatus())) {
             payment.setStatus(AppConstant.PAYMENT_STATUS.REFUND_FAILED.name());
             payment.setFailureCode(request.getFailureCode());
             payment.setFailureMessage(request.getFailureMessage());
@@ -239,7 +303,7 @@ public class PaymentServiceImpl implements PaymentService {
                 .build();
 
 
-        if (payment.getStatus().equalsIgnoreCase(AppConstant.PAYMENT_STATUS.SUCCESS.name())) {
+        if (payment.getStatus().equalsIgnoreCase(SUCCESS.name())) {
             return paymentEventProducer.send(AppConstant.TOPICS.PAYMENT_COMPLETED, UUID.randomUUID().toString(), payload);
         } else if (payment.getStatus().equalsIgnoreCase(AppConstant.PAYMENT_STATUS.FAILED.name())) {
             payload.setFailureCode(payment.getFailureCode());
@@ -263,12 +327,26 @@ public class PaymentServiceImpl implements PaymentService {
                     // future: call third-party cancel API
                     // return paymentProviderClient.cancelPayment(existingPayment.getProviderRef())
                     //     .then(...)
-                    existingPayment.setStatus(AppConstant.PAYMENT_STATUS.CANCELLED.name());
+                    existingPayment.setStatus(CANCELLED.name());
                     existingPayment.setUpdatedBy("PAYMENT_SERVICE");
                     existingPayment.setLastModifiedDate(Instant.now());
                     return paymentRepository.save(existingPayment);
                 })
                 .thenReturn(newPayment);  // always returns newPayment regardless
+    }
+
+
+    private Mono<Void> refundPayment(UUID paymentId) {
+        log.info("Processing refund for paymentId: {}", paymentId);
+
+        return paymentRepository.findById(paymentId)
+                .switchIfEmpty(Mono.error(new BusinessException(ErrorCode.PAYMENT_NOT_FOUND)))
+                .flatMap(payment -> {
+                    // Build request body
+                    // Request refund to third party
+                    // and wait webhook callback from payment method provider
+                    return Mono.empty();
+                });
     }
 
 

@@ -24,6 +24,8 @@ public class SagaState {
     private String transactionId;
     @Column("correlation_id")
     private String correlationId;
+    @Column("payment_id")
+    private String paymentId;
     @Column("stock_status")
     private String stockStatus;
     @Column("payment_status")

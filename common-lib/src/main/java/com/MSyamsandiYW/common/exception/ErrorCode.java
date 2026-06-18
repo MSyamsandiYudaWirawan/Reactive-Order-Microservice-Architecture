@@ -51,6 +51,7 @@ public enum ErrorCode {
     PAYMENT_NOT_FOUND("PAYMENT_NOT_FOUND", "Payment not found", NOT_FOUND),
     INVALID_PAYMENT_METHOD("INVALID_PAYMENT_METHOD", "Payment method is invalid", BAD_REQUEST),
     PAYMENT_ALREADY_PENDING("PAYMENT_ALREADY_PENDING", "Payment is already pending", CONFLICT),
+    PAYMENT_ALREADY_PROCESSED("PAYMENT_ALREADY_PROCESSED", "Payment is already pending", CONFLICT),
 
     // ===== Inventory =====
     OUT_OF_STOCK("OUT_OF_STOCK", "Insufficient stock to fulfill the order", UNPROCESSABLE_ENTITY),

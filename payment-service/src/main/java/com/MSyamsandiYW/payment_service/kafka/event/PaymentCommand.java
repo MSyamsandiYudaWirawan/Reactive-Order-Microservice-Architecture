@@ -8,6 +8,8 @@ import lombok.*;
 @Setter
 @Builder
 public class PaymentCommand {
+
+    private String paymentId;
     private String transactionId;
     private String correlationId;
 }

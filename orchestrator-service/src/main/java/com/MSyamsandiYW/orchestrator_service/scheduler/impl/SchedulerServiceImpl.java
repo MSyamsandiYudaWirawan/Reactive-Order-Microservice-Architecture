@@ -78,6 +78,7 @@ public class SchedulerServiceImpl implements SchedulerService {
                                 .filter(rows -> rows > 0)
                                 .flatMap(__ -> {
                                     OrchestratorEventPayload payload = OrchestratorEventPayload.builder()
+                                            .paymentId(sagaState.getPaymentId())
                                             .transactionId(sagaState.getTransactionId())
                                             .correlationId(sagaState.getCorrelationId())
                                             .build();
@@ -102,6 +103,7 @@ public class SchedulerServiceImpl implements SchedulerService {
                                 .filter(rows -> rows > 0)
                                 .flatMap(__ -> {
                                     OrchestratorEventPayload payload = OrchestratorEventPayload.builder()
+                                            .paymentId(sagaState.getPaymentId())
                                             .transactionId(sagaState.getTransactionId())
                                             .correlationId(sagaState.getCorrelationId())
                                             .build();
@@ -126,6 +128,7 @@ public class SchedulerServiceImpl implements SchedulerService {
                                 .filter(rows -> rows > 0)
                                 .flatMap(__ -> {
                                     OrchestratorEventPayload payload = OrchestratorEventPayload.builder()
+                                            .paymentId(sagaState.getPaymentId())
                                             .transactionId(sagaState.getTransactionId())
                                             .correlationId(sagaState.getCorrelationId())
                                             .build();

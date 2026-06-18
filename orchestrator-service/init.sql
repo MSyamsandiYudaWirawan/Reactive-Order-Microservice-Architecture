@@ -1,6 +1,7 @@
 CREATE TABLE IF NOT EXISTS saga_state
 (
     id                 UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    payment_id         VARCHAR(255) NULL,
     transaction_id     VARCHAR(255) NOT NULL,
     correlation_id     VARCHAR(255) NOT NULL,
     stock_status       VARCHAR(255) NULL,     --NULL → RESERVED / OUT_OF_STOCK

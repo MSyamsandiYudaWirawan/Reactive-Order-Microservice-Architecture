@@ -51,6 +51,7 @@ public class OrchestrationCommandHandler {
                 .switchIfEmpty(sagaStateService.create(payload.getTransactionId(), payload.getCorrelationId()))
                 // set payment status to initiated
                 .flatMap(sagaState -> {
+                    sagaState.setPaymentId(payload.getPaymentId());
                     sagaState.setPaymentStatus(INITIATED.name());
                     sagaState.setUpdatedBy("ORCHESTRATION_SERVICE");
                     sagaState.setLastModifiedDate(Instant.now());
@@ -78,6 +79,7 @@ public class OrchestrationCommandHandler {
                     }
 
                     // set payment status to paid
+                    sagaState.setPaymentId(payload.getPaymentId());
                     sagaState.setPaymentStatus(PAID.name());
                     return sagaStateService.save(sagaState);
                 })
@@ -120,6 +122,7 @@ public class OrchestrationCommandHandler {
                 // flatMap will skip if its mono empty
                 .flatMap(__ -> {
                     OrchestratorEventPayload payload = OrchestratorEventPayload.builder()
+                            .paymentId(sagaState.getPaymentId())
                             .transactionId(sagaState.getTransactionId())
                             .correlationId(sagaState.getCorrelationId())
                             .build();
@@ -145,6 +148,7 @@ public class OrchestrationCommandHandler {
                 // flatMap will skip if its mono empty
                 .flatMap(__ -> {
                     OrchestratorEventPayload payload = OrchestratorEventPayload.builder()
+                            .paymentId(sagaState.getPaymentId())
                             .transactionId(sagaState.getTransactionId())
                             .correlationId(sagaState.getCorrelationId())
                             .build();

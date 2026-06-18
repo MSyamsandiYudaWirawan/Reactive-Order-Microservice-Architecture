@@ -8,6 +8,8 @@ import lombok.*;
 @Setter
 @Builder
 public class OrchestratorEventPayload {
+
+    private String paymentId;
     private String correlationId;
     private String transactionId;
     private String failureCode;

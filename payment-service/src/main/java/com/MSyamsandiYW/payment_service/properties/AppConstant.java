@@ -2,6 +2,14 @@ package com.MSyamsandiYW.payment_service.properties;
 
 
 public class AppConstant {
+
+    public enum WEBHOOK_CALLBACK_PAYMENT_STATUS {
+        PAYMENT_SUCCESS,
+        PAYMENT_FAILED,
+        REFUND_SUCCESS,
+        REFUND_FAILED
+    }
+
     public enum PAYMENT_STATUS {
         PENDING,
         CANCELLED,
@@ -10,6 +18,7 @@ public class AppConstant {
         REFUNDED,
         REFUND_FAILED
     }
+
     public enum ORDER_STATUS {
         PENDING,
         WAITING_PAYMENT,
@@ -20,6 +29,7 @@ public class AppConstant {
         EXPIRED,
         REFUND_FAILED
     }
+
     public static class TOPICS {
         public static final String PAYMENT_COMPLETED = "payment-completed"; //produce -> consumed by orchestrator-service
         public static final String PAYMENT_FAILED = "payment-failed"; //produce -> consumed by orchestrator-service
