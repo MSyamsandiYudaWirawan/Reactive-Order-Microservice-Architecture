@@ -29,8 +29,7 @@ public class UserServiceImpl implements UserService {
     @Override
     public Mono<UserDetails> findByUsername(String email) {
         return findUserByEmail(email)
-                .map(user -> (UserDetails) user)
-                .onErrorMap(BusinessException.class, ex -> new UsernameNotFoundException(ex.getMessage()));
+                .map(user -> (UserDetails) user);
     }
 
     @Override
@@ -109,8 +108,8 @@ public class UserServiceImpl implements UserService {
                         return Mono.error(new BusinessException(ErrorCode.ACCOUNT_ALREADY_DELETED));
                     }
                     user.setDeleted(true);
-                    //also deactivate the account
-                    user.setEnabled(false);
+//                    //also deactivate the account
+//                    user.setEnabled(false);
                     return Mono.just(user);
                 })
                 .flatMap(userRepository::save)
@@ -122,7 +121,13 @@ public class UserServiceImpl implements UserService {
 
     private Mono<User> findUserByEmail(String email) {
         return userRepository.findByEmailIgnoreCase(email)
-                .switchIfEmpty(Mono.error(new BusinessException(ErrorCode.USER_NOT_FOUND, email)));
+                .switchIfEmpty(Mono.error(new BusinessException(ErrorCode.USER_NOT_FOUND, email)))
+                .flatMap(user -> {
+                    if (user.isDeleted()) {
+                        return Mono.error(new BusinessException(ErrorCode.ACCOUNT_ALREADY_DELETED));
+                    }
+                    return Mono.just(user);
+                });
     }
 
 }
