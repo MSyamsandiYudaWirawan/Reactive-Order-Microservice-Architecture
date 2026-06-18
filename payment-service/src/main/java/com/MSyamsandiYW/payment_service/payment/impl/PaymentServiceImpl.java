@@ -31,10 +31,11 @@ import java.util.Set;
 import java.util.UUID;
 
 import static com.MSyamsandiYW.payment_service.properties.AppConstant.ORDER_STATUS.*;
-import static com.MSyamsandiYW.payment_service.properties.AppConstant.ORDER_STATUS.REFUND_FAILED;
-import static com.MSyamsandiYW.payment_service.properties.AppConstant.PAYMENT_STATUS.CANCELLED;
-import static com.MSyamsandiYW.payment_service.properties.AppConstant.PAYMENT_STATUS.SUCCESS;
-import static com.MSyamsandiYW.payment_service.properties.AppConstant.WEBHOOK_CALLBACK_PAYMENT_STATUS.*;
+import static com.MSyamsandiYW.payment_service.properties.AppConstant.PAYMENT_STATUS.*;
+import static com.MSyamsandiYW.payment_service.properties.AppConstant.PAYMENT_STATUS.REFUNDED;
+import static com.MSyamsandiYW.payment_service.properties.AppConstant.TOPICS.*;
+import static com.MSyamsandiYW.payment_service.properties.AppConstant.WEBHOOK_CALLBACK_PAYMENT_STATUS.PAYMENT_SUCCESS;
+import static com.MSyamsandiYW.payment_service.properties.AppConstant.WEBHOOK_CALLBACK_PAYMENT_STATUS.REFUND_SUCCESS;
 
 @Service
 @Slf4j
@@ -70,7 +71,7 @@ public class PaymentServiceImpl implements PaymentService {
                     if (order.getOrderStatus().equalsIgnoreCase(COMPLETED.name())) {
                         return Mono.error(new BusinessException(ErrorCode.ORDER_ALREADY_COMPLETED));
                     }
-                    if (order.getOrderStatus().equalsIgnoreCase(REFUNDED.name())) {
+                    if (order.getOrderStatus().equalsIgnoreCase(AppConstant.ORDER_STATUS.REFUNDED.name())) {
                         return Mono.error(new BusinessException(ErrorCode.ORDER_ALREADY_REFUNDED));
                     }
                     if (order.getOrderStatus().equalsIgnoreCase(OUT_OF_STOCK.name())) {
@@ -79,7 +80,7 @@ public class PaymentServiceImpl implements PaymentService {
                     if (order.getOrderStatus().equalsIgnoreCase(EXPIRED.name())) {
                         return Mono.error(new BusinessException(ErrorCode.ORDER_ALREADY_EXPIRED));
                     }
-                    if (order.getOrderStatus().equalsIgnoreCase(REFUND_FAILED.name())) {
+                    if (order.getOrderStatus().equalsIgnoreCase(AppConstant.ORDER_STATUS.REFUND_FAILED.name())) {
                         return Mono.error(new BusinessException(ErrorCode.ORDER_ALREADY_COMPLETED));
                     }
 
@@ -103,6 +104,7 @@ public class PaymentServiceImpl implements PaymentService {
                 .doOnNext(payment -> log.info("Payment created successfully for transactionId: {}, status: {}", payment.getTransactionId(), payment.getStatus()))
                 // save payment ledger
                 .flatMap(payment -> paymentLedgerService.recordEventPayment(payment).thenReturn(payment))
+                .flatMap(payment -> produceEventPayment(payment).thenReturn(payment))
                 // build response
                 .flatMap(payment ->
                         Mono.just(ResponseEntity.ok().body(
@@ -153,7 +155,7 @@ public class PaymentServiceImpl implements PaymentService {
         }
 
         // === PAYMENT_FAILED webhook ===
-        if (webhookStatus.equalsIgnoreCase(PAYMENT_FAILED.name())) {
+        if (webhookStatus.equalsIgnoreCase(AppConstant.WEBHOOK_CALLBACK_PAYMENT_STATUS.PAYMENT_FAILED.name())) {
             // Only PENDING is valid for PAYMENT_FAILED
             if (!currentStatus.equalsIgnoreCase(AppConstant.PAYMENT_STATUS.PENDING.name())) {
                 log.warn("Ignoring PAYMENT_FAILED webhook for paymentId: {} — current status: {}", payment.getId(), currentStatus);
@@ -166,7 +168,7 @@ public class PaymentServiceImpl implements PaymentService {
             // CANCELLED + REFUND_SUCCESS → mark REFUNDED, DON'T produce event (silent refund completion)
             if (currentStatus.equalsIgnoreCase(CANCELLED.name())) {
                 log.info("Silent refund completed for CANCELLED paymentId: {}", payment.getId());
-                payment.setStatus(AppConstant.PAYMENT_STATUS.REFUNDED.name());
+                payment.setStatus(REFUNDED.name());
                 payment.setUpdatedBy("PAYMENT_SERVICE");
                 payment.setLastModifiedDate(Instant.now());
                 return paymentRepository.save(payment)
@@ -181,7 +183,7 @@ public class PaymentServiceImpl implements PaymentService {
         }
 
         // === REFUND_FAILED webhook ===
-        if (webhookStatus.equalsIgnoreCase(REFUND_FAILED.name())) {
+        if (webhookStatus.equalsIgnoreCase(AppConstant.ORDER_STATUS.REFUND_FAILED.name())) {
             // Only CANCELLED or SUCCESS are valid for REFUND_FAILED
             if (!Set.of(CANCELLED.name(), SUCCESS.name()).contains(currentStatus)) {
                 log.warn("Ignoring REFUND_FAILED webhook for paymentId: {} — current status: {}", payment.getId(), currentStatus);
@@ -271,19 +273,19 @@ public class PaymentServiceImpl implements PaymentService {
             payment.setUpdatedBy("PAYMENT_SERVICE");
             payment.setLastModifiedDate(Instant.now());
             return Mono.just(payment);
-        } else if (PAYMENT_FAILED.name().equalsIgnoreCase(request.getPaymentStatus())) {
-            payment.setStatus(AppConstant.PAYMENT_STATUS.FAILED.name());
+        } else if (AppConstant.WEBHOOK_CALLBACK_PAYMENT_STATUS.PAYMENT_FAILED.name().equalsIgnoreCase(request.getPaymentStatus())) {
+            payment.setStatus(FAILED.name());
             payment.setFailureCode(request.getFailureCode());
             payment.setFailureMessage(request.getFailureMessage());
             payment.setUpdatedBy("PAYMENT_SERVICE");
             payment.setLastModifiedDate(Instant.now());
             return Mono.just(payment);
         } else if (REFUND_SUCCESS.name().equalsIgnoreCase(request.getPaymentStatus())) {
-            payment.setStatus(AppConstant.PAYMENT_STATUS.REFUNDED.name());
+            payment.setStatus(REFUNDED.name());
             payment.setUpdatedBy("PAYMENT_SERVICE");
             payment.setLastModifiedDate(Instant.now());
             return Mono.just(payment);
-        } else if (REFUND_FAILED.name().equalsIgnoreCase(request.getPaymentStatus())) {
+        } else if (AppConstant.ORDER_STATUS.REFUND_FAILED.name().equalsIgnoreCase(request.getPaymentStatus())) {
             payment.setStatus(AppConstant.PAYMENT_STATUS.REFUND_FAILED.name());
             payment.setFailureCode(request.getFailureCode());
             payment.setFailureMessage(request.getFailureMessage());
@@ -298,21 +300,24 @@ public class PaymentServiceImpl implements PaymentService {
         log.info("Producing payment event for transactionId: {}, status: {}", payment.getTransactionId(), payment.getStatus());
 
         PaymentEventPayload payload = PaymentEventPayload.builder()
+                .paymentId(payment.getId().toString())
                 .transactionId(payment.getTransactionId())
                 .correlationId(payment.getCorrelationId())
                 .build();
 
 
         if (payment.getStatus().equalsIgnoreCase(SUCCESS.name())) {
-            return paymentEventProducer.send(AppConstant.TOPICS.PAYMENT_COMPLETED, UUID.randomUUID().toString(), payload);
-        } else if (payment.getStatus().equalsIgnoreCase(AppConstant.PAYMENT_STATUS.FAILED.name())) {
+            return paymentEventProducer.send(PAYMENT_COMPLETED, UUID.randomUUID().toString(), payload);
+        } else if (payment.getStatus().equalsIgnoreCase(AppConstant.PAYMENT_STATUS.PENDING.name())) {
+            return paymentEventProducer.send(PAYMENT_INITIATED, UUID.randomUUID().toString(), payload);
+        } else if (payment.getStatus().equalsIgnoreCase(FAILED.name())) {
             payload.setFailureCode(payment.getFailureCode());
             payload.setFailureMessage(payment.getFailureMessage());
-            return paymentEventProducer.send(AppConstant.TOPICS.PAYMENT_FAILED, UUID.randomUUID().toString(), payload);
-        } else if (payment.getStatus().equalsIgnoreCase(AppConstant.PAYMENT_STATUS.REFUNDED.name())) {
-            return paymentEventProducer.send(AppConstant.TOPICS.ORDER_REFUND_COMPLETED, UUID.randomUUID().toString(), payload);
+            return paymentEventProducer.send(PAYMENT_FAILED, UUID.randomUUID().toString(), payload);
+        } else if (payment.getStatus().equalsIgnoreCase(REFUNDED.name())) {
+            return paymentEventProducer.send(ORDER_REFUND_COMPLETED, UUID.randomUUID().toString(), payload);
         } else if (payment.getStatus().equalsIgnoreCase(AppConstant.PAYMENT_STATUS.REFUND_FAILED.name())) {
-            return paymentEventProducer.send(AppConstant.TOPICS.ORDER_REFUND_FAILED, UUID.randomUUID().toString(), payload);
+            return paymentEventProducer.send(ORDER_REFUND_FAILED, UUID.randomUUID().toString(), payload);
         }
         return Mono.error(new BusinessException(ErrorCode.INTERNAL_EXCEPTION));
 
