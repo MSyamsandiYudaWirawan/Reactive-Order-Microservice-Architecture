@@ -67,7 +67,10 @@ public class OrchestrationCommandHandler {
                 // create saga if there is no saga state
                 .switchIfEmpty(sagaStateService.create(payload.getTransactionId(), payload.getCorrelationId()))
                 .flatMap(sagaState -> {
-                    // if payment status is paid then handle saga completed
+                    // always set paymentId from the event
+                    sagaState.setPaymentId(payload.getPaymentId());
+
+                    // if stock is reserved then handle saga completed
                     if (sagaState.getStockStatus() != null &&
                             sagaState.getStockStatus().equalsIgnoreCase(RESERVED.name())) {
                         return handleSagaCompleted(sagaState);
@@ -78,8 +81,7 @@ public class OrchestrationCommandHandler {
                         return handleSagaCompensated(sagaState);
                     }
 
-                    // set payment status to paid
-                    sagaState.setPaymentId(payload.getPaymentId());
+                    // waiting for stock result
                     sagaState.setPaymentStatus(PAID.name());
                     return sagaStateService.save(sagaState);
                 })
