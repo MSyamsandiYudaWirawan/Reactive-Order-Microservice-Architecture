@@ -12,8 +12,8 @@ CREATE TABLE if NOT EXISTS orders
     failure_code       VARCHAR(100),
     failure_message    VARCHAR(500),
     created_by         VARCHAR(255) NOT NULL,
-    updated_by         VARCHAR(255) NOT NULL,
-    created_date       TIMESTAMPTZ  NOT NULL,
+    updated_by         VARCHAR(255),
+    created_date       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     last_modified_date TIMESTAMPTZ
 );
 
@@ -26,8 +26,8 @@ CREATE TABLE if NOT EXISTS order_items
     quantity           INTEGER      NOT NULL,
     price              DECIMAL      NOT NULL,
     created_by         VARCHAR(255) NOT NULL,
-    updated_by         VARCHAR(255) NOT NULL,
-    created_date       TIMESTAMPTZ  NOT NULL,
+    updated_by         VARCHAR(255),
+    created_date       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     last_modified_date TIMESTAMPTZ
 );
 
@@ -43,8 +43,8 @@ CREATE TABLE IF NOT EXISTS discounts
     valid_from          TIMESTAMPTZ,
     valid_until         TIMESTAMPTZ,
     created_by          VARCHAR(255)       NOT NULL,
-    updated_by          VARCHAR(255)       NOT NULL,
-    created_date        TIMESTAMPTZ        NOT NULL,
+    updated_by          VARCHAR(255),
+    created_date        TIMESTAMPTZ        NOT NULL DEFAULT NOW(),
     last_modified_date  TIMESTAMPTZ
 );
 
@@ -54,5 +54,5 @@ CREATE TABLE IF NOT EXISTS order_ledger
     transaction_id VARCHAR(255) NOT NULL,
     correlation_id       VARCHAR(255) NOT NULL,
     event_type           VARCHAR(255) NOT NULL, -- PENDING, WAITING_PAYMENT, PAID, COMPLETED, FAILED, REFUNDED
-    created_date         TIMESTAMPTZ  NOT NULL
+    created_date         TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );

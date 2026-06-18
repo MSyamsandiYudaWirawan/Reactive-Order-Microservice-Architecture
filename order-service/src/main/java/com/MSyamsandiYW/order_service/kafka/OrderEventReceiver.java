@@ -1,7 +1,7 @@
 package com.MSyamsandiYW.order_service.kafka;
 
 import com.MSyamsandiYW.common.redis.RedisService;
-import com.MSyamsandiYW.order_service.kafka.request.OrderEventRequest;
+import com.MSyamsandiYW.order_service.kafka.event.OrderCommand;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -17,7 +17,7 @@ import static com.MSyamsandiYW.order_service.properties.AppConstant.TOPICS.*;
 @RequiredArgsConstructor
 public class OrderEventReceiver {
 
-    private final KafkaReceiver<String, OrderEventRequest> kafkaReceiver;
+    private final KafkaReceiver<String, OrderCommand> kafkaReceiver;
     private final RedisService redisService;
     private final OrderEventHandler handler;
 
@@ -29,7 +29,7 @@ public class OrderEventReceiver {
                 .subscribe();
     }
 
-    private Mono<Void> processRecord(ReceiverRecord<String, OrderEventRequest> record) {
+    private Mono<Void> processRecord(ReceiverRecord<String, OrderCommand> record) {
         log.info("Received event - topic: {}, key: {}, value: {}", record.topic(), record.key(), record.value());
         Mono<Void> result = switch (record.topic()) {
 

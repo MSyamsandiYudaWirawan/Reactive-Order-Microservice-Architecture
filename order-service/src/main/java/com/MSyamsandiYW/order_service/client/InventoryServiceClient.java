@@ -9,6 +9,7 @@ import com.MSyamsandiYW.order_service.properties.AppProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatusCode;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -34,6 +35,8 @@ public class InventoryServiceClient {
         return webClient.post()
                 .uri(url)
                 .header("Authorization", token)
+                .header("Content-Type", MediaType.APPLICATION_JSON.toString())
+                .header("Accept",MediaType.APPLICATION_JSON.toString())
                 .bodyValue(request)
                 .retrieve()
                 // intercept error and mapping ErrorCode then throw exception with ErrorCode

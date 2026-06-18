@@ -1,5 +1,2 @@
-spring:
-  application:
-    name: common-lib
 jwt:
   public-key-path: keys/public_key.pem

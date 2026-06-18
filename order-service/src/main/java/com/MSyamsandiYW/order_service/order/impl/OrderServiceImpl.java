@@ -5,7 +5,7 @@ import com.MSyamsandiYW.common.exception.ErrorCode;
 import com.MSyamsandiYW.common.jwt.JwtService;
 import com.MSyamsandiYW.order_service.discount.DiscountService;
 import com.MSyamsandiYW.order_service.kafka.OrderCommandProducer;
-import com.MSyamsandiYW.order_service.kafka.request.StockReserveRequest;
+import com.MSyamsandiYW.order_service.kafka.event.OrderCommandPayload;
 import com.MSyamsandiYW.order_service.order.Order;
 import com.MSyamsandiYW.order_service.order.OrderRepository;
 import com.MSyamsandiYW.order_service.order.OrderService;
@@ -106,7 +106,7 @@ public class OrderServiceImpl implements OrderService {
 
                 // produce event to reserve stock consumed by  inventory-service
                 .flatMap(order -> {
-                    StockReserveRequest stockReserveRequest = StockReserveRequest.builder()
+                    OrderCommandPayload orderCommandPayload = OrderCommandPayload.builder()
                             .orderId(order.getId().toString())
                             .transactionId(transactionId)
                             .correlationId(correlationId)
@@ -115,7 +115,7 @@ public class OrderServiceImpl implements OrderService {
 
                     //key is UUID random purposely for eventId
                     return orderCommandProducer.send(
-                            AppConstant.TOPICS.STOCK_RESERVE_REQUESTED, UUID.randomUUID().toString(), stockReserveRequest);
+                            AppConstant.TOPICS.STOCK_RESERVE_REQUESTED, UUID.randomUUID().toString(), orderCommandPayload);
                 })
                 .doOnSuccess(unused ->
                         log.info("Stock reserve event published - correlationId: {}", correlationId))

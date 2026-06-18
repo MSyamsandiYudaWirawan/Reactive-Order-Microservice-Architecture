@@ -20,10 +20,14 @@ public class JwtService {
     }
 
     public Mono<Claims> extractClaims(String token) {
+        if(token != null && token.startsWith("Bearer ")){
+            token = token.substring(7);
+        }
+        String finalToken = token;
         return publicKey.map(key -> Jwts.parser()
                         .verifyWith(key)
                         .build()
-                        .parseSignedClaims(token)
+                        .parseSignedClaims(finalToken)
                         .getPayload()
                 ).onErrorMap(ExpiredJwtException.class,
                         e -> new BusinessException(ErrorCode.TOKEN_EXPIRED))

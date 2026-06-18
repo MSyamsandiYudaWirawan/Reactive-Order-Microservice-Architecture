@@ -9,8 +9,8 @@ CREATE TABLE IF NOT EXISTS products(
     is_active BOOLEAN DEFAULT TRUE,
     is_deleted BOOLEAN DEFAULT FALSE,
     created_by         VARCHAR(255) NOT NULL,
-    updated_by         VARCHAR(255) NOT NULL,
-    created_date       TIMESTAMPTZ  NOT NULL,
+    updated_by         VARCHAR(255) ,
+    created_date       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     last_modified_date TIMESTAMPTZ
 );
 
@@ -22,8 +22,8 @@ CREATE TABLE IF NOT EXISTS stock_reservation(
     qty INTEGER NOT NULL ,
     status VARCHAR(255) NOT NULL ,
     created_by         VARCHAR(255) NOT NULL,
-    updated_by         VARCHAR(255) NOT NULL,
-    created_date       TIMESTAMPTZ  NOT NULL,
+    updated_by         VARCHAR(255),
+    created_date       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     last_modified_date TIMESTAMPTZ
 );
 
@@ -34,5 +34,5 @@ CREATE TABLE IF NOT EXISTS stock_ledger(
     correlation_id VARCHAR(255) NOT NULL,
     event_type VARCHAR(255) NOT NULL,
     qty INTEGER NOT NULL,
-    created_date TIMESTAMPTZ NOT NULL
+    created_date TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

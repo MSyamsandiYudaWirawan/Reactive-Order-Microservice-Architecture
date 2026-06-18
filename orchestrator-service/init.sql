@@ -8,6 +8,6 @@ CREATE TABLE IF NOT EXISTS saga_state
     saga_status        VARCHAR(255) NOT NULL, --IN_PROGRESS / COMPLETED / COMPENSATING / FAILED
     created_by         VARCHAR(255) NOT NULL,
     updated_by         VARCHAR(255),
-    created_date       TIMESTAMPTZ  NOT NULL,
+    created_date       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     last_modified_date TIMESTAMPTZ
 )
