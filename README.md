@@ -419,6 +419,51 @@ Webhook REFUND_FAILED:
 
 ---
 
+## Roadmap
+
+### ✅ Phase 1 — MVP Foundation (Complete)
+- Reactive microservices with Spring WebFlux + R2DBC
+- Saga pattern (orchestrator-based) with compensation transactions
+- Event-driven architecture with 13 Kafka topics
+- JWT authentication (RSA) with gateway validation
+- Database-per-service with audit trail (ledger tables)
+- Idempotency & event deduplication (Redis)
+- Order expiry scheduler with automatic stock release/refund
+- Optimistic concurrency control (conditional DB updates)
+- Docker Compose full-stack deployment
+
+### ✅ Phase 2 — Production Hardening (Complete)
+- Rate limiting at API Gateway
+- Circuit breaker (Resilience4j)
+- Dead Letter Queue (DLQ) for failed messages
+- PgBouncer connection pooling (transaction mode)
+- Unit tests with Mockito + StepVerifier (~50 test cases)
+- API documentation (Swagger/OpenAPI + Postman collection)
+
+### 🔲 Phase 3 — Observability & CI/CD (Planned)
+- Distributed tracing with Micrometer + Zipkin/Jaeger
+- Prometheus + Grafana metrics dashboard
+- Centralized logging (ELK Stack or Loki)
+- GitHub Actions CI/CD pipeline
+- SonarQube code quality integration
+- Integration tests with TestContainers
+
+### 🔲 Phase 4 — Cloud Deployment (Planned)
+- Kubernetes manifests (Deployments, Services, Ingress)
+- Horizontal Pod Autoscaler per service
+- ConfigMaps + Secrets for environment management
+- AWS deployment (ECS or EKS)
+- Terraform infrastructure-as-code
+
+### 🔲 Phase 5 — Advanced Patterns (Future)
+- Event sourcing with CQRS
+- GraphQL API layer
+- OAuth2/OIDC integration (Keycloak)
+- Multi-region deployment
+- Kafka Streams for real-time analytics
+
+---
+
 ## License
 
 This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
