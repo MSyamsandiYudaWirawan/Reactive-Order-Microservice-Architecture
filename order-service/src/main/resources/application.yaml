@@ -6,6 +6,10 @@ spring:
     name: order-service
   config:
     import: optional:file:.env[.properties]
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
   r2dbc:
     url: r2dbc:postgresql://${DB_URL}:${DB_PORT}/${DB_NAME}
     username: ${DB_USERNAME}

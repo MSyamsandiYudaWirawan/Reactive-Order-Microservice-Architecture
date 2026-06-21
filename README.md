@@ -137,9 +137,25 @@ Payment FAILED → Order stays WAITING_PAYMENT → User picks new payment method
 
 - Java 21+
 - Docker & Docker Compose
-- Maven 3.9+
 
-### 1. Start Infrastructure
+### One-Command Setup (Docker)
+
+```bash
+# Windows
+start.bat
+
+# Linux/Mac
+chmod +x start.sh && ./start.sh
+```
+
+Or manually:
+```bash
+./mvnw clean package -DskipTests
+docker compose -f docker-compose.full.yml up --build -d
+```
+### Manual Setup (Local Development)
+
+#### 1. Start Infrastructure
 
 ```bash
 # Start Kafka, Zookeeper, and Redis
@@ -153,13 +169,13 @@ docker compose -f payment-service/docker-compose.yml up -d
 docker compose -f orchestrator-service/docker-compose.yml up -d
 ```
 
-### 2. Build the Project
+#### 2. Build the Project
 
 ```bash
 ./mvnw clean install -DskipTests
 ```
 
-### 3. Run Services
+#### 3. Run Services
 
 Start each service in a separate terminal:
 
