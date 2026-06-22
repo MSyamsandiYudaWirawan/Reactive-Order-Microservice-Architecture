@@ -14,7 +14,7 @@ A production-grade, event-driven order processing system built with **Spring Web
 
 ## Architecture Overview
 
-![Reactive_Order_Microservice_Architecture.png](diagram/Reactive_Order_Microservice_Architecture.png)
+![Reactive_Order_Microservice_Architecture.png](diagram/Reactive_Order_Microservice_Architecture.png?v=2)
 
 Each service owns its **PostgreSQL database** (database-per-service pattern) and communicates asynchronously via **Kafka events**.
 
@@ -237,7 +237,7 @@ cd orchestrator-service && ../mvnw spring-boot:run
 
 ## Kafka Event Flow
 
-![Kafka_Event_Flow.drawio.png](diagram/Kafka_Event_Flow.drawio.png)
+![Kafka_Event_Flow.drawio.png](diagram/Kafka_Event_Flow.drawio.png?v=2)
 
 ## Saga State Machine
 
