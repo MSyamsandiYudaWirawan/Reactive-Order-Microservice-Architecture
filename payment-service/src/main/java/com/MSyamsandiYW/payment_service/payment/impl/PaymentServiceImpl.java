@@ -115,6 +115,8 @@ public class PaymentServiceImpl implements PaymentService {
                                         .amount(payment.getAmount())
                                         .paymentMethod(payment.getPaymentMethod())
                                         .urlPayment(appProperties.getPaymentMethodUrlMap().get(request.getPaymentMethod()))
+                                        // TODO: Remove paymentId — testing only
+                                        .paymentId(payment.getId().toString())
                                         .build()
                         ))
                 );
