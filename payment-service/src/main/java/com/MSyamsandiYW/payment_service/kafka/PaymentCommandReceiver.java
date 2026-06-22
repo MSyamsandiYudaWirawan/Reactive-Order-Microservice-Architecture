@@ -78,6 +78,10 @@ public class PaymentCommandReceiver {
                 .timestamp(Instant.now())
                 .build();
         //send to dlq topic
-        return producer.send(PAYMENT_DLQ, record.key(), payload);
+        return producer.send(PAYMENT_DLQ, record.key(), payload)
+                .onErrorResume(dlqE -> {
+                    log.error("Failed to send to DLQ - topic: {}, key: {}", record.topic(), record.key(), dlqE);
+                    return Mono.empty();
+                });
     }
 }

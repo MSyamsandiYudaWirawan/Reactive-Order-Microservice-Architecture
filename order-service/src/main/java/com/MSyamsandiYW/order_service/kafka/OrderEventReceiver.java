@@ -73,7 +73,11 @@ public class OrderEventReceiver {
                 .build();
 
         //send to dlq topic
-        return producer.send(ORDER_DLQ, record.key(), payload);
+        return producer.send(ORDER_DLQ, record.key(), payload)
+                .onErrorResume(dlqE -> {
+                    log.error("Failed to send to DLQ - topic: {}, key: {}", record.topic(), record.key(), dlqE);
+                    return Mono.empty();
+                });
     }
 
     private Mono<Void> processByTopic(ReceiverRecord<String, OrderCommand> record) {

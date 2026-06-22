@@ -31,6 +31,16 @@ spring:
         spring.json.use.type.headers: false
         spring.json.value.default.type: com.MSyamsandiYW.orchestrator_service.kafka.event.OrchestratorCommand
 
+#actuator
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics
+  endpoint:
+    health:
+      show-details: always
+
 logging:
   level:
     org.springframework.r2dbc: DEBUG

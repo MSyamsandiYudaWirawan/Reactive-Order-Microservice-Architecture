@@ -69,7 +69,11 @@ public class StockCommandReceiver {
                 .timestamp(Instant.now())
                 .build();
         // Publish to DLQ topic
-        return producer.send(INVENTORY_DLQ, record.key(), payload);
+        return producer.send(INVENTORY_DLQ, record.key(), payload)
+                .onErrorResume(dlqE -> {
+                    log.error("Failed to send to DLQ - topic: {}, key: {}", record.topic(), record.key(), dlqE);
+                    return Mono.empty();
+                });
     }
 
     private Mono<Void> processByTopic(ReceiverRecord<String, StockCommand> record) {
