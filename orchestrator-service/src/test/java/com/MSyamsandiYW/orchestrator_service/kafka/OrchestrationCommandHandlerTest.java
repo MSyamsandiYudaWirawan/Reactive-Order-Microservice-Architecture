@@ -52,6 +52,10 @@ class OrchestrationCommandHandlerTest {
                 .createdBy("ORCHESTRATION_SERVICE")
                 .createdDate(Instant.now())
                 .build();
+
+        // Prevent NPE in switchIfEmpty() — argument is eagerly evaluated
+        lenient().when(sagaStateService.create(any(), any()))
+                .thenReturn(Mono.just(sagaState));
     }
 
     @Test

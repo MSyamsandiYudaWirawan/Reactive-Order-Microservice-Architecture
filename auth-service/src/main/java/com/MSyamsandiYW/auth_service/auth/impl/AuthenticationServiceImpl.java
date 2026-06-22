@@ -61,9 +61,9 @@ public class AuthenticationServiceImpl implements AuthenticationService {
         log.info("Registration attempt for email: {}", request.getEmail());
         final String userRole = "USER";
         return checkUserEmail(request.getEmail())
-                .then(checkUserPhoneNumber(request.getPhoneNumber()))
-                .then(checkPassword(request.getPassword(), request.getConfirmPassword()))
-                .then(userMapper.toUser(request, userRole))
+                .then(Mono.defer(() -> checkUserPhoneNumber(request.getPhoneNumber())))
+                .then(Mono.defer(() -> checkPassword(request.getPassword(), request.getConfirmPassword())))
+                .then(Mono.defer(() -> userMapper.toUser(request, userRole)))
                 .flatMap(userRepository::save)
                 .doOnSuccess(v -> log.info("Registration successful for email: {}", request.getEmail()))
                 .doOnError(ex -> log.error("Registration failed for email: {}", request.getEmail(), ex))
