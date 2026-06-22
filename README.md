@@ -104,6 +104,13 @@ Stock RESERVED + No payment within timeout → Scheduler triggers RELEASE_STOCK 
 Stock NOT reserved + Payment PAID + Timeout → Scheduler triggers REFUND → Order EXPIRED
 ```
 
+### Out of Stock (Payment In Progress — Race Condition)
+```
+Stock OUT_OF_STOCK + Payment INITIATED (in progress) → Orchestrator waits →
+  → Payment SUCCESS arrives → Orchestrator sees OUT_OF_STOCK → triggers REFUND → Order REFUNDED
+  → Payment FAILED arrives → Log only (saga already waiting, will expire via scheduler)
+```
+
 ### Payment Failed (User Can Retry)
 ```
 Payment FAILED → Order stays WAITING_PAYMENT → User picks new payment method →

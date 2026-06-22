@@ -26,8 +26,6 @@ public class Order {
     private String transactionId;
     @Column("user_id")
     private String userId;
-    @Column("payment_id")
-    private String paymentId;
     @Column("discount_code")
     private String discountCode;
     @Column("order_status")

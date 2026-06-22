@@ -14,11 +14,6 @@ spring:
       initial-size: 2
       max-size: 5
 
-logging:
-  level:
-    org.springframework.r2dbc: DEBUG
-
-
 # these properties need to be well organized across the different ENV
 app:
   security:

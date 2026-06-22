@@ -40,6 +40,3 @@ management:
     health:
       show-details: always
 
-logging:
-  level:
-    org.springframework.r2dbc: DEBUG

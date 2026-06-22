@@ -71,13 +71,11 @@ public class OrchestrationCommandHandler {
                     sagaState.setPaymentId(payload.getPaymentId());
 
                     // if stock is reserved then handle saga completed
-                    if (sagaState.getStockStatus() != null &&
-                            sagaState.getStockStatus().equalsIgnoreCase(RESERVED.name())) {
+                    if (RESERVED.name().equalsIgnoreCase(sagaState.getStockStatus())) {
                         return handleSagaCompleted(sagaState);
                     }
                     // if stock status is out of stock then handle saga compensate
-                    if (sagaState.getStockStatus() != null &&
-                            sagaState.getStockStatus().equalsIgnoreCase(OUT_OF_STOCK.name())) {
+                    if (OUT_OF_STOCK.name().equalsIgnoreCase(sagaState.getStockStatus())) {
                         return handleSagaCompensated(sagaState);
                     }
 
@@ -101,10 +99,16 @@ public class OrchestrationCommandHandler {
                 // create saga if there is no saga state
                 .switchIfEmpty(sagaStateService.create(payload.getTransactionId(), payload.getCorrelationId()))
                 .flatMap(sagaState -> {
-                    if (sagaState.getPaymentStatus() != null &&
-                            sagaState.getPaymentStatus().equalsIgnoreCase(PAID.name())) {
+                    // if payment already completed, trigger refund
+                    if (PAID.name().equalsIgnoreCase(sagaState.getPaymentStatus())) {
                         return handleSagaCompensated(sagaState);
                     }
+                    //if payment is initiated (in progress), wait for payment result
+                    if (INITIATED.name().equalsIgnoreCase(sagaState.getPaymentStatus())) {
+                        sagaState.setStockStatus(OUT_OF_STOCK.name());
+                        return sagaStateService.save(sagaState);
+                    }
+                    // no payment at all, saga simply fails
                     sagaState.setStockStatus(OUT_OF_STOCK.name());
                     sagaState.setSagaStatus(FAILED.name());
                     return sagaStateService.save(sagaState);

@@ -22,7 +22,6 @@ public class ResilienceConfig {
     public Retry retry() {
         RetryConfig retryConfig = RetryConfig.custom()
                 .maxAttempts(3)
-                .waitDuration(Duration.ofMillis(500))
                 .intervalFunction(IntervalFunction.ofExponentialRandomBackoff(500, 2, 0.2))
                 .retryExceptions(Exception.class)
                 .ignoreExceptions(BusinessException.class)
