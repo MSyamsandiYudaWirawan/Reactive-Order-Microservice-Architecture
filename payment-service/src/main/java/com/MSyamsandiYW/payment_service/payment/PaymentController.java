@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
 
@@ -25,9 +26,10 @@ public class PaymentController {
     @PostMapping("/webhook/callback")
     @ResponseStatus(code = OK)
     Mono<Void> webhookCallbackPaymentMethod(
-            @RequestBody @Valid WebhookCallbackRequest request
+            @RequestBody @Valid WebhookCallbackRequest request,
+            ServerHttpRequest serverHttpRequest
     ) {
-        return paymentService.webhookCallbackPaymentMethod(request);
+        return paymentService.webhookCallbackPaymentMethod(request,serverHttpRequest.getHeaders());
     }
 
     @PostMapping

@@ -5,6 +5,7 @@ import com.MSyamsandiYW.payment_service.payment.request.CreatePaymentRequest;
 import com.MSyamsandiYW.payment_service.payment.request.WebhookCallbackRequest;
 import com.MSyamsandiYW.payment_service.payment.response.CreatePaymentResponse;
 import com.MSyamsandiYW.payment_service.payment.response.GetPaymentResponse;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import reactor.core.publisher.Mono;
 
@@ -14,7 +15,7 @@ public interface PaymentService {
 
     Mono<ResponseEntity<CreatePaymentResponse>> createPayment(CreatePaymentRequest request, String token);
 
-    Mono<Void> webhookCallbackPaymentMethod(WebhookCallbackRequest request);
+    Mono<Void> webhookCallbackPaymentMethod(WebhookCallbackRequest request, HttpHeaders headers);
 
     Mono<Void> refundPayment(PaymentCommand request);
 

@@ -6,6 +6,7 @@ import com.MSyamsandiYW.common.jwt.JwtService;
 import com.MSyamsandiYW.payment_service.client.OrderServiceClient;
 import com.MSyamsandiYW.payment_service.client.response.GetOrderStatusResponse;
 import com.MSyamsandiYW.payment_service.kafka.PaymentEventProducer;
+import com.MSyamsandiYW.payment_service.kafka.event.DlqEventPayload;
 import com.MSyamsandiYW.payment_service.kafka.event.PaymentCommand;
 import com.MSyamsandiYW.payment_service.kafka.event.PaymentEventPayload;
 import com.MSyamsandiYW.payment_service.payment.Payment;
@@ -21,6 +22,7 @@ import com.MSyamsandiYW.payment_service.properties.AppProperties;
 import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
@@ -119,12 +121,12 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     @Override
-    public Mono<Void> webhookCallbackPaymentMethod(WebhookCallbackRequest request) {
+    public Mono<Void> webhookCallbackPaymentMethod(WebhookCallbackRequest request, HttpHeaders headers) {
         log.info("Received webhook callback for paymentId: {}, status: {}", request.getPaymentId(), request.getPaymentStatus());
 
         return paymentRepository.findById(UUID.fromString(request.getPaymentId()))
                 .switchIfEmpty(Mono.error(new BusinessException(ErrorCode.PAYMENT_NOT_FOUND)))
-                .flatMap(payment -> validatePayment(payment, request))
+                .flatMap(payment -> validatePayment(payment, request, headers))
                 // update status payment
                 .flatMap(payment -> updatePaymentEntity(payment, request))
                 // save payment
@@ -136,7 +138,7 @@ public class PaymentServiceImpl implements PaymentService {
                 .then();
     }
 
-    private Mono<Payment> validatePayment(Payment payment, WebhookCallbackRequest request) {
+    private Mono<Payment> validatePayment(Payment payment, WebhookCallbackRequest request, HttpHeaders headers) {
         String currentStatus = payment.getStatus();
         String webhookStatus = request.getPaymentStatus();
 
@@ -189,6 +191,8 @@ public class PaymentServiceImpl implements PaymentService {
                 log.warn("Ignoring REFUND_FAILED webhook for paymentId: {} — current status: {}", payment.getId(), currentStatus);
                 return Mono.empty();
             }
+            // send to dlq for refund failed to need manual intervention, but continue normal flow
+            return sendToDlq(request, headers).thenReturn(payment);
         }
 
         return Mono.just(payment);
@@ -352,6 +356,18 @@ public class PaymentServiceImpl implements PaymentService {
                     // and wait webhook callback from payment method provider
                     return Mono.empty();
                 });
+    }
+
+    private Mono<Void> sendToDlq(WebhookCallbackRequest request, HttpHeaders headers) {
+        DlqEventPayload payload = DlqEventPayload.builder()
+                .originalTopic("webhook-callback")
+                .originalKey(request.getPaymentId())
+                .originalPayload(request)
+                .errorMessage("Refund failed - manual intervention required")
+                .timestamp(Instant.now())
+                .headers(headers.toSingleValueMap())
+                .build();
+        return paymentEventProducer.send(PAYMENT_DLQ, request.getPaymentId(), payload);
     }
 
 

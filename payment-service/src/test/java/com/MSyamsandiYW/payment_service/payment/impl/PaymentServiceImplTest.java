@@ -10,7 +10,6 @@ import com.MSyamsandiYW.payment_service.payment.Payment;
 import com.MSyamsandiYW.payment_service.payment.PaymentRepository;
 import com.MSyamsandiYW.payment_service.payment.request.CreatePaymentRequest;
 import com.MSyamsandiYW.payment_service.payment.request.WebhookCallbackRequest;
-import com.MSyamsandiYW.payment_service.payment.response.GetPaymentResponse;
 import com.MSyamsandiYW.payment_service.payment_ledger.PaymentLedgerService;
 import com.MSyamsandiYW.payment_service.properties.AppConstant;
 import com.MSyamsandiYW.payment_service.properties.AppProperties;
@@ -23,20 +22,21 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 import java.time.Instant;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class PaymentServiceImplTest {
@@ -182,7 +182,7 @@ class PaymentServiceImplTest {
         when(paymentEventProducer.send(eq(AppConstant.TOPICS.PAYMENT_COMPLETED), any(), any()))
                 .thenReturn(Mono.empty());
 
-        StepVerifier.create(paymentService.webhookCallbackPaymentMethod(request))
+        StepVerifier.create(paymentService.webhookCallbackPaymentMethod(request, new HttpHeaders()))
                 .verifyComplete();
 
         verify(paymentEventProducer).send(eq(AppConstant.TOPICS.PAYMENT_COMPLETED), any(), any());
@@ -199,7 +199,7 @@ class PaymentServiceImplTest {
 
         when(paymentRepository.findById(paymentId)).thenReturn(Mono.empty());
 
-        StepVerifier.create(paymentService.webhookCallbackPaymentMethod(request))
+        StepVerifier.create(paymentService.webhookCallbackPaymentMethod(request, new HttpHeaders()))
                 .expectErrorMatches(e -> e instanceof BusinessException
                         && ((BusinessException) e).getErrorCode() == ErrorCode.PAYMENT_NOT_FOUND)
                 .verify();

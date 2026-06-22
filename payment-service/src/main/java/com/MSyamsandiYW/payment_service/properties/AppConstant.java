@@ -37,5 +37,6 @@ public class AppConstant {
         public static final String ORDER_REFUND_COMPLETED = "order-refund-completed"; //produce -> consumed by order-service
         public static final String ORDER_REFUND_FAILED = "order-refund-failed";
         public static final String REFUND_REQUESTED = "refund-requested"; //consume <- from orchestrator-service
+        public static final String PAYMENT_DLQ = "payment-dlq"; //consume <- from orchestrator-service
     }
 }

@@ -5,9 +5,14 @@ import com.MSyamsandiYW.common.exception.ErrorCode;
 import com.MSyamsandiYW.common.exception.ErrorResponse;
 import com.MSyamsandiYW.payment_service.client.response.GetOrderStatusResponse;
 import com.MSyamsandiYW.payment_service.properties.AppProperties;
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
+import io.github.resilience4j.reactor.circuitbreaker.operator.CircuitBreakerOperator;
+import io.github.resilience4j.reactor.retry.RetryOperator;
+import io.github.resilience4j.retry.Retry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatusCode;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -19,6 +24,8 @@ import reactor.core.publisher.Mono;
 public class OrderServiceClient {
     private final WebClient webClient;
     private final AppProperties appProperties;
+    private final Retry retry;
+    private final CircuitBreaker circuitBreaker;
 
     public Mono<GetOrderStatusResponse> getStatusOrder(String transactionId, String token) {
         String url = UriComponentsBuilder.fromUriString(appProperties.getOrderServiceUrl())
@@ -29,11 +36,18 @@ public class OrderServiceClient {
         return webClient.get()
                 .uri(url)
                 .header("Authorization", token)
+                .header("Accept",MediaType.APPLICATION_JSON.toString())
                 .retrieve()
                 .onStatus(HttpStatusCode::isError, response ->
                         response.bodyToMono(ErrorResponse.class)
                         .flatMap(error ->
                                 Mono.error(new BusinessException(ErrorCode.fromCode(error.getCode())))))
-                .bodyToMono(GetOrderStatusResponse.class);
+                .bodyToMono(GetOrderStatusResponse.class)
+                .transformDeferred(RetryOperator.of(retry))
+                .transformDeferred(CircuitBreakerOperator.of(circuitBreaker))
+                .onErrorResume(e -> !(e instanceof BusinessException), e -> {
+                    log.error("Failed to connect order-service: {}", e.getMessage());
+                    return Mono.error(new BusinessException(ErrorCode.ORDER_SERVICE_UNAVAILABLE));
+                });
     }
 }

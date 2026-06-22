@@ -51,4 +51,9 @@ public class KafkaConfig {
         return TopicBuilder.name(PAYMENT_INITIATED).partitions(3).replicas(1).build();
     }
 
+    @Bean
+    public NewTopic paymentDlqTopic() {
+        return TopicBuilder.name(PAYMENT_DLQ).partitions(1).replicas(1).build();
+    }
+
 }
