@@ -25,5 +25,6 @@ public class AppConstant {
         public static final String ORDER_COMPLETED = "order-completed";
         public static final String OUT_OF_STOCK = "out-of-stock";
         public static final String ORDER_EXPIRED = "order-expired";
+        public static final String ORDER_DLQ = "order-dlq";
     }
 }

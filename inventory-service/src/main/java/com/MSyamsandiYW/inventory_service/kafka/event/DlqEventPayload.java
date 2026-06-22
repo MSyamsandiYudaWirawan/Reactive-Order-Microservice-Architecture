@@ -17,5 +17,4 @@ public class DlqEventPayload {
     private String errorMessage;
     private Instant timestamp;
     private Map<String,String> headers;
-    private int retryCount;
 }

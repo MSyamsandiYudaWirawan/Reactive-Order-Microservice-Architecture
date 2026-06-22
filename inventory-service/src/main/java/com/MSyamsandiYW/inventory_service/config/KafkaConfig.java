@@ -43,7 +43,7 @@ public class KafkaConfig {
 
     @Bean
     public NewTopic inventoryDlqTopic() {
-        return TopicBuilder.name(INVENTORY_DLQ).partitions(3).replicas(1).build();
+        return TopicBuilder.name(INVENTORY_DLQ).partitions(1).replicas(1).build();
     }
 
 }

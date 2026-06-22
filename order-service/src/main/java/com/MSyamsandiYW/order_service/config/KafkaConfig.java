@@ -38,4 +38,9 @@ public class KafkaConfig {
     public NewTopic reserveStockRequestTopic() {
         return TopicBuilder.name(STOCK_RESERVE_REQUESTED).partitions(3).replicas(1).build();
     }
+
+    @Bean
+    public NewTopic orderDlqTopic(){
+        return TopicBuilder.name(ORDER_DLQ).partitions(1).replicas(1).build();
+    }
 }

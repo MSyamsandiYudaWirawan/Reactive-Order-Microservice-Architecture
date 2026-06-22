@@ -6,6 +6,10 @@ import com.MSyamsandiYW.common.exception.ErrorResponse;
 import com.MSyamsandiYW.order_service.client.request.GetProductsRequest;
 import com.MSyamsandiYW.order_service.client.response.GetProductResponse;
 import com.MSyamsandiYW.order_service.properties.AppProperties;
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
+import io.github.resilience4j.reactor.circuitbreaker.operator.CircuitBreakerOperator;
+import io.github.resilience4j.reactor.retry.RetryOperator;
+import io.github.resilience4j.retry.Retry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatusCode;
@@ -24,6 +28,8 @@ import java.util.List;
 public class InventoryServiceClient {
     private final WebClient webClient;
     private final AppProperties appProperties;
+    private final Retry retry;
+    private final CircuitBreaker circuitBreaker;
 
     public Mono<List<GetProductResponse>> getProductsById(String token, GetProductsRequest request) {
 
@@ -46,6 +52,8 @@ public class InventoryServiceClient {
                                         ErrorCode.fromCode(error.getCode())))))
                 .bodyToFlux(GetProductResponse.class)
                 .collectList()
+                .transformDeferred(RetryOperator.of(retry))
+                .transformDeferred(CircuitBreakerOperator.of(circuitBreaker))
                 .onErrorMap(e -> !(e instanceof BusinessException), e -> {
                     log.error("Failed to connect to inventory-service: {}", e.getMessage());
                     return new BusinessException(ErrorCode.INVENTORY_SERVICE_UNAVAILABLE);

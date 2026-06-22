@@ -10,8 +10,12 @@ import org.springframework.context.annotation.Configuration;
 import java.time.Duration;
 
 @Configuration
-public class RetryResilience4jConfig {
+public class ResilienceConfig {
 
+    // retry for general retry stateless
+    // max 3 retry with exponential backoff
+    // if exception is instance of Exception, then retry
+    // if exception is instance of BusinessException, then don't retry
     @Bean
     public Retry retry() {
         RetryConfig retryConfig = RetryConfig.custom()
@@ -21,6 +25,6 @@ public class RetryResilience4jConfig {
                 .retryExceptions(Exception.class)
                 .ignoreExceptions(BusinessException.class)
                 .build();
-        return Retry.of("inventory-stock-command", retryConfig);
+        return Retry.of("inventory-command", retryConfig);
     }
 }
