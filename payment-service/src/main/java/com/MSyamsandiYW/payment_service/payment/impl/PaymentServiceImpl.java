@@ -194,6 +194,7 @@ public class PaymentServiceImpl implements PaymentService {
                 return Mono.empty();
             }
             // send to dlq for refund failed to need manual intervention, but continue normal flow
+            log.warn("Refund failed for paymentId: {} — sending to DLQ for manual intervention", payment.getId());
             return sendToDlq(request, headers).thenReturn(payment);
         }
 
