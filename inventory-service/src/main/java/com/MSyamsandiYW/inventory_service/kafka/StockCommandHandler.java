@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 import reactor.kafka.receiver.ReceiverRecord;
 
+import java.time.Duration;
 import java.util.UUID;
 
 import static com.MSyamsandiYW.inventory_service.properties.AppConstant.RESERVATION_STATUS.*;
@@ -31,7 +32,8 @@ public class StockCommandHandler {
 
     public Mono<Void> handleStockReserve(ReceiverRecord<String, StockCommand> record) {
         //create stock reservations
-        return stockReservationService.reserveStock(record.value())
+        // TODO: Remove delay — testing only (simulates slow stock check so payment completes first)
+        return Mono.delay(Duration.ofSeconds(15)).then(stockReservationService.reserveStock(record.value()))
                 //update product available qty and reserved qty
                 .flatMap(reservationList -> productService.reserveStock(reservationList).thenReturn(reservationList))
                 //record the event to stock ledger

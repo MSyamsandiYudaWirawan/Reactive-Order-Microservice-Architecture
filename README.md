@@ -14,7 +14,7 @@ A production-grade, event-driven order processing system built with **Spring Web
 
 ## Architecture Overview
 
-![Reactive_Order_Microservice_Architecture.png](diagram/Reactive_Order_Microservice_Architecture.png)![Reactive Order Microservice Architecture.png](diagram/Reactive%20Order%20Microservice%20Architecture.png)
+![Reactive_Order_Microservice_Architecture.png](diagram/Reactive_Order_Microservice_Architecture.png)
 
 Each service owns its **PostgreSQL database** (database-per-service pattern) and communicates asynchronously via **Kafka events**.
 
