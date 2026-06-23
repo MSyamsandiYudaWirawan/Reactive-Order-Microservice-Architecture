@@ -9,7 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
-import java.time.ZonedDateTime;
+import java.time.Instant;
 import java.util.List;
 
 import static com.MSyamsandiYW.inventory_service.properties.AppConstant.RESERVATION_STATUS.RESERVED;
@@ -32,8 +32,8 @@ public class StockReservationServiceImpl implements StockReservationService {
                         .status(RESERVED.name())
                         .createdBy("INVENTORY_SERVICE")
                         .updatedBy("INVENTORY_SERVICE")
-                        .createdDate(ZonedDateTime.now())
-                        .lastModifiedDate(ZonedDateTime.now())
+                        .createdDate(Instant.now())
+                        .lastModifiedDate(Instant.now())
                         .build()
                 ).toList();
 
@@ -47,7 +47,7 @@ public class StockReservationServiceImpl implements StockReservationService {
                     List<StockReservation> updatedReservationList = reservationList.stream().peek(r -> {
                         r.setStatus(statusReservation);
                         r.setUpdatedBy("INVENTORY_SERVICE");
-                        r.setLastModifiedDate(ZonedDateTime.now());
+                        r.setLastModifiedDate(Instant.now());
                     }).toList();
                     return repository.saveAll(updatedReservationList).collectList();
                 });

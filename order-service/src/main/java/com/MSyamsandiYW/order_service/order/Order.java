@@ -7,7 +7,7 @@ import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
-import java.time.ZonedDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 @AllArgsConstructor
@@ -26,16 +26,12 @@ public class Order {
     private String transactionId;
     @Column("user_id")
     private String userId;
-    @Column("payment_id")
-    private String paymentId;
     @Column("discount_code")
     private String discountCode;
     @Column("order_status")
     private String orderStatus;
     @Column("total_amount")
     private Double totalAmount;
-    @Column("payment_method")
-    private String paymentMethod;
     @Column("failure_code")
     private String failureCode;
     @Column("failure_message")
@@ -47,8 +43,8 @@ public class Order {
 
     @CreatedDate
     @Column("created_date")
-    private ZonedDateTime createdDate;
+    private Instant createdDate;
     @LastModifiedDate
     @Column("last_modified_date")
-    private ZonedDateTime lastModifiedDate;
+    private Instant lastModifiedDate;
 }

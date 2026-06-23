@@ -2,7 +2,6 @@ package com.MSyamsandiYW.order_service.order;
 
 import com.MSyamsandiYW.order_service.order.request.CreateOrderRequest;
 import com.MSyamsandiYW.order_service.order.response.CreateOrderResponse;
-import com.MSyamsandiYW.order_service.order.response.GetUserOrdersResponse;
 import com.MSyamsandiYW.order_service.order.response.GetStatusOrderResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -10,6 +9,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
+
+import java.util.List;
 
 import static org.springframework.http.HttpStatus.CREATED;
 import static org.springframework.http.HttpStatus.OK;
@@ -39,9 +40,10 @@ public class OrderController {
     ) {
         return orderService.getStatusOrder(token, transactionId);
     }
+
     @GetMapping()
     @ResponseStatus(code = OK)
-    public Mono<ResponseEntity<GetUserOrdersResponse>> getUserOrders(
+    public Mono<ResponseEntity<List<GetStatusOrderResponse>>> getUserOrders(
             @RequestHeader("Authorization") String token
     ) {
         return orderService.getUserOrders(token);

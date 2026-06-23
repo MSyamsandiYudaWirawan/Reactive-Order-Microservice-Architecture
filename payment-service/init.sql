@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS payments
     failure_message    VARCHAR(500),
     created_by         VARCHAR(255) NOT NULL,
     updated_by         VARCHAR(255),
-    created_date       TIMESTAMPTZ  NOT NULL,
+    created_date       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     last_modified_date TIMESTAMPTZ
 );
 
@@ -22,5 +22,5 @@ CREATE TABLE IF NOT EXISTS payment_ledger
     transaction_id VARCHAR(255) NOT NULL,
     correlation_id VARCHAR(255) NOT NULL,
     event_type     VARCHAR(255) NOT NULL,
-    created_date   TIMESTAMPTZ  NOT NULL
+    created_date   TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );

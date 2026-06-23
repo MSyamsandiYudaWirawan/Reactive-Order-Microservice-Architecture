@@ -7,7 +7,7 @@ import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
-import java.time.ZonedDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 @AllArgsConstructor
@@ -37,8 +37,8 @@ public class OrderItem {
 
     @CreatedDate
     @Column("created_date")
-    private ZonedDateTime createdDate;
+    private Instant createdDate;
     @LastModifiedDate
     @Column("last_modified_date")
-    private ZonedDateTime lastModifiedDate;
+    private Instant lastModifiedDate;
 }

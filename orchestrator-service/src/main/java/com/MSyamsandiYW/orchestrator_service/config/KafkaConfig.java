@@ -57,4 +57,8 @@ public class KafkaConfig {
     public NewTopic orderExpired() {
         return TopicBuilder.name(ORDER_EXPIRED).partitions(3).replicas(1).build();
     }
+    @Bean
+    public NewTopic orchestratorDlq() {
+        return TopicBuilder.name(ORCHESTRATOR_DLQ).partitions(1).replicas(1).build();
+    }
 }

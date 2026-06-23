@@ -5,7 +5,7 @@ CREATE TABLE if NOT EXISTS users (
     password VARCHAR(255) NOT NULL,
     phonenumber VARCHAR(255) NOT NULL UNIQUE,
     roles VARCHAR(255),
-    created_date TIMESTAMPTZ NOT NULL,
+    created_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     last_modified_date TIMESTAMPTZ,
     is_locked BOOLEAN DEFAULT FALSE,
     is_credentials_expired BOOLEAN DEFAULT FALSE,

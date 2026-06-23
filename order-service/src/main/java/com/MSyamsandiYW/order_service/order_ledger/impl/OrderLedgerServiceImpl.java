@@ -9,7 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
-import java.time.ZonedDateTime;
+import java.time.Instant;
 
 @Service
 @RequiredArgsConstructor
@@ -23,7 +23,7 @@ public class OrderLedgerServiceImpl implements OrderLedgerService {
                 .transactionId(order.getTransactionId())
                 .correlationId(order.getCorrelationId())
                 .eventType(order.getOrderStatus())
-                .createdDate(ZonedDateTime.now())
+                .createdDate(Instant.now())
                 .build();
 
         return orderLedgerRepository.save(orderLedger).then();

@@ -3,7 +3,7 @@
 A production-grade, event-driven order processing system built with **Spring WebFlux** and **Apache Kafka**. Implements the **Saga pattern** for distributed transactions with automatic compensation, fully reactive (non-blocking) end-to-end.
 
 ![Java](https://img.shields.io/badge/Java-21-orange)
-![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.0.6-brightgreen)
+![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.1.0-brightgreen)
 ![Kafka](https://img.shields.io/badge/Apache%20Kafka-7.9.0-black)
 ![Redis](https://img.shields.io/badge/Redis-7-red)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17.5-blue)
@@ -14,7 +14,7 @@ A production-grade, event-driven order processing system built with **Spring Web
 
 ## Architecture Overview
 
-![Reactive_Order_Microservice_Architecture.png](diagram/Reactive_Order_Microservice_Architecture.png)![Reactive Order Microservice Architecture.png](diagram/Reactive%20Order%20Microservice%20Architecture.png)
+![Reactive_Order_Microservice_Architecture.png](diagram/Reactive_Order_Microservice_Architecture.png)
 
 Each service owns its **PostgreSQL database** (database-per-service pattern) and communicates asynchronously via **Kafka events**.
 
@@ -34,6 +34,7 @@ Each service owns its **PostgreSQL database** (database-per-service pattern) and
 | **Distributed Tracing** | X-Correlation-Id propagated across HTTP & Kafka |
 | **Race Condition Handling** | Conditional DB updates (optimistic concurrency) |
 | **Order Expiry** | Scheduler auto-expires unpaid orders, releases stock |
+| **Payment Expiry** | Payment-service scheduler expires stale PENDING payments |
 | **Audit Trail** | Immutable ledger tables (order, stock, payment) |
 | **Kubernetes-Native** | No Eureka/Config Server — uses K8s service discovery, ConfigMaps, and Secrets |
 | **Connection Pooling** | PgBouncer (transaction mode) prevents connection exhaustion on auto-scaling |
@@ -48,7 +49,7 @@ Each service owns its **PostgreSQL database** (database-per-service pattern) and
 | **auth-service** | 8081 | Login, registration, JWT generation (RSA), refresh tokens |
 | **order-service** | 8082 | Order creation, status tracking, discount application |
 | **inventory-service** | 8083 | Stock reservation, release, deduction |
-| **payment-service** | 8084 | Payment initiation, webhook callbacks, refunds |
+| **payment-service** | 8084 | Payment initiation, webhook callbacks, refunds, payment expiry scheduler |
 | **orchestrator-service** | 8085 | Saga coordinator, decision engine, order expiry scheduler |
 | **common-lib** | — | Shared JWT utilities, exception handling, Redis utilities |
 
@@ -104,10 +105,30 @@ Stock RESERVED + No payment within timeout → Scheduler triggers RELEASE_STOCK 
 Stock NOT reserved + Payment PAID + Timeout → Scheduler triggers REFUND → Order EXPIRED
 ```
 
+### Out of Stock (Payment In Progress — Race Condition)
+```
+Stock OUT_OF_STOCK + Payment INITIATED (in progress) → Orchestrator waits →
+  → Payment SUCCESS arrives → Orchestrator sees OUT_OF_STOCK → triggers REFUND → Order REFUNDED
+  → Payment FAILED arrives → Log only (saga already waiting, will expire via scheduler)
+```
+
+### Payment Expired (Payment Gateway Timeout)
+```
+Payment PENDING for > timeout → Payment-service scheduler marks FAILED → produces PAYMENT_FAILED →
+  → Orchestrator receives PAYMENT_FAILED → logs (user can retry)
+  → Next orchestrator scheduler cycle: saga no longer INITIATED → marks FAILED + ORDER_EXPIRED
+```
+
 ### Payment Failed (User Can Retry)
 ```
 Payment FAILED → Order stays WAITING_PAYMENT → User picks new payment method →
   → Cancel existing PENDING payment → Create new payment → New attempt
+```
+
+### Late Webhook After Payment Expired (Race Condition)
+```
+Payment expired (marked FAILED) + Late PAYMENT_SUCCESS webhook arrives →
+  → Payment-service sees status=FAILED → triggers silent refund → no event produced
 ```
 
 ---
@@ -117,7 +138,7 @@ Payment FAILED → Order stays WAITING_PAYMENT → User picks new payment method
 | Layer | Technology |
 |-------|-----------|
 | **Language** | Java 21 |
-| **Framework** | Spring Boot 4.0.6, Spring WebFlux |
+| **Framework** | Spring Boot 4.1.0, Spring WebFlux |
 | **Gateway** | Spring Cloud Gateway 2025.1.1 |
 | **Database** | PostgreSQL 17.5 (R2DBC — reactive) |
 | **Messaging** | Apache Kafka (Confluent 7.9.0) |
@@ -137,9 +158,25 @@ Payment FAILED → Order stays WAITING_PAYMENT → User picks new payment method
 
 - Java 21+
 - Docker & Docker Compose
-- Maven 3.9+
 
-### 1. Start Infrastructure
+### One-Command Setup (Docker)
+
+```bash
+# Windows
+start.bat
+
+# Linux/Mac
+chmod +x start.sh && ./start.sh
+```
+
+Or manually:
+```bash
+mvn clean package -DskipTests
+docker compose -f docker-compose.full.yml up --build -d
+```
+### Manual Setup (Local Development)
+
+#### 1. Start Infrastructure
 
 ```bash
 # Start Kafka, Zookeeper, and Redis
@@ -153,13 +190,13 @@ docker compose -f payment-service/docker-compose.yml up -d
 docker compose -f orchestrator-service/docker-compose.yml up -d
 ```
 
-### 2. Build the Project
+#### 2. Build the Project
 
 ```bash
 ./mvnw clean install -DskipTests
 ```
 
-### 3. Run Services
+#### 3. Run Services
 
 Start each service in a separate terminal:
 
@@ -194,11 +231,11 @@ cd orchestrator-service && ../mvnw spring-boot:run
 
 ### Order Service (Authenticated)
 
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/api/v1/orders` | Create order (requires `X-Idempotency-Key`) |
-| GET | `/api/v1/orders/status/{transactionId}` | Get order status |
-| GET | `/api/v1/orders` | Get user's orders |
+| Method | Path | Description | Auth |
+|--------|------|-------------|------|
+| POST | `/api/v1/orders` | Create order (requires `X-Idempotency-Key`) | ✅ |
+| GET | `/api/v1/orders/status/{transactionId}` | Get order status | ✅ |
+| GET | `/api/v1/orders` | Get user's orders | ✅ |
 
 ### Payment Service
 
@@ -227,22 +264,24 @@ cd orchestrator-service && ../mvnw spring-boot:run
 
 The orchestrator tracks each transaction's progress and handles events arriving in any order:
 
-| Event Received            | Current State              | Action                              |
-|---------------------------|----------------------------|-------------------------------------|
-| STOCK_RESERVED            | payment=PAID               | → ORDER_COMPLETED + DEDUCT_STOCK    |
-| STOCK_RESERVED            | payment=NULL               | → Wait for payment                  |
-| PAYMENT_COMPLETED         | stock=RESERVED             | → ORDER_COMPLETED + DEDUCT_STOCK    |
-| PAYMENT_COMPLETED         | stock=NULL                 | → Wait for stock result             |
-| PAYMENT_COMPLETED         | stock=OUT_OF_STOCK         | → REFUND_REQUESTED (compensation)   |
-| OUT_OF_STOCK              | payment=PAID               | → REFUND_REQUESTED (compensation)   |
-| OUT_OF_STOCK              | payment=NULL               | → Saga FAILED (no action needed)    |
-| OUT_OF_STOCK              | payment=INITIATED          | → Wait for payment result           |
-| PAYMENT_FAILED            | any                        | → Log only (user can retry payment) |
-| ORDER_REFUND_COMPLETED    | saga=COMPENSATING          | → Saga COMPLETED (compensation done)|
-| ORDER_REFUND_FAILED       | saga=COMPENSATING          | → Saga FAILED (manual intervention) |
-| Order Expired (scheduler) | stock=RESERVED, no payment | → ORDER_EXPIRED + RELEASE_STOCK     |
-| Order Expired (scheduler) | no stock, payment=PAID     | → ORDER_EXPIRED + REFUND_REQUESTED  |
-| Order Expired (scheduler) | no stock, no payment       | → ORDER_EXPIRED                     |
+| Event Received             | Current State              | Action                              |
+|----------------------------|----------------------------|-------------------------------------|
+| STOCK_RESERVED             | payment=PAID               | → ORDER_COMPLETED + DEDUCT_STOCK    |
+| STOCK_RESERVED             | payment=NULL               | → Wait for payment                  |
+| PAYMENT_COMPLETED          | stock=RESERVED             | → ORDER_COMPLETED + DEDUCT_STOCK    |
+| PAYMENT_COMPLETED          | stock=NULL                 | → Wait for stock result             |
+| PAYMENT_COMPLETED          | stock=OUT_OF_STOCK         | → REFUND_REQUESTED (compensation)   |
+| OUT_OF_STOCK               | payment=PAID               | → REFUND_REQUESTED (compensation)   |
+| OUT_OF_STOCK               | payment=NULL               | → Saga FAILED (no action needed)    |
+| OUT_OF_STOCK               | payment=INITIATED          | → Wait for payment result           |
+| PAYMENT_FAILED             | any                        | → Log only (user can retry payment) |
+| ORDER_REFUND_COMPLETED     | saga=COMPENSATING          | → Saga COMPLETED (compensation done)|
+| ORDER_REFUND_FAILED        | saga=COMPENSATING          | → Saga FAILED (manual intervention) |
+| Order Expired (scheduler)  | stock=RESERVED, no payment | → ORDER_EXPIRED + RELEASE_STOCK     |
+| Order Expired (scheduler)  | no stock, payment=PAID     | → ORDER_EXPIRED + REFUND_REQUESTED  |
+| Order Expired (scheduler)  | no stock, no payment       | → ORDER_EXPIRED                     |
+| Order Expired (scheduler)  | payment=INITIATED          | → Skip (wait for payment to resolve) |
+| Payment Expired (scheduler) | payment=PENDING > timeout  | → Mark FAILED + produce PAYMENT_FAILED |
 
 ---
 
@@ -252,10 +291,10 @@ The orchestrator tracks each transaction's progress and handles events arriving 
 reactive-order-microservice/
 ├── common-lib/              # Shared: JWT, exceptions, Redis utilities
 ├── auth-service/            # Authentication & user management
-├── gateway-service/         # API Gateway with JWT + rate limiting
+├── gateway-service/         # API Gateway with JWT + rate limiting, Authorization
 ├── order-service/           # Order processing + discount engine
 ├── inventory-service/       # Stock reservation & management
-├── payment-service/         # Payment processing & refunds
+├── payment-service/         # Payment processing, refunds + payment expiry scheduler
 ├── orchestrator-service/    # Saga coordinator + order expiry scheduler
 ├── docker-compose.yml       # Infrastructure (Kafka, Zookeeper, Redis)
 └── pom.xml                  # Parent POM (multi-module Maven)
@@ -288,6 +327,7 @@ service/src/main/java/com/MSyamsandiYW/<service_name>/
 | **Database-per-service** | Full autonomy, independent scaling and schema evolution |
 | **Ledger tables** | Immutable audit trail for compliance and debugging |
 | **Payment method switching** | Cancel existing PENDING payment, create new one (no double-charge) |
+| **Payment expiry in payment-service** | Payment owns its lifecycle; orchestrator skips INITIATED sagas until payment resolves |
 | **PgBouncer + R2DBC** | R2DBC uses unnamed prepared statements — no stale state on connection reassignment, perfect for PgBouncer transaction mode |
 
 ---
@@ -372,6 +412,80 @@ Each service uses `.env` files for local development. See `.env.example` in each
 | `KAFKA_BOOTSTRAP_SERVERS` | Kafka broker address |
 | `REDIS_HOST` | Redis host |
 | `REDIS_PORT` | Redis port |
+
+---
+
+## Payment Webhook State Machine
+
+The payment-service validates webhook callbacks against the current payment state using `paymentId` 
+
+```
+Webhook PAYMENT_SUCCESS:
+├── Payment is PENDING       → mark SUCCESS, produce PAYMENT_COMPLETED
+├── Payment is CANCELLED     → trigger silent refund to provider, no event produced
+├── Payment is FAILED        → trigger silent refund to provider, no event produced (expired but charged)
+├── Any other status         → ignore (log warning)
+
+Webhook PAYMENT_FAILED:
+├── Payment is PENDING       → mark FAILED, produce PAYMENT_FAILED
+├── Any other status         → ignore (log warning)
+
+Webhook REFUND_SUCCESS:
+├── Payment is CANCELLED     → mark REFUNDED, no event produced (silent refund)
+├── Payment is SUCCESS       → mark REFUNDED, produce ORDER_REFUND_COMPLETED
+├── Payment is REFUND_FAILED → mark REFUNDED, produce ORDER_REFUND_COMPLETED (retry succeeded)
+├── Any other status         → ignore (log warning)
+
+Webhook REFUND_FAILED:
+├── Payment is CANCELLED     → mark REFUND_FAILED, produce ORDER_REFUND_FAILED
+├── Payment is SUCCESS       → mark REFUND_FAILED, produce ORDER_REFUND_FAILED
+├── Any other status         → ignore (log warning)
+```
+
+---
+
+## Roadmap
+
+### ✅ Phase 1 — MVP Foundation (Complete)
+- Reactive microservices with Spring WebFlux + R2DBC
+- Saga pattern (orchestrator-based) with compensation transactions
+- Event-driven architecture with 13 Kafka topics
+- JWT authentication (RSA) with gateway validation
+- Database-per-service with audit trail (ledger tables)
+- Idempotency & event deduplication (Redis)
+- Order expiry scheduler with automatic stock release/refund
+- Optimistic concurrency control (conditional DB updates)
+- Docker Compose full-stack deployment
+
+### ✅ Phase 2 — Production Hardening (Complete)
+- Rate limiting at API Gateway
+- Circuit breaker (Resilience4j)
+- Dead Letter Queue (DLQ) for failed messages
+- PgBouncer connection pooling (transaction mode)
+- Unit tests with Mockito + StepVerifier (~50 test cases)
+- API documentation (Swagger/OpenAPI + Postman collection)
+
+### 🔲 Phase 3 — Observability & CI/CD (Planned)
+- Distributed tracing with Micrometer + Zipkin/Jaeger
+- Prometheus + Grafana metrics dashboard
+- Centralized logging (ELK Stack or Loki)
+- GitHub Actions CI/CD pipeline
+- SonarQube code quality integration
+- Integration tests with TestContainers
+
+### 🔲 Phase 4 — Cloud Deployment (Planned)
+- Kubernetes manifests (Deployments, Services, Ingress)
+- Horizontal Pod Autoscaler per service
+- ConfigMaps + Secrets for environment management
+- AWS deployment (ECS or EKS)
+- Terraform infrastructure-as-code
+
+### 🔲 Phase 5 — Advanced Patterns (Future)
+- Event sourcing with CQRS
+- GraphQL API layer
+- OAuth2/OIDC integration (Keycloak)
+- Multi-region deployment
+- Kafka Streams for real-time analytics
 
 ---
 

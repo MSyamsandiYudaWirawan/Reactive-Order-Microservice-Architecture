@@ -6,7 +6,7 @@ import org.springframework.data.r2dbc.repository.R2dbcRepository;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-import java.time.ZonedDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 public interface SagaStateRepository extends R2dbcRepository<SagaState, UUID> {
@@ -30,5 +30,5 @@ public interface SagaStateRepository extends R2dbcRepository<SagaState, UUID> {
                 WHERE saga_status = 'IN_PROGRESS'
                   AND created_date < :cutoff
             """)
-    Flux<SagaState> findAllExpiredTransaction(ZonedDateTime cutoff);
+    Flux<SagaState> findAllExpiredTransaction(Instant cutoff);
 }

@@ -12,4 +12,6 @@ public class CreatePaymentResponse {
     private Double amount;
     private String paymentMethod;
     private String urlPayment;
+    // TODO: Remove paymentId — testing only
+    private String paymentId;
 }

@@ -7,7 +7,7 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
-import java.time.ZonedDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 @AllArgsConstructor
@@ -29,5 +29,5 @@ public class OrderLedger {
 
     @CreatedDate
     @Column("created_date")
-    private ZonedDateTime createdDate;
+    private Instant createdDate;
 }

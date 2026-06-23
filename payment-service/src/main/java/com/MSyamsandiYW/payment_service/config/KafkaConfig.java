@@ -1,6 +1,7 @@
 package com.MSyamsandiYW.payment_service.config;
 
 import com.MSyamsandiYW.payment_service.kafka.event.PaymentCommand;
+import com.MSyamsandiYW.payment_service.properties.AppConstant;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.springframework.boot.kafka.autoconfigure.KafkaProperties;
 import org.springframework.context.annotation.Bean;
@@ -13,7 +14,7 @@ import reactor.kafka.sender.SenderOptions;
 
 import java.util.List;
 
-import static com.MSyamsandiYW.payment_service.properties.AppConstant.TOPICS.REFUND_REQUESTED;
+import static com.MSyamsandiYW.payment_service.properties.AppConstant.TOPICS.*;
 
 @Configuration
 public class KafkaConfig {
@@ -33,17 +34,26 @@ public class KafkaConfig {
 
     @Bean
     public NewTopic paymentCompleteTopic() {
-        return TopicBuilder.name("payment-completed").partitions(3).replicas(1).build();
+        return TopicBuilder.name(PAYMENT_COMPLETED).partitions(3).replicas(1).build();
     }
 
     @Bean
     public NewTopic paymentFailedTopic() {
-        return TopicBuilder.name("payment-failed").partitions(3).replicas(1).build();
+        return TopicBuilder.name(PAYMENT_FAILED).partitions(3).replicas(1).build();
     }
 
     @Bean
     public NewTopic orderRefundCompleted() {
-        return TopicBuilder.name("order-refund-completed").partitions(3).replicas(1).build();
+        return TopicBuilder.name(ORDER_REFUND_COMPLETED).partitions(3).replicas(1).build();
+    }
+    @Bean
+    public NewTopic paymentInitiated() {
+        return TopicBuilder.name(PAYMENT_INITIATED).partitions(3).replicas(1).build();
+    }
+
+    @Bean
+    public NewTopic paymentDlqTopic() {
+        return TopicBuilder.name(PAYMENT_DLQ).partitions(1).replicas(1).build();
     }
 
 }

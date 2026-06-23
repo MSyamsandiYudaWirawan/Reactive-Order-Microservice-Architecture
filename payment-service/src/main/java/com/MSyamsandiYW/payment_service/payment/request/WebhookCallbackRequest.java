@@ -9,7 +9,7 @@ import lombok.*;
 @Builder
 public class WebhookCallbackRequest {
 
-    private String transactionId;
+    private String paymentId;
     private String paymentStatus;
     private String failureCode;
     private String failureMessage;

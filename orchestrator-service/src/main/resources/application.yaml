@@ -6,6 +6,10 @@ spring:
     name: orchestrator-service
   config:
     import: optional:file:.env[.properties]
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
   r2dbc:
     url: r2dbc:postgresql://${DB_URL}:${DB_PORT}/${DB_NAME}
     username: ${DB_USERNAME}
@@ -24,8 +28,15 @@ spring:
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
-        spring.json.trusted.packages: "*"
+        spring.json.use.type.headers: false
+        spring.json.value.default.type: com.MSyamsandiYW.orchestrator_service.kafka.event.OrchestratorCommand
 
-logging:
-  level:
-    org.springframework.r2dbc: DEBUG
+#actuator
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics
+  endpoint:
+    health:
+      show-details: always

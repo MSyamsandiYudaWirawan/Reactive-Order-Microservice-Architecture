@@ -5,12 +5,12 @@ import com.MSyamsandiYW.auth_service.auth.request.AuthenticationRequest;
 import com.MSyamsandiYW.auth_service.auth.request.RefreshRequest;
 import com.MSyamsandiYW.auth_service.auth.request.RegistrationRequest;
 import com.MSyamsandiYW.auth_service.auth.response.AuthenticationResponse;
-import com.MSyamsandiYW.common.exception.BusinessException;
-import com.MSyamsandiYW.common.exception.ErrorCode;
 import com.MSyamsandiYW.auth_service.security.JwtService;
 import com.MSyamsandiYW.auth_service.user.User;
 import com.MSyamsandiYW.auth_service.user.UserMapper;
 import com.MSyamsandiYW.auth_service.user.UserRepository;
+import com.MSyamsandiYW.common.exception.BusinessException;
+import com.MSyamsandiYW.common.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.ReactiveAuthenticationManager;
@@ -43,7 +43,8 @@ public class AuthenticationServiceImpl implements AuthenticationService {
                 )
                 .map(auth -> (User) Objects.requireNonNull(auth.getPrincipal()))
                 .flatMap(user -> Mono.zip(jwtService.generateAccessToken(user.getEmail()),
-                        jwtService.generateRefreshToken(user.getEmail())))
+                        jwtService.generateRefreshToken(user.getEmail()))
+                )
                 .map(tuple ->
                         AuthenticationResponse.builder()
                                 .accessToken(tuple.getT1())
@@ -60,9 +61,9 @@ public class AuthenticationServiceImpl implements AuthenticationService {
         log.info("Registration attempt for email: {}", request.getEmail());
         final String userRole = "USER";
         return checkUserEmail(request.getEmail())
-                .then(checkUserPhoneNumber(request.getPhoneNumber()))
-                .then(checkPassword(request.getPassword(), request.getConfirmPassword()))
-                .then(userMapper.toUser(request, userRole))
+                .then(Mono.defer(() -> checkUserPhoneNumber(request.getPhoneNumber())))
+                .then(Mono.defer(() -> checkPassword(request.getPassword(), request.getConfirmPassword())))
+                .then(Mono.defer(() -> userMapper.toUser(request, userRole)))
                 .flatMap(userRepository::save)
                 .doOnSuccess(v -> log.info("Registration successful for email: {}", request.getEmail()))
                 .doOnError(ex -> log.error("Registration failed for email: {}", request.getEmail(), ex))

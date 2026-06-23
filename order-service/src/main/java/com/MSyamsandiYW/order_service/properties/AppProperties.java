@@ -12,6 +12,6 @@ import org.springframework.stereotype.Component;
 @Component
 public class AppProperties {
 
-    private String inventoryServiceUrl = "http://localhost:8083";
+    private String inventoryServiceUrl = "http://inventory-service:8083";
     private String getProductsById = "/api/v1/products/list";
 }

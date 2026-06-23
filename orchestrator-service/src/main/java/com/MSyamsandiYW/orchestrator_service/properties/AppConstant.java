@@ -33,5 +33,6 @@ public class AppConstant {
         public static final String REFUND_REQUESTED = "refund-requested";
         public static final String ORDER_COMPLETED = "order-completed";
         public static final String ORDER_EXPIRED = "order-expired";
+        public static final String ORCHESTRATOR_DLQ = "orchestrator-dlq";
     }
 }

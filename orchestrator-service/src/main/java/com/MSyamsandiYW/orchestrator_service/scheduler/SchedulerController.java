@@ -13,7 +13,8 @@ public class SchedulerController {
     private final SchedulerService schedulerService;
 
     // runs every 30 minutes to expire stale saga transactions
-    @Scheduled(cron = "0 */30 * * * *")
+    //TODO 2 minute for testing
+    @Scheduled(cron = "0 */2 * * * *")
     public void runScheduler() {
         log.info("Payment expiry scheduler started");
         schedulerService.executeScheduler()

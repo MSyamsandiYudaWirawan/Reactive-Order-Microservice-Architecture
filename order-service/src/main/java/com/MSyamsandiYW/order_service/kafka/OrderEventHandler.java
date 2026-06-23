@@ -1,6 +1,6 @@
 package com.MSyamsandiYW.order_service.kafka;
 
-import com.MSyamsandiYW.order_service.kafka.request.OrderEventRequest;
+import com.MSyamsandiYW.order_service.kafka.event.OrderCommand;
 import com.MSyamsandiYW.order_service.order.OrderRepository;
 import com.MSyamsandiYW.order_service.order_ledger.OrderLedgerService;
 import com.MSyamsandiYW.order_service.properties.AppConstant;
@@ -18,24 +18,24 @@ public class OrderEventHandler {
     private final OrderRepository orderRepository;
     private final OrderLedgerService orderLedgerService;
 
-    public Mono<Void> handleStockReservedCompleted(OrderEventRequest payload) {
+    public Mono<Void> handleStockReservedCompleted(OrderCommand payload) {
         return updateOrderStatus(payload, WAITING_PAYMENT);
     }
 
-    public Mono<Void> handlePaymentCompleted(OrderEventRequest payload) {
+    public Mono<Void> handlePaymentCompleted(OrderCommand payload) {
         return updateOrderStatus(payload, PAID);
     }
 
-    public Mono<Void> handleOrderCompleted(OrderEventRequest payload) {
+    public Mono<Void> handleOrderCompleted(OrderCommand payload) {
         return updateOrderStatus(payload, COMPLETED);
     }
 
 
-    public Mono<Void> handleRefundCompleted(OrderEventRequest payload) {
+    public Mono<Void> handleRefundCompleted(OrderCommand payload) {
         return updateOrderStatus(payload, REFUNDED);
     }
 
-    public Mono<Void> updateOrderStatus(OrderEventRequest payload, AppConstant.ORDER_STATUS orderStatus) {
+    public Mono<Void> updateOrderStatus(OrderCommand payload, AppConstant.ORDER_STATUS orderStatus) {
         return orderRepository.findByTransactionId(payload.getTransactionId())
                 .switchIfEmpty(Mono.fromRunnable(() ->
                         log.warn("Order not found for transactionId: {}", payload.getTransactionId())))
@@ -54,15 +54,15 @@ public class OrderEventHandler {
                 .then();
     }
 
-    public Mono<Void> handleStockOutOfStock(OrderEventRequest payload) {
+    public Mono<Void> handleStockOutOfStock(OrderCommand payload) {
         return updateOrderStatus(payload, OUT_OF_STOCK);
     }
 
-    public Mono<Void> handleRefundFailed(OrderEventRequest payload) {
+    public Mono<Void> handleRefundFailed(OrderCommand payload) {
         return updateOrderStatus(payload, REFUND_FAILED);
     }
 
-    public Mono<Void> handleOrderExpired(OrderEventRequest payload) {
+    public Mono<Void> handleOrderExpired(OrderCommand payload) {
         return updateOrderStatus(payload, EXPIRED);
     }
 }

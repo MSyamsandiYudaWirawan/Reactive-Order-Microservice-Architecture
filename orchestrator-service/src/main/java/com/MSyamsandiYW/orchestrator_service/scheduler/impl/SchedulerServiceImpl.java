@@ -13,10 +13,11 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-import java.time.ZonedDateTime;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+import static com.MSyamsandiYW.orchestrator_service.properties.AppConstant.PAYMENT_STATUS.INITIATED;
 import static com.MSyamsandiYW.orchestrator_service.properties.AppConstant.PAYMENT_STATUS.PAID;
 import static com.MSyamsandiYW.orchestrator_service.properties.AppConstant.STOCK_STATUS.RESERVED;
 
@@ -30,7 +31,7 @@ public class SchedulerServiceImpl implements SchedulerService {
 
     @Override
     public Mono<Void> executeScheduler() {
-        ZonedDateTime cutoff = ZonedDateTime.now().minusSeconds(appProperties.getPaymentExpirySeconds());
+        Instant cutoff = Instant.now().minusSeconds(appProperties.getOrderExpirySeconds());
         log.info("Finding expired transactions with cutoff: {}", cutoff);
         return sagaStateService.findAllExpiredTransaction(cutoff).collectList()
                 .flatMap(expiredList -> {
@@ -51,6 +52,7 @@ public class SchedulerServiceImpl implements SchedulerService {
                     // neither stock reserved nor payment completed — just fail
                     List<SagaState> expiredFailTransaction = expiredList.stream().filter(sagaState ->
                             !RESERVED.name().equalsIgnoreCase(sagaState.getStockStatus()) &&
+                                    !INITIATED.name().equalsIgnoreCase(sagaState.getPaymentStatus()) &&
                                     !PAID.name().equalsIgnoreCase(sagaState.getPaymentStatus())
                     ).toList();
                     return handleExpired(expiredReservedStock, expiredPaidTransaction, expiredFailTransaction);
@@ -78,6 +80,7 @@ public class SchedulerServiceImpl implements SchedulerService {
                                 .filter(rows -> rows > 0)
                                 .flatMap(__ -> {
                                     OrchestratorEventPayload payload = OrchestratorEventPayload.builder()
+                                            .paymentId(sagaState.getPaymentId())
                                             .transactionId(sagaState.getTransactionId())
                                             .correlationId(sagaState.getCorrelationId())
                                             .build();
@@ -102,6 +105,7 @@ public class SchedulerServiceImpl implements SchedulerService {
                                 .filter(rows -> rows > 0)
                                 .flatMap(__ -> {
                                     OrchestratorEventPayload payload = OrchestratorEventPayload.builder()
+                                            .paymentId(sagaState.getPaymentId())
                                             .transactionId(sagaState.getTransactionId())
                                             .correlationId(sagaState.getCorrelationId())
                                             .build();
@@ -126,6 +130,7 @@ public class SchedulerServiceImpl implements SchedulerService {
                                 .filter(rows -> rows > 0)
                                 .flatMap(__ -> {
                                     OrchestratorEventPayload payload = OrchestratorEventPayload.builder()
+                                            .paymentId(sagaState.getPaymentId())
                                             .transactionId(sagaState.getTransactionId())
                                             .correlationId(sagaState.getCorrelationId())
                                             .build();

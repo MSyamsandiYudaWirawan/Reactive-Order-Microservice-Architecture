@@ -1,4 +1,4 @@
-package com.MSyamsandiYW.order_service.kafka.request;
+package com.MSyamsandiYW.order_service.kafka.event;
 
 import com.MSyamsandiYW.order_service.order_item.request.OrderItemRequest;
 import lombok.*;
@@ -10,7 +10,7 @@ import java.util.List;
 @Getter
 @Setter
 @Builder
-public class StockReserveRequest {
+public class OrderCommandPayload {
     private String orderId;
     private String transactionId;
     private String correlationId;
