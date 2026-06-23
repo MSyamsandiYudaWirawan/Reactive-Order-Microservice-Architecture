@@ -291,10 +291,10 @@ The orchestrator tracks each transaction's progress and handles events arriving 
 reactive-order-microservice/
 ├── common-lib/              # Shared: JWT, exceptions, Redis utilities
 ├── auth-service/            # Authentication & user management
-├── gateway-service/         # API Gateway with JWT + rate limiting
+├── gateway-service/         # API Gateway with JWT + rate limiting, Authorization
 ├── order-service/           # Order processing + discount engine
 ├── inventory-service/       # Stock reservation & management
-├── payment-service/         # Payment processing & refunds
+├── payment-service/         # Payment processing, refunds + payment expiry scheduler
 ├── orchestrator-service/    # Saga coordinator + order expiry scheduler
 ├── docker-compose.yml       # Infrastructure (Kafka, Zookeeper, Redis)
 └── pom.xml                  # Parent POM (multi-module Maven)
@@ -417,7 +417,7 @@ Each service uses `.env` files for local development. See `.env.example` in each
 
 ## Payment Webhook State Machine
 
-The payment-service validates webhook callbacks against the current payment state using `paymentId` for exact lookup (not `transactionId`). This prevents race conditions when users switch payment methods.
+The payment-service validates webhook callbacks against the current payment state using `paymentId` 
 
 ```
 Webhook PAYMENT_SUCCESS:

@@ -1,13 +1,13 @@
-package com.MSyamsandiYW.inventory_service;
+package com.MSyamsandiYW.payment_service;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
-public class InventoryServiceApplication {
+public class Application {
 
 	public static void main(String[] args) {
-		SpringApplication.run(InventoryServiceApplication.class, args);
+		SpringApplication.run(Application.class, args);
 	}
 
 }

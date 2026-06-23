@@ -1,13 +1,13 @@
-package com.MSyamsandiYW.payment_service;
+package com.MSyamsandiYW.orchestrator_service;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
-public class PaymentServiceApplication {
+public class Application {
 
 	public static void main(String[] args) {
-		SpringApplication.run(PaymentServiceApplication.class, args);
+		SpringApplication.run(Application.class, args);
 	}
 
 }
