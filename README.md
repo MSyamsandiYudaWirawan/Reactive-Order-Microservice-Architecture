@@ -171,7 +171,7 @@ chmod +x start.sh && ./start.sh
 
 Or manually:
 ```bash
-./mvnw clean package -DskipTests
+mvn clean package -DskipTests
 docker compose -f docker-compose.full.yml up --build -d
 ```
 ### Manual Setup (Local Development)
