@@ -1,6 +1,6 @@
 @echo off
 echo === Building all services ===
-call mvnw.cmd clean package -DskipTests
+call mvn clean package -DskipTests
 if %ERRORLEVEL% neq 0 (
     echo Build failed!
     exit /b 1

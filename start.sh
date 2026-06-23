@@ -2,7 +2,7 @@
 set -e
 
 echo "=== Building all services ==="
-./mvnw clean package -DskipTests
+mvn clean package -DskipTests
 
 echo "=== Starting all containers ==="
 docker compose -f docker-compose.full.yml up --build -d
