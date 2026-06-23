@@ -231,11 +231,11 @@ cd orchestrator-service && ../mvnw spring-boot:run
 
 ### Order Service (Authenticated)
 
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/api/v1/orders` | Create order (requires `X-Idempotency-Key`) |
-| GET | `/api/v1/orders/status/{transactionId}` | Get order status |
-| GET | `/api/v1/orders` | Get user's orders |
+| Method | Path | Description | Auth |
+|--------|------|-------------|------|
+| POST | `/api/v1/orders` | Create order (requires `X-Idempotency-Key`) | ✅ |
+| GET | `/api/v1/orders/status/{transactionId}` | Get order status | ✅ |
+| GET | `/api/v1/orders` | Get user's orders | ✅ |
 
 ### Payment Service
 
@@ -264,24 +264,24 @@ cd orchestrator-service && ../mvnw spring-boot:run
 
 The orchestrator tracks each transaction's progress and handles events arriving in any order:
 
-| Event Received            | Current State              | Action                              |
-|---------------------------|----------------------------|-------------------------------------|
-| STOCK_RESERVED            | payment=PAID               | → ORDER_COMPLETED + DEDUCT_STOCK    |
-| STOCK_RESERVED            | payment=NULL               | → Wait for payment                  |
-| PAYMENT_COMPLETED         | stock=RESERVED             | → ORDER_COMPLETED + DEDUCT_STOCK    |
-| PAYMENT_COMPLETED         | stock=NULL                 | → Wait for stock result             |
-| PAYMENT_COMPLETED         | stock=OUT_OF_STOCK         | → REFUND_REQUESTED (compensation)   |
-| OUT_OF_STOCK              | payment=PAID               | → REFUND_REQUESTED (compensation)   |
-| OUT_OF_STOCK              | payment=NULL               | → Saga FAILED (no action needed)    |
-| OUT_OF_STOCK              | payment=INITIATED          | → Wait for payment result           |
-| PAYMENT_FAILED            | any                        | → Log only (user can retry payment) |
-| ORDER_REFUND_COMPLETED    | saga=COMPENSATING          | → Saga COMPLETED (compensation done)|
-| ORDER_REFUND_FAILED       | saga=COMPENSATING          | → Saga FAILED (manual intervention) |
-| Order Expired (scheduler) | stock=RESERVED, no payment | → ORDER_EXPIRED + RELEASE_STOCK     |
-| Order Expired (scheduler) | no stock, payment=PAID     | → ORDER_EXPIRED + REFUND_REQUESTED  |
-| Order Expired (scheduler) | no stock, no payment       | → ORDER_EXPIRED                     |
-| Order Expired (scheduler) | payment=INITIATED          | → Skip (wait for payment to resolve) |
-| Payment Expired (payment) | payment=PENDING > timeout  | → Mark FAILED + produce PAYMENT_FAILED |
+| Event Received             | Current State              | Action                              |
+|----------------------------|----------------------------|-------------------------------------|
+| STOCK_RESERVED             | payment=PAID               | → ORDER_COMPLETED + DEDUCT_STOCK    |
+| STOCK_RESERVED             | payment=NULL               | → Wait for payment                  |
+| PAYMENT_COMPLETED          | stock=RESERVED             | → ORDER_COMPLETED + DEDUCT_STOCK    |
+| PAYMENT_COMPLETED          | stock=NULL                 | → Wait for stock result             |
+| PAYMENT_COMPLETED          | stock=OUT_OF_STOCK         | → REFUND_REQUESTED (compensation)   |
+| OUT_OF_STOCK               | payment=PAID               | → REFUND_REQUESTED (compensation)   |
+| OUT_OF_STOCK               | payment=NULL               | → Saga FAILED (no action needed)    |
+| OUT_OF_STOCK               | payment=INITIATED          | → Wait for payment result           |
+| PAYMENT_FAILED             | any                        | → Log only (user can retry payment) |
+| ORDER_REFUND_COMPLETED     | saga=COMPENSATING          | → Saga COMPLETED (compensation done)|
+| ORDER_REFUND_FAILED        | saga=COMPENSATING          | → Saga FAILED (manual intervention) |
+| Order Expired (scheduler)  | stock=RESERVED, no payment | → ORDER_EXPIRED + RELEASE_STOCK     |
+| Order Expired (scheduler)  | no stock, payment=PAID     | → ORDER_EXPIRED + REFUND_REQUESTED  |
+| Order Expired (scheduler)  | no stock, no payment       | → ORDER_EXPIRED                     |
+| Order Expired (scheduler)  | payment=INITIATED          | → Skip (wait for payment to resolve) |
+| Payment Expired (scheduler) | payment=PENDING > timeout  | → Mark FAILED + produce PAYMENT_FAILED |
 
 ---
 
