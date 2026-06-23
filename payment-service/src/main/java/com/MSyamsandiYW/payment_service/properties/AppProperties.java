@@ -23,4 +23,7 @@ public class AppProperties {
                     "BCA_VA", "http://bca.com/payment/xxx",
                     "BNI_VA", "http://bni.com/payment/xxx"
             ));
+
+    //TODO 2 minute for testing
+    private Integer paymentExpirySeconds = 60;
 }

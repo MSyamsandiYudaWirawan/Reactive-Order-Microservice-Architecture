@@ -34,6 +34,7 @@ Each service owns its **PostgreSQL database** (database-per-service pattern) and
 | **Distributed Tracing** | X-Correlation-Id propagated across HTTP & Kafka |
 | **Race Condition Handling** | Conditional DB updates (optimistic concurrency) |
 | **Order Expiry** | Scheduler auto-expires unpaid orders, releases stock |
+| **Payment Expiry** | Payment-service scheduler expires stale PENDING payments |
 | **Audit Trail** | Immutable ledger tables (order, stock, payment) |
 | **Kubernetes-Native** | No Eureka/Config Server — uses K8s service discovery, ConfigMaps, and Secrets |
 | **Connection Pooling** | PgBouncer (transaction mode) prevents connection exhaustion on auto-scaling |
@@ -48,7 +49,7 @@ Each service owns its **PostgreSQL database** (database-per-service pattern) and
 | **auth-service** | 8081 | Login, registration, JWT generation (RSA), refresh tokens |
 | **order-service** | 8082 | Order creation, status tracking, discount application |
 | **inventory-service** | 8083 | Stock reservation, release, deduction |
-| **payment-service** | 8084 | Payment initiation, webhook callbacks, refunds |
+| **payment-service** | 8084 | Payment initiation, webhook callbacks, refunds, payment expiry scheduler |
 | **orchestrator-service** | 8085 | Saga coordinator, decision engine, order expiry scheduler |
 | **common-lib** | — | Shared JWT utilities, exception handling, Redis utilities |
 
@@ -111,10 +112,23 @@ Stock OUT_OF_STOCK + Payment INITIATED (in progress) → Orchestrator waits →
   → Payment FAILED arrives → Log only (saga already waiting, will expire via scheduler)
 ```
 
+### Payment Expired (Payment Gateway Timeout)
+```
+Payment PENDING for > timeout → Payment-service scheduler marks FAILED → produces PAYMENT_FAILED →
+  → Orchestrator receives PAYMENT_FAILED → logs (user can retry)
+  → Next orchestrator scheduler cycle: saga no longer INITIATED → marks FAILED + ORDER_EXPIRED
+```
+
 ### Payment Failed (User Can Retry)
 ```
 Payment FAILED → Order stays WAITING_PAYMENT → User picks new payment method →
   → Cancel existing PENDING payment → Create new payment → New attempt
+```
+
+### Late Webhook After Payment Expired (Race Condition)
+```
+Payment expired (marked FAILED) + Late PAYMENT_SUCCESS webhook arrives →
+  → Payment-service sees status=FAILED → triggers silent refund → no event produced
 ```
 
 ---
@@ -266,6 +280,8 @@ The orchestrator tracks each transaction's progress and handles events arriving 
 | Order Expired (scheduler) | stock=RESERVED, no payment | → ORDER_EXPIRED + RELEASE_STOCK     |
 | Order Expired (scheduler) | no stock, payment=PAID     | → ORDER_EXPIRED + REFUND_REQUESTED  |
 | Order Expired (scheduler) | no stock, no payment       | → ORDER_EXPIRED                     |
+| Order Expired (scheduler) | payment=INITIATED          | → Skip (wait for payment to resolve) |
+| Payment Expired (payment) | payment=PENDING > timeout  | → Mark FAILED + produce PAYMENT_FAILED |
 
 ---
 
@@ -311,6 +327,7 @@ service/src/main/java/com/MSyamsandiYW/<service_name>/
 | **Database-per-service** | Full autonomy, independent scaling and schema evolution |
 | **Ledger tables** | Immutable audit trail for compliance and debugging |
 | **Payment method switching** | Cancel existing PENDING payment, create new one (no double-charge) |
+| **Payment expiry in payment-service** | Payment owns its lifecycle; orchestrator skips INITIATED sagas until payment resolves |
 | **PgBouncer + R2DBC** | R2DBC uses unnamed prepared statements — no stale state on connection reassignment, perfect for PgBouncer transaction mode |
 
 ---
@@ -406,6 +423,7 @@ The payment-service validates webhook callbacks against the current payment stat
 Webhook PAYMENT_SUCCESS:
 ├── Payment is PENDING       → mark SUCCESS, produce PAYMENT_COMPLETED
 ├── Payment is CANCELLED     → trigger silent refund to provider, no event produced
+├── Payment is FAILED        → trigger silent refund to provider, no event produced (expired but charged)
 ├── Any other status         → ignore (log warning)
 
 Webhook PAYMENT_FAILED:

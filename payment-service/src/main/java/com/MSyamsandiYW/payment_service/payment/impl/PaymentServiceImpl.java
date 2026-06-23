@@ -151,6 +151,12 @@ public class PaymentServiceImpl implements PaymentService {
                 log.info("Payment {} was CANCELLED but provider charged — triggering silent refund", payment.getId());
                 return refundPayment(payment.getId()).then(Mono.empty());
             }
+            // FAILED (expired) + SUCCESS -> silent refund(scheduler already expired it, but provider charge it)
+            if(currentStatus.equalsIgnoreCase(FAILED.name())){
+                log.info("Payment {} was FAILED (expired) but provider charged — triggering silent refund", payment.getId());
+                return refundPayment(payment.getId()).then(Mono.empty());
+            }
+
             // Only PENDING is valid for PAYMENT_SUCCESS
             if (!currentStatus.equalsIgnoreCase(AppConstant.PAYMENT_STATUS.PENDING.name())) {
                 log.warn("Ignoring PAYMENT_SUCCESS webhook for paymentId: {} — current status: {}", payment.getId(), currentStatus);
