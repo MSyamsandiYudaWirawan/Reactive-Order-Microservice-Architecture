@@ -24,3 +24,6 @@ CREATE TABLE IF NOT EXISTS payment_ledger
     event_type     VARCHAR(255) NOT NULL,
     created_date   TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
+
+CREATE INDEX idx_payments_transaction_id ON payments(transaction_id);
+CREATE INDEX idx_payments_user_id ON payments(user_id);

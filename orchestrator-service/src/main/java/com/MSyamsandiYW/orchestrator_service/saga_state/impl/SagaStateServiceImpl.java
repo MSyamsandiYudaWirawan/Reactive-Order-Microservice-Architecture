@@ -61,4 +61,10 @@ public class SagaStateServiceImpl implements SagaStateService {
     public Flux<SagaState> findAllExpiredTransaction(Instant cutoff) {
         return sagaStateRepository.findAllExpiredTransaction(cutoff);
     }
+
+    @Override
+    public Mono<SagaState> findOrCreate(String transactionId, String correlationId) {
+        return sagaStateRepository.insertIfAbsent(transactionId,correlationId)
+                .then(sagaStateRepository.findFirstByTransactionId(transactionId));
+    }
 }

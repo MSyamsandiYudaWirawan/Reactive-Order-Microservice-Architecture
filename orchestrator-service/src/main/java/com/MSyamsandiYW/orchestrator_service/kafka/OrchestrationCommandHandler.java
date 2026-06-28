@@ -28,10 +28,8 @@ public class OrchestrationCommandHandler {
     private final OrchestratorEventProducer producer;
 
     public Mono<Void> handleStockReserveCompleted(OrchestratorCommand payload) {
-        // find saga by transaction id
-        return sagaStateService.findByTransactionId(payload.getTransactionId())
-                // create saga if there is no saga state
-                .switchIfEmpty(sagaStateService.create(payload.getTransactionId(), payload.getCorrelationId()))
+        // find or create saga by transaction id (atomic)
+        return sagaStateService.findOrCreate(payload.getTransactionId(), payload.getCorrelationId())
                 // set stock status to reserved
                 .flatMap(sagaState -> {
                     // if payment status is paid then handle saga completed
@@ -45,10 +43,8 @@ public class OrchestrationCommandHandler {
     }
 
     public Mono<Void> handlePaymentInitiated(OrchestratorCommand payload) {
-        // find saga by transaction id
-        return sagaStateService.findByTransactionId(payload.getTransactionId())
-                // create saga if there is no saga state
-                .switchIfEmpty(sagaStateService.create(payload.getTransactionId(), payload.getCorrelationId()))
+        // find or create saga by transaction id (atomic)
+        return sagaStateService.findOrCreate(payload.getTransactionId(), payload.getCorrelationId())
                 // set payment status to initiated
                 .flatMap(sagaState -> {
                     sagaState.setPaymentId(payload.getPaymentId());
@@ -62,10 +58,8 @@ public class OrchestrationCommandHandler {
     }
 
     public Mono<Void> handlePaymentCompleted(OrchestratorCommand payload) {
-        // find saga state by transactionId
-        return sagaStateService.findByTransactionId(payload.getTransactionId())
-                // create saga if there is no saga state
-                .switchIfEmpty(sagaStateService.create(payload.getTransactionId(), payload.getCorrelationId()))
+        // find or create saga by transaction id (atomic)
+        return sagaStateService.findOrCreate(payload.getTransactionId(), payload.getCorrelationId())
                 .flatMap(sagaState -> {
                     // always set paymentId from the event
                     sagaState.setPaymentId(payload.getPaymentId());
@@ -94,10 +88,8 @@ public class OrchestrationCommandHandler {
     }
 
     public Mono<Void> handleOutOfStock(OrchestratorCommand payload) {
-        //find saga state by transactionId
-        return sagaStateService.findByTransactionId(payload.getTransactionId())
-                // create saga if there is no saga state
-                .switchIfEmpty(sagaStateService.create(payload.getTransactionId(), payload.getCorrelationId()))
+        // find or create saga by transaction id (atomic)
+        return sagaStateService.findOrCreate(payload.getTransactionId(), payload.getCorrelationId())
                 .flatMap(sagaState -> {
                     // if payment already completed, trigger refund
                     if (PAID.name().equalsIgnoreCase(sagaState.getPaymentStatus())) {

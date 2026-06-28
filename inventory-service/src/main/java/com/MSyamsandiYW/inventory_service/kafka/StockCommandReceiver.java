@@ -54,7 +54,7 @@ public class StockCommandReceiver {
                     log.error("Failed to process event after retries - topic: {}, key: {}", record.topic(), record.key(), e);
                     return sendToDql(record, e);
                 })
-                //acknowledge on matter what
+                //acknowledge no matter what
                 .doFinally(s -> record.receiverOffset().acknowledge());
     }
 
