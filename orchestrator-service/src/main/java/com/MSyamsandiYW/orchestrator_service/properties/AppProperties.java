@@ -12,5 +12,5 @@ import org.springframework.stereotype.Component;
 public class AppProperties {
 
     //TODO 2 minute for testing
-    private Integer orderExpirySeconds = 60;
+    private Integer orderExpirySeconds = 120;
 }

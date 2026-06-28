@@ -26,9 +26,17 @@ public interface SagaStateRepository extends R2dbcRepository<SagaState, UUID> {
     Mono<SagaState> findFirstByTransactionId(String transactionId);
 
     @Query("""
-                SELECT * FROM saga_state
-                WHERE saga_status = 'IN_PROGRESS'
-                  AND created_date < :cutoff
+            SELECT * FROM saga_state
+            WHERE saga_status = 'IN_PROGRESS'
+              AND created_date < :cutoff
             """)
     Flux<SagaState> findAllExpiredTransaction(Instant cutoff);
+
+    @Modifying
+    @Query("""
+            INSERT INTO saga_state (id, transaction_id, correlation_id, saga_status, created_by, created_date) 
+            VALUES (gen_random_uuid(), :transactionId, :correlationId, 'IN_PROGRESS', 'ORCHESTRATION_SERVICE', NOW())
+            ON CONFLICT (transaction_id) DO NOTHING 
+            """)
+    Mono<Integer> insertIfAbsent(String transactionId, String correlationId);
 }

@@ -18,4 +18,6 @@ public interface SagaStateService {
     Flux<SagaState> saveAll(List<SagaState> sagaStateList);
 
     Flux<SagaState> findAllExpiredTransaction(Instant cutoff);
+
+    Mono<SagaState> findOrCreate(String transactionId, String correlationId);
 }

@@ -56,8 +56,7 @@ public class SchedulerServiceImpl implements SchedulerService {
                                     !PAID.name().equalsIgnoreCase(sagaState.getPaymentStatus())
                     ).toList();
                     return handleExpired(expiredReservedStock, expiredPaidTransaction, expiredFailTransaction);
-                })
-                ;
+                });
     }
 
     private Mono<Void> handleExpired(List<SagaState> expiredReservedStock, List<SagaState> expiredPaidTransaction, List<SagaState> expiredFailTransaction) {
@@ -139,5 +138,4 @@ public class SchedulerServiceImpl implements SchedulerService {
                 )
                 .then();
     }
-
 }

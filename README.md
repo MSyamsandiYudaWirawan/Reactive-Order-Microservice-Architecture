@@ -439,7 +439,7 @@ Webhook REFUND_SUCCESS:
 Webhook REFUND_FAILED:
 ├── Payment is CANCELLED     → mark REFUND_FAILED, produce ORDER_REFUND_FAILED and PAYMENT_DLQ(need manual intervention)
 ├── Payment is SUCCESS       → mark REFUND_FAILED, produce ORDER_REFUND_FAILED and PAYMENT_DLQ(need manual intervention)
-├── Any other status         → ignore (log warning)
+├── Any other status         → ignore (log warning)1    
 ```
 
 ---
