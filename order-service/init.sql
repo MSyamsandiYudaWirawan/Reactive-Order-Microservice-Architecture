@@ -54,3 +54,6 @@ CREATE TABLE IF NOT EXISTS order_ledger
     event_type           VARCHAR(255) NOT NULL, -- PENDING, WAITING_PAYMENT, PAID, COMPLETED, FAILED, REFUNDED
     created_date         TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
+
+CREATE INDEX idx_orders_user_id ON orders(user_id);
+CREATE INDEX idx_orders_transaction_id ON orders(transaction_id);
