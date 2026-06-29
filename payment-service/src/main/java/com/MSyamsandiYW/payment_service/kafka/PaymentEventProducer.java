@@ -19,6 +19,7 @@ public class PaymentEventProducer {
             String key,
             Object payload
     ){
+        log.info("Publish event - topic: {}, key: {}, value: {}", topic, key, payload);
         ProducerRecord<String,Object> producerRecord = new ProducerRecord<>(topic,key,payload);
         SenderRecord<String,Object,String> senderRecord = SenderRecord.create(producerRecord,key);
         return kafkaSender.send(Mono.just(senderRecord)).next().then();
