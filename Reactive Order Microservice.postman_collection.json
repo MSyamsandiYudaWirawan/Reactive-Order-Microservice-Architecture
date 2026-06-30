@@ -1,0 +1,721 @@
+{
+  "info": {
+    "_postman_id": "f77cb96b-0a37-41eb-ac75-2aef425e7451",
+    "name": "Reactive Order Microservice",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "17567574"
+  },
+  "item": [
+    {
+      "name": "auth-service",
+      "item": [
+        {
+          "name": "auth",
+          "item": [
+            {
+              "name": "Login",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "exec": [
+                      ""
+                    ],
+                    "type": "text/javascript",
+                    "packages": {},
+                    "requests": {}
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "// Check if response status is successful\r",
+                      "if (pm.response.code === 200) {\r",
+                      "    // Parse the response\r",
+                      "    const response = pm.response.json();\r",
+                      "    \r",
+                      "    // Check if tokens exist in response\r",
+                      "    if (response.access_token && response.refresh_token) {\r",
+                      "        // Save tokens to environment variables\r",
+                      "        pm.environment.set(\"access_token\", response.access_token);\r",
+                      "        pm.environment.set(\"refresh_token\", response.refresh_token);\r",
+                      "        pm.environment.set(\"token_type\", response.token_type || \"Bearer\");\r",
+                      "        \r",
+                      "        \r",
+                      "        console.log(\"✅ Tokens saved successfully!\");\r",
+                      "        console.log(\"Access Token:\", response.access_token.substring(0, 20) + \"...\");\r",
+                      "        console.log(\"Refresh Token:\", response.refresh_token.substring(0, 20) + \"...\");\r",
+                      "    } else {\r",
+                      "        console.error(\"❌ Tokens not found in response\");\r",
+                      "        console.log(\"Response structure:\", Object.keys(response));\r",
+                      "    }\r",
+                      "} else {\r",
+                      "    console.error(\"❌ Login failed with status:\", pm.response.code);\r",
+                      "    console.error(\"Error:\", pm.response.text());\r",
+                      "}"
+                    ],
+                    "type": "text/javascript",
+                    "packages": {},
+                    "requests": {}
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\r\n    \"email\" : \"syamsandi@mail.com\",\r\n    \"password\" : \"Syamsandi_1!\"\r\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}:8080/api/v1/auth/login",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "port": "8080",
+                  "path": [
+                    "api",
+                    "v1",
+                    "auth",
+                    "login"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Register",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\r\n    \"name\": \"Syamsandi\",\r\n    \"email\": \"syamsandi@mail.com\",\r\n    \"phoneNumber\": \"+6281234567890\",\r\n    \"password\": \"Syamsandi_1!\",\r\n    \"confirmPassword\": \"Syamsandi_1!\"\r\n}\r\n",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}:8080/api/v1/auth/register",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "port": "8080",
+                  "path": [
+                    "api",
+                    "v1",
+                    "auth",
+                    "register"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Refresh",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "exec": [
+                      ""
+                    ],
+                    "type": "text/javascript",
+                    "packages": {},
+                    "requests": {}
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "// Check if response status is successful\r",
+                      "if (pm.response.code === 200) {\r",
+                      "    // Parse the response\r",
+                      "    const response = pm.response.json();\r",
+                      "    \r",
+                      "    // Check if tokens exist in response\r",
+                      "    if (response.access_token && response.refresh_token) {\r",
+                      "        // Save tokens to environment variables\r",
+                      "        pm.environment.set(\"access_token\", response.access_token);\r",
+                      "    \r",
+                      "        \r",
+                      "        console.log(\"✅ Tokens saved successfully!\");\r",
+                      "        console.log(\"Access Token:\", response.access_token.substring(0, 20) + \"...\");\r",
+                      "        console.log(\"Refresh Token:\", response.refresh_token.substring(0, 20) + \"...\");\r",
+                      "    } else {\r",
+                      "        console.error(\"❌ Tokens not found in response\");\r",
+                      "        console.log(\"Response structure:\", Object.keys(response));\r",
+                      "    }\r",
+                      "} else {\r",
+                      "    console.error(\"❌ Login failed with status:\", pm.response.code);\r",
+                      "    console.error(\"Error:\", pm.response.text());\r",
+                      "}"
+                    ],
+                    "type": "text/javascript",
+                    "packages": {},
+                    "requests": {}
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\r\n    \"refreshToken\": \"{{refresh_token}}\"\r\n}\r\n",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}:8080/api/v1/auth/refresh",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "port": "8080",
+                  "path": [
+                    "api",
+                    "v1",
+                    "auth",
+                    "refresh"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "user",
+          "item": [
+            {
+              "name": "Update profile",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PATCH",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\r\n    \"name\":\"SyamsandiYuda\"\r\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}:8081/api/v1/users/me",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "port": "8081",
+                  "path": [
+                    "api",
+                    "v1",
+                    "users",
+                    "me"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Change password",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\r\n    \"currentPassword\": \"Syamsandi_1!\",\r\n    \"newPassword\": \"Syamsandi_1!!\",\r\n    \"confirmNewPassword\": \"Syamsandi_1!!\"\r\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}:8081/api/v1/users/me/password",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "port": "8081",
+                  "path": [
+                    "api",
+                    "v1",
+                    "users",
+                    "me",
+                    "password"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Deactivate account",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PATCH",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}:8081/api/v1/users/me/deactivated",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "port": "8081",
+                  "path": [
+                    "api",
+                    "v1",
+                    "users",
+                    "me",
+                    "deactivated"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Reactivate account",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "PATCH",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}:8081/api/v1/users/me/reactivated",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "port": "8081",
+                  "path": [
+                    "api",
+                    "v1",
+                    "users",
+                    "me",
+                    "reactivated"
+                  ]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Delete account",
+              "request": {
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{access_token}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "method": "DELETE",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{base_url}}:8081/api/v1/users/me",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "port": "8081",
+                  "path": [
+                    "api",
+                    "v1",
+                    "users",
+                    "me"
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "order-service",
+      "item": [
+        {
+          "name": "Create order",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Idempotency-Key",
+                "value": "{{$guid}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"discountCode\": \"\",\r\n    \"items\": [\r\n        {\r\n            \"productId\": \"d4e5f6a7-b8c9-0123-defa-234567890123\",\r\n            \"quantity\": 2\r\n        }\r\n    ]\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}:8080/api/v1/orders",
+              "host": [
+                "{{base_url}}"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "v1",
+                "orders"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get status",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}:8080/api/v1/orders/status/ef268b3e-379c-4326-b2a3-d163fbde4cad",
+              "host": [
+                "{{base_url}}"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "v1",
+                "orders",
+                "status",
+                "ef268b3e-379c-4326-b2a3-d163fbde4cad"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get All orders",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}:8082/api/v1/orders",
+              "host": [
+                "{{base_url}}"
+              ],
+              "port": "8082",
+              "path": [
+                "api",
+                "v1",
+                "orders"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "inventory-service (INTERNAL)",
+      "item": [
+        {
+          "name": "Get Products by Ids",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"productIds\": [\r\n        \"afbfcd91-a70b-42e6-9b05-40519a45b5ba\",\r\n        \"bb836937-6899-498a-93c5-7751d2ac5654\"\r\n    ]\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}:8083/api/v1/products/list",
+              "host": [
+                "{{base_url}}"
+              ],
+              "port": "8083",
+              "path": [
+                "api",
+                "v1",
+                "products",
+                "list"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "payment-service",
+      "item": [
+        {
+          "name": "Create payment",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Idempotency-Key",
+                "value": "{{$guid}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"transactionId\": \"ef268b3e-379c-4326-b2a3-d163fbde4cad\",\r\n    //DEBIT_CARD,CREDIT_CARD,BCA_VA,BNI_VA\r\n    \"paymentMethod\":\"CREDIT_CARD\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}:8080/api/v1/payments",
+              "host": [
+                "{{base_url}}"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "v1",
+                "payments"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Webhook callback dummy",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"paymentId\": \"07f578d6-e56d-4c0e-b67c-83b456936f66\",\r\n    //PAYMENT_SUCCESS,PAYMENT_FAILED,REFUND_SUCCESS,REFUND_FAILED\r\n    \"paymentStatus\": \"REFUND_SUCCESS\",\r\n    \"failureCode\": \"\",\r\n    \"failureMessage\": \"\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}:8080/api/v1/payments/webhook/callback",
+              "host": [
+                "{{base_url}}"
+              ],
+              "port": "8080",
+              "path": [
+                "api",
+                "v1",
+                "payments",
+                "webhook",
+                "callback"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get payment status",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}:8084/api/v1/payments/status/a68c519c-3c7c-482b-bd20-ff9f3c02ee76",
+              "host": [
+                "{{base_url}}"
+              ],
+              "port": "8084",
+              "path": [
+                "api",
+                "v1",
+                "payments",
+                "status",
+                "a68c519c-3c7c-482b-bd20-ff9f3c02ee76"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get all payment by user",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}:8084/api/v1/payments/list",
+              "host": [
+                "{{base_url}}"
+              ],
+              "port": "8084",
+              "path": [
+                "api",
+                "v1",
+                "payments",
+                "list"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
