@@ -12,6 +12,12 @@ A production-grade, event-driven order processing system built with **Spring Web
 
 ---
 
+## Demo
+
+[![Demo Video](https://img.shields.io/badge/YouTube-Demo-red?logo=youtube)](https://www.youtube.com/watch?v=7P74MVIJQEM&t=541s)
+
+---
+
 ## Architecture Overview
 
 ![Reactive_Order_Microservice_Architecture.png](diagram/Reactive_Order_Microservice_Architecture.png)
