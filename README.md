@@ -272,6 +272,7 @@ The orchestrator tracks each transaction's progress and handles events arriving 
 
 | Event Received             | Current State              | Action                              |
 |----------------------------|----------------------------|-------------------------------------|
+| STOCK_RESERVE_REQUESTED    | (new transaction)          | → Create saga IN_PROGRESS           |
 | STOCK_RESERVED             | payment=PAID               | → ORDER_COMPLETED + DEDUCT_STOCK    |
 | STOCK_RESERVED             | payment=NULL               | → Wait for payment                  |
 | PAYMENT_COMPLETED          | stock=RESERVED             | → ORDER_COMPLETED + DEDUCT_STOCK    |
@@ -332,7 +333,6 @@ service/src/main/java/com/MSyamsandiYW/<service_name>/
 | **No Eureka/Config Server** | Kubernetes provides service discovery and config natively |
 | **Database-per-service** | Full autonomy, independent scaling and schema evolution |
 | **Ledger tables** | Immutable audit trail for compliance and debugging |
-| **Payment method switching** | Cancel existing PENDING payment, create new one (no double-charge) |
 | **Payment expiry in payment-service** | Payment owns its lifecycle; orchestrator skips INITIATED sagas until payment resolves |
 | **PgBouncer + R2DBC** | R2DBC uses unnamed prepared statements — no stale state on connection reassignment, perfect for PgBouncer transaction mode |
 

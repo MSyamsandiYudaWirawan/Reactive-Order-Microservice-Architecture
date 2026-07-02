@@ -180,4 +180,9 @@ public class OrchestrationCommandHandler {
                     return sagaStateService.save(sagaState);
                 }).then();
     }
+
+    public Mono<Void> handleStockReserveRequested(OrchestratorCommand payload) {
+        log.info("Stock reserve requested - initializing saga - transactionId: {}", payload.getTransactionId());
+        return sagaStateService.findOrCreate(payload.getTransactionId(), payload.getCorrelationId()).then();
+    }
 }

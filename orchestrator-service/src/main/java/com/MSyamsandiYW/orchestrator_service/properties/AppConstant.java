@@ -19,6 +19,7 @@ public class AppConstant {
 
     public static class TOPICS {
         //consume
+        public static final String STOCK_RESERVE_REQUESTED = "stock-reserve-requested";
         public static final String STOCK_RESERVE_COMPLETED = "stock-reserve-completed";
         public static final String PAYMENT_INITIATED = "payment-initiated";
         public static final String PAYMENT_COMPLETED = "payment-completed";
