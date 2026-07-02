@@ -4,6 +4,7 @@ import com.MSyamsandiYW.common.exception.ErrorCode;
 import com.MSyamsandiYW.common.jwt.JwtService;
 import com.MSyamsandiYW.common.redis.RedisService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
@@ -19,6 +20,7 @@ import java.util.UUID;
 import static com.MSyamsandiYW.common.exception.ErrorCode.*;
 
 @Component
+@Slf4j
 @RequiredArgsConstructor
 public class JwtAuthFilter implements GlobalFilter, Ordered {
 
@@ -37,6 +39,7 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
         String authHeader = exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
         //no auth =  reject
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            log.warn("Missing or invalid Authorization header - path: {}", path);
             return errorCodeMapper(exchange, USER_UNAUTHORIZED);
         }
         String token = authHeader.substring(7);
@@ -51,6 +54,7 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
                     // check path require specific role
                     List<String> requiredRoles = routeValidator.getRequiredRoles(path);
                     if (!requiredRoles.isEmpty() && roles.stream().noneMatch(requiredRoles::contains)) {
+                        log.warn("Access denied - path: {}, userRoles: {}, requiredRoles: {}", path, userRoles, requiredRoles);
                         return errorCodeMapper(exchange, USER_FORBIDDEN);
                     }
                     // check path require idempotency key
@@ -58,6 +62,7 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
                     if (routeValidator.requiresIdemKey(path, method)) {
                         String idempotencyKey = exchange.getRequest().getHeaders().getFirst("X-Idempotency-Key");
                         if (idempotencyKey == null || idempotencyKey.isEmpty()) {
+                            log.warn("Missing X-Idempotency-Key - path: {}", path);
                             return errorCodeMapper(exchange, MISSING_IDEMPOTENCY_KEY);
                         }
                         return checkIdempotencyKey(exchange, chain, idempotencyKey);
@@ -72,6 +77,7 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
         return redisService.storeIfAbsent(idempotencyKey, "processed")
                 .flatMap(stored -> {
                     if (!stored) {
+                        log.warn("Duplicate request rejected - idempotencyKey: {}", idempotencyKey);
                         return errorCodeMapper(exchange, DUPLICATE_REQUEST);
                     }
                     return chain.filter(mutateExchange(exchange));

@@ -49,6 +49,8 @@ public class OrderEventHandler {
                     }
                     return orderRepository.save(order);
                 })
+                .doOnNext(order -> log.info("Order status updated to {} - transactionId: {}, correlationId: {}",
+                        orderStatus, order.getTransactionId(), order.getCorrelationId()))
                 // record order event to ledger
                 .flatMap(orderLedgerService::recordOrderEvent)
                 .then();

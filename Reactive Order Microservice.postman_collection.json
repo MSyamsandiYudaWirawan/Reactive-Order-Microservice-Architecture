@@ -411,6 +411,27 @@
       "item": [
         {
           "name": "Create order",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201 || pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.transactionId) {",
+                  "        pm.environment.set('transaction_id', response.transactionId);",
+                  "        console.log('✅ transaction_id saved:', response.transactionId);",
+                  "    } else {",
+                  "        console.error('❌ transactionId not found in response');",
+                  "    }",
+                  "} else {",
+                  "    console.error('❌ Create order failed with status:', pm.response.code);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
           "request": {
             "auth": {
               "type": "bearer",
@@ -470,7 +491,7 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}:8080/api/v1/orders/status/ef268b3e-379c-4326-b2a3-d163fbde4cad",
+              "raw": "{{base_url}}:8080/api/v1/orders/status/{{transaction_id}}",
               "host": [
                 "{{base_url}}"
               ],
@@ -480,7 +501,7 @@
                 "v1",
                 "orders",
                 "status",
-                "ef268b3e-379c-4326-b2a3-d163fbde4cad"
+                "{{transaction_id}}"
               ]
             }
           },
@@ -502,11 +523,11 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}:8082/api/v1/orders",
+              "raw": "{{base_url}}:8080/api/v1/orders",
               "host": [
                 "{{base_url}}"
               ],
-              "port": "8082",
+              "port": "8080",
               "path": [
                 "api",
                 "v1",
@@ -568,6 +589,27 @@
       "item": [
         {
           "name": "Create payment",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201 || pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.paymentId) {",
+                  "        pm.environment.set('payment_id', response.paymentId);",
+                  "        console.log('✅ payment_id saved:', response.paymentId);",
+                  "    } else {",
+                  "        console.error('❌ paymentId not found in response');",
+                  "    }",
+                  "} else {",
+                  "    console.error('❌ Create payment failed with status:', pm.response.code);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
           "request": {
             "auth": {
               "type": "bearer",
@@ -589,7 +631,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\r\n    \"transactionId\": \"ef268b3e-379c-4326-b2a3-d163fbde4cad\",\r\n    //DEBIT_CARD,CREDIT_CARD,BCA_VA,BNI_VA\r\n    \"paymentMethod\":\"CREDIT_CARD\"\r\n}",
+              "raw": "{\r\n    \"transactionId\": \"{{transaction_id}}\",\r\n    //DEBIT_CARD,CREDIT_CARD,BCA_VA,BNI_VA\r\n    \"paymentMethod\":\"CREDIT_CARD\"\r\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -628,7 +670,7 @@
             "header": [],
             "body": {
               "mode": "raw",
-              "raw": "{\r\n    \"paymentId\": \"07f578d6-e56d-4c0e-b67c-83b456936f66\",\r\n    //PAYMENT_SUCCESS,PAYMENT_FAILED,REFUND_SUCCESS,REFUND_FAILED\r\n    \"paymentStatus\": \"REFUND_SUCCESS\",\r\n    \"failureCode\": \"\",\r\n    \"failureMessage\": \"\"\r\n}",
+              "raw": "{\r\n    \"paymentId\": \"{{payment_id}}\",\r\n    //PAYMENT_SUCCESS,PAYMENT_FAILED,REFUND_SUCCESS,REFUND_FAILED\r\n    \"paymentStatus\": \"PAYMENT_SUCCESS\",\r\n    \"failureCode\": \"\",\r\n    \"failureMessage\": \"\"\r\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -668,17 +710,17 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}:8084/api/v1/payments/status/a68c519c-3c7c-482b-bd20-ff9f3c02ee76",
+              "raw": "{{base_url}}:8080/api/v1/payments/status/{{payment_id}}",
               "host": [
                 "{{base_url}}"
               ],
-              "port": "8084",
+              "port": "8080",
               "path": [
                 "api",
                 "v1",
                 "payments",
                 "status",
-                "a68c519c-3c7c-482b-bd20-ff9f3c02ee76"
+                "{{payment_id}}"
               ]
             }
           },
@@ -700,11 +742,11 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}:8084/api/v1/payments/list",
+              "raw": "{{base_url}}:8080/api/v1/payments/list",
               "host": [
                 "{{base_url}}"
               ],
-              "port": "8084",
+              "port": "8080",
               "path": [
                 "api",
                 "v1",
