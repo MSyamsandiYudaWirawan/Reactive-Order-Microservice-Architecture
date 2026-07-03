@@ -10,8 +10,6 @@ import com.MSyamsandiYW.order_service.kafka.OrderCommandProducer;
 import com.MSyamsandiYW.order_service.order.Order;
 import com.MSyamsandiYW.order_service.order.OrderRepository;
 import com.MSyamsandiYW.order_service.order.request.CreateOrderRequest;
-import com.MSyamsandiYW.order_service.order.response.CreateOrderResponse;
-import com.MSyamsandiYW.order_service.order.response.GetStatusOrderResponse;
 import com.MSyamsandiYW.order_service.order_item.OrderItem;
 import com.MSyamsandiYW.order_service.order_item.OrderItemRepository;
 import com.MSyamsandiYW.order_service.order_item.request.OrderItemRequest;
@@ -107,7 +105,7 @@ class OrderServiceImplTest {
                 .build();
 
         when(jwtService.extractClaims(token)).thenReturn(Mono.just(claims));
-        when(inventoryServiceClient.getProductsById(eq(token), any())).thenReturn(Mono.just(List.of(product)));
+        when(inventoryServiceClient.getProductsById(eq(token), any(), correlationId)).thenReturn(Mono.just(List.of(product)));
         when(discountService.apply(any(), any())).thenAnswer(inv -> Mono.just(inv.getArgument(1)));
         when(orderRepository.save(any(Order.class))).thenReturn(Mono.just(savedOrder));
         when(orderItemRepository.saveAll(anyList())).thenReturn(Flux.just(OrderItem.builder().build()));
@@ -134,7 +132,7 @@ class OrderServiceImplTest {
                 .build();
 
         when(jwtService.extractClaims(token)).thenReturn(Mono.just(claims));
-        when(inventoryServiceClient.getProductsById(eq(token), any())).thenReturn(Mono.empty());
+        when(inventoryServiceClient.getProductsById(eq(token), any(), correlationId)).thenReturn(Mono.empty());
 
         StepVerifier.create(orderService.createOrder(correlationId, token, request))
                 .expectErrorMatches(e -> e instanceof BusinessException
@@ -158,7 +156,7 @@ class OrderServiceImplTest {
         when(jwtService.extractClaims(token)).thenReturn(Mono.just(claims));
         when(orderRepository.findByTransactionId(transactionId)).thenReturn(Mono.just(order));
 
-        StepVerifier.create(orderService.getStatusOrder(token, transactionId))
+        StepVerifier.create(orderService.getStatusOrder(token, transactionId, correlationId))
                 .assertNext(response -> {
                     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
                     assertThat(response.getBody().getOrderStatus()).isEqualTo("WAITING_PAYMENT");
@@ -179,7 +177,7 @@ class OrderServiceImplTest {
         when(jwtService.extractClaims(token)).thenReturn(Mono.just(claims));
         when(orderRepository.findByTransactionId(transactionId)).thenReturn(Mono.just(order));
 
-        StepVerifier.create(orderService.getStatusOrder(token, transactionId))
+        StepVerifier.create(orderService.getStatusOrder(token, transactionId, correlationId))
                 .expectErrorMatches(e -> e instanceof BusinessException
                         && ((BusinessException) e).getErrorCode() == ErrorCode.USER_UNAUTHORIZED)
                 .verify();
@@ -191,7 +189,7 @@ class OrderServiceImplTest {
         when(jwtService.extractClaims(token)).thenReturn(Mono.just(claims));
         when(orderRepository.findByTransactionId("non-existent")).thenReturn(Mono.empty());
 
-        StepVerifier.create(orderService.getStatusOrder(token, "non-existent"))
+        StepVerifier.create(orderService.getStatusOrder(token, "non-existent", correlationId))
                 .expectErrorMatches(e -> e instanceof BusinessException
                         && ((BusinessException) e).getErrorCode() == ErrorCode.TRANSACTION_NOT_FOUND)
                 .verify();

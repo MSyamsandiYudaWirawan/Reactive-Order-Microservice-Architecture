@@ -24,8 +24,9 @@ public class ProductController {
     @ResponseStatus(code = OK)
     public Mono<ResponseEntity<List<GetProductResponse>>> getProductByIds(
             @RequestBody @Valid GetProductsRequest request,
+            @RequestHeader("X-Correlation-Id") String correlationId,
             @RequestHeader("Authorization") String token
     ) {
-        return productService.getProductByIds(token,request);
+        return productService.getProductByIds(token,request,correlationId);
     }
 }

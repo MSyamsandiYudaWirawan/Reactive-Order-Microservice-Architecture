@@ -27,7 +27,7 @@ public class OrderServiceClient {
     private final Retry retry;
     private final CircuitBreaker circuitBreaker;
 
-    public Mono<GetOrderStatusResponse> getStatusOrder(String transactionId, String token) {
+    public Mono<GetOrderStatusResponse> getStatusOrder(String transactionId, String token, String correlationId) {
         String url = UriComponentsBuilder.fromUriString(appProperties.getOrderServiceUrl())
                 .path(appProperties.getGetStatusOrder())
                 .buildAndExpand(transactionId)
@@ -36,6 +36,7 @@ public class OrderServiceClient {
         return webClient.get()
                 .uri(url)
                 .header("Authorization", token)
+                .header("X-Correlation-Id", correlationId)
                 .header("Accept",MediaType.APPLICATION_JSON.toString())
                 .retrieve()
                 .onStatus(HttpStatusCode::isError, response ->

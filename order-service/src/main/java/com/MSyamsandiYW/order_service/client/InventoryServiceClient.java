@@ -31,7 +31,7 @@ public class InventoryServiceClient {
     private final Retry retry;
     private final CircuitBreaker circuitBreaker;
 
-    public Mono<List<GetProductResponse>> getProductsById(String token, GetProductsRequest request) {
+    public Mono<List<GetProductResponse>> getProductsById(String token, GetProductsRequest request, String correlationId) {
 
         String url = UriComponentsBuilder.fromUriString(appProperties.getInventoryServiceUrl())
                 .path(appProperties.getGetProductsById())
@@ -41,6 +41,7 @@ public class InventoryServiceClient {
         return webClient.post()
                 .uri(url)
                 .header("Authorization", token)
+                .header("X-Correlation-Id", correlationId)
                 .header("Content-Type", MediaType.APPLICATION_JSON.toString())
                 .header("Accept",MediaType.APPLICATION_JSON.toString())
                 .bodyValue(request)

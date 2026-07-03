@@ -11,7 +11,7 @@ import java.util.List;
 public interface OrderService {
     Mono<ResponseEntity<CreateOrderResponse>> createOrder(String correlationId, String token, CreateOrderRequest request);
 
-    Mono<ResponseEntity<GetStatusOrderResponse>> getStatusOrder(String token, String transactionId);
+    Mono<ResponseEntity<GetStatusOrderResponse>> getStatusOrder(String token, String transactionId, String correlationId);
 
     Mono<ResponseEntity<List<GetStatusOrderResponse>>> getUserOrders(String token);
 }
