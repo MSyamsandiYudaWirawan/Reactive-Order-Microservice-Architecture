@@ -31,6 +31,7 @@ public class StockCommandHandler {
     private final StockEventProducer stockEventProducer;
 
     public Mono<Void> handleStockReserve(ReceiverRecord<String, StockCommand> record) {
+        log.info("Reserving stock - transactionId: {}, correlationId: {}", record.value().getTransactionId(), record.value().getCorrelationId());
         //create stock reservations
         // TODO: Remove delay — testing only (simulates slow stock check so payment completes first)
         return Mono.delay(Duration.ofSeconds(15)).then(stockReservationService.reserveStock(record.value()))
@@ -40,6 +41,7 @@ public class StockCommandHandler {
                 .flatMap(reservationList -> stockLedgerService.recordStockEvent(reservationList).then())
                 //produce event reserve completed
                 .then(Mono.defer(() -> {
+                    log.info("Stock reserved successfully - transactionId: {}, correlationId: {}", record.value().getTransactionId(), record.value().getCorrelationId());
                     StockEventPayload event = StockEventPayload.builder()
                             .correlationId(record.value().getCorrelationId())
                             .transactionId(record.value().getTransactionId())
@@ -49,6 +51,7 @@ public class StockCommandHandler {
                 //handle out of stock
                 .onErrorResume(BusinessException.class, e -> {
                     if (e.getErrorCode().equals(ErrorCode.OUT_OF_STOCK)) {
+                        log.warn("Out of stock - transactionId: {}, correlationId: {}", record.value().getTransactionId(), record.value().getCorrelationId());
                         return handleOutOfStock(record.value());
                     }
                     return Mono.empty();
@@ -56,7 +59,7 @@ public class StockCommandHandler {
     }
 
     public Mono<Void> handleReleaseStock(ReceiverRecord<String, StockCommand> record) {
-        // find reservation by transaction id and set status = RELEASED
+        log.info("Releasing stock - transactionId: {}, correlationId: {}", record.value().getTransactionId(), record.value().getCorrelationId());
         return stockReservationService.updateStatusReservation(record.value().getTransactionId(), RELEASED.name())
                 //update product available qty and reserved qty
                 .flatMap(reservationList -> productService.releaseStock(reservationList).thenReturn(reservationList))
@@ -65,7 +68,7 @@ public class StockCommandHandler {
     }
 
     public Mono<Void> handleDeductStock(ReceiverRecord<String, StockCommand> record) {
-        // find reservation by transaction id and set status = DEDUCTED
+        log.info("Deducting stock - transactionId: {}, correlationId: {}", record.value().getTransactionId(), record.value().getCorrelationId());
         return stockReservationService.updateStatusReservation(record.value().getTransactionId(), DEDUCTED.name())
                 //update product available qty and reserved qty
                 .flatMap(reservationList -> productService.deductStock(reservationList).thenReturn(reservationList))

@@ -36,9 +36,10 @@ public class PaymentController {
     @ResponseStatus(code = OK)
     public Mono<ResponseEntity<CreatePaymentResponse>> createPayment(
             @RequestBody @Valid CreatePaymentRequest request,
+            @RequestHeader("X-Correlation-Id") String correlationId,
             @RequestHeader("Authorization") String token
     ) {
-        return paymentService.createPayment(request, token);
+        return paymentService.createPayment(request, token, correlationId);
     }
 
     @GetMapping("/list")

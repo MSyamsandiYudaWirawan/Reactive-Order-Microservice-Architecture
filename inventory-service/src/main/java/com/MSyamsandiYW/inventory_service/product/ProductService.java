@@ -15,5 +15,5 @@ public interface ProductService {
 
     Mono<List<Product>> deductStock(List<StockReservation> reservationList);
 
-    Mono<ResponseEntity<List<GetProductResponse>>> getProductByIds(String token, GetProductsRequest request);
+    Mono<ResponseEntity<List<GetProductResponse>>> getProductByIds(String token, GetProductsRequest request, String correlationId);
 }

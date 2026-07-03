@@ -13,7 +13,9 @@ import reactor.core.publisher.Mono;
 public class PaymentCommandHandler {
     private final PaymentService paymentService;
 
-    public Mono<Void> handleRefundPayment(PaymentCommand payload){
+    public Mono<Void> handleRefundPayment(PaymentCommand payload) {
+        log.info("Handling refund command - transactionId: {}, paymentId: {}, correlationId: {}",
+                payload.getTransactionId(), payload.getPaymentId(), payload.getCorrelationId());
         return paymentService.refundPayment(payload);
     }
 

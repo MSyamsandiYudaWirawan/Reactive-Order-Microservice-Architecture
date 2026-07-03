@@ -62,6 +62,7 @@ public class OrchestratorCommandReceiver {
 
     private Mono<Void> processByTopic(ReceiverRecord<String, OrchestratorCommand> record) {
         return switch (record.topic()) {
+            case STOCK_RESERVE_REQUESTED -> handler.handleStockReserveRequested(record.value());
             case STOCK_RESERVE_COMPLETED -> handler.handleStockReserveCompleted(record.value());
             case PAYMENT_INITIATED -> handler.handlePaymentInitiated(record.value());
             case PAYMENT_COMPLETED -> handler.handlePaymentCompleted(record.value());

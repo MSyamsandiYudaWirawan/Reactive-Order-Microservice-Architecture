@@ -235,6 +235,20 @@ class OrchestrationCommandHandlerTest {
     }
 
     @Test
+    @DisplayName("handleStockReserveRequested - should initialize saga via findOrCreate")
+    void handleStockReserveRequested_shouldInitializeSaga() {
+        when(sagaStateService.findOrCreate(command.getTransactionId(), command.getCorrelationId()))
+                .thenReturn(Mono.just(sagaState));
+
+        StepVerifier.create(handler.handleStockReserveRequested(command))
+                .verifyComplete();
+
+        verify(sagaStateService).findOrCreate(command.getTransactionId(), command.getCorrelationId());
+        verify(sagaStateService, never()).save(any());
+        verifyNoInteractions(producer);
+    }
+
+    @Test
     @DisplayName("handleStockReserveCompleted - new transaction, should create saga via findOrCreate")
     void handleStockReserveCompleted_newTransaction_shouldCreateSaga() {
         when(sagaStateService.findOrCreate(command.getTransactionId(), command.getCorrelationId()))

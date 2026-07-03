@@ -36,9 +36,10 @@ public class OrderController {
     @ResponseStatus(code = OK)
     public Mono<ResponseEntity<GetStatusOrderResponse>> getStatusOrder(
             @PathVariable("transactionId") String transactionId,
+            @RequestHeader("X-Correlation-Id") String correlationId,
             @RequestHeader("Authorization") String token
     ) {
-        return orderService.getStatusOrder(token, transactionId);
+        return orderService.getStatusOrder(token, transactionId, correlationId);
     }
 
     @GetMapping()

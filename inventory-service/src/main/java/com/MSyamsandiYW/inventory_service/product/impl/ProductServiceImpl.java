@@ -104,7 +104,8 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
-    public Mono<ResponseEntity<List<GetProductResponse>>> getProductByIds(String token, GetProductsRequest request) {
+    public Mono<ResponseEntity<List<GetProductResponse>>> getProductByIds(String token, GetProductsRequest request, String correlationId) {
+        log.info("Get product by ids: {} with correlationId: {}", request.getProductIds(), correlationId);
         return jwtService.extractClaims(token)
                 .then(productRepository.findAllById(request.getProductIds().stream().map(UUID::fromString).toList()).collectList())
                 .flatMap(products -> {

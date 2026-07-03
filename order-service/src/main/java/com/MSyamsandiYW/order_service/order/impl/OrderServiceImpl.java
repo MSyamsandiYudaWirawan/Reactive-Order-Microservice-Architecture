@@ -58,7 +58,7 @@ public class OrderServiceImpl implements OrderService {
 
         // extract claims and get products by id from inventory-service
         return Mono.zip(jwtService.extractClaims(token),
-                        inventoryServiceClient.getProductsById(token, getProductsRequest).switchIfEmpty(Mono.error(new BusinessException(ErrorCode.INVENTORY_SERVICE_UNAVAILABLE))))
+                        inventoryServiceClient.getProductsById(token, getProductsRequest,correlationId).switchIfEmpty(Mono.error(new BusinessException(ErrorCode.INVENTORY_SERVICE_UNAVAILABLE))))
                 .flatMap(tuple2 -> {
                     List<GetProductResponse> products = tuple2.getT2();
 
@@ -131,7 +131,8 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
-    public Mono<ResponseEntity<GetStatusOrderResponse>> getStatusOrder(String token, String transactionId) {
+    public Mono<ResponseEntity<GetStatusOrderResponse>> getStatusOrder(String token, String transactionId, String correlationId) {
+        log.info("Getting status order - correlationId: {}, transactionId: {}", correlationId, transactionId);
         // extract claims and validate userId from token
         return Mono.zip(
                         jwtService.extractClaims(token),

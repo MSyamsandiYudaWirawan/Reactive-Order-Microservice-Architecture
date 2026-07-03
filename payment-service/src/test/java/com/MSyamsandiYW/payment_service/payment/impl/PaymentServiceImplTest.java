@@ -99,7 +99,7 @@ class PaymentServiceImplTest {
                 .build();
 
         when(jwtService.extractClaims(token)).thenReturn(Mono.just(claims));
-        when(orderServiceClient.getStatusOrder(transactionId, token)).thenReturn(Mono.just(orderStatus));
+        when(orderServiceClient.getStatusOrder(transactionId, token, any())).thenReturn(Mono.just(orderStatus));
         when(appProperties.getPaymentMethodUrlMap()).thenReturn(Map.of("BCA_VA", "https://payment.example.com/bca"));
         when(paymentRepository.findFirstByTransactionIdAndStatus(transactionId, AppConstant.PAYMENT_STATUS.PENDING.name()))
                 .thenReturn(Mono.empty());
@@ -107,7 +107,7 @@ class PaymentServiceImplTest {
         when(paymentLedgerService.recordEventPayment(any())).thenReturn(Mono.empty());
         when(paymentEventProducer.send(any(), any(), any())).thenReturn(Mono.empty());
 
-        StepVerifier.create(paymentService.createPayment(request, token))
+        StepVerifier.create(paymentService.createPayment(request, token, any()))
                 .assertNext(response -> {
                     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
                     assertThat(response.getBody().getTransactionId()).isEqualTo(transactionId);
@@ -129,10 +129,10 @@ class PaymentServiceImplTest {
                 .build();
 
         when(jwtService.extractClaims(token)).thenReturn(Mono.just(claims));
-        when(orderServiceClient.getStatusOrder(transactionId, token)).thenReturn(Mono.just(orderStatus));
+        when(orderServiceClient.getStatusOrder(transactionId, token, any())).thenReturn(Mono.just(orderStatus));
         when(appProperties.getPaymentMethodUrlMap()).thenReturn(Map.of("BCA_VA", "https://url"));
 
-        StepVerifier.create(paymentService.createPayment(request, token))
+        StepVerifier.create(paymentService.createPayment(request, token, any()))
                 .expectErrorMatches(e -> e instanceof BusinessException
                         && ((BusinessException) e).getErrorCode() == ErrorCode.ORDER_ALREADY_PAID)
                 .verify();
@@ -151,10 +151,10 @@ class PaymentServiceImplTest {
                 .build();
 
         when(jwtService.extractClaims(token)).thenReturn(Mono.just(claims));
-        when(orderServiceClient.getStatusOrder(transactionId, token)).thenReturn(Mono.just(orderStatus));
+        when(orderServiceClient.getStatusOrder(transactionId, token, any())).thenReturn(Mono.just(orderStatus));
         when(appProperties.getPaymentMethodUrlMap()).thenReturn(Map.of("BCA_VA", "https://url"));
 
-        StepVerifier.create(paymentService.createPayment(request, token))
+        StepVerifier.create(paymentService.createPayment(request, token, any()))
                 .expectErrorMatches(e -> e instanceof BusinessException
                         && ((BusinessException) e).getErrorCode() == ErrorCode.INVALID_PAYMENT_METHOD)
                 .verify();

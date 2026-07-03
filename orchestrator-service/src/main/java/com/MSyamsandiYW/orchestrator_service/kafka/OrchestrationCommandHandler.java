@@ -34,8 +34,10 @@ public class OrchestrationCommandHandler {
                 .flatMap(sagaState -> {
                     // if payment status is paid then handle saga completed
                     if (PAID.name().equalsIgnoreCase(sagaState.getPaymentStatus())) {
+                        log.info("Stock reserved + payment already PAID — completing saga - transactionId: {}", payload.getTransactionId());
                         return handleSagaCompleted(sagaState);
                     }
+                    log.info("Stock reserved — waiting for payment - transactionId: {}", payload.getTransactionId());
                     sagaState.setStockStatus(RESERVED.name());
                     return sagaStateService.save(sagaState);
                 })
@@ -47,6 +49,7 @@ public class OrchestrationCommandHandler {
         return sagaStateService.findOrCreate(payload.getTransactionId(), payload.getCorrelationId())
                 // set payment status to initiated
                 .flatMap(sagaState -> {
+                    log.info("Payment initiated — tracking paymentId: {}, transactionId: {}", payload.getPaymentId(), payload.getTransactionId());
                     sagaState.setPaymentId(payload.getPaymentId());
                     sagaState.setPaymentStatus(INITIATED.name());
                     sagaState.setUpdatedBy("ORCHESTRATION_SERVICE");
@@ -54,7 +57,6 @@ public class OrchestrationCommandHandler {
                     return sagaStateService.save(sagaState);
                 })
                 .then();
-
     }
 
     public Mono<Void> handlePaymentCompleted(OrchestratorCommand payload) {
@@ -66,14 +68,17 @@ public class OrchestrationCommandHandler {
 
                     // if stock is reserved then handle saga completed
                     if (RESERVED.name().equalsIgnoreCase(sagaState.getStockStatus())) {
+                        log.info("Payment completed + stock already RESERVED — completing saga - transactionId: {}", payload.getTransactionId());
                         return handleSagaCompleted(sagaState);
                     }
                     // if stock status is out of stock then handle saga compensate
                     if (OUT_OF_STOCK.name().equalsIgnoreCase(sagaState.getStockStatus())) {
+                        log.info("Payment completed + stock OUT_OF_STOCK — triggering compensation - transactionId: {}", payload.getTransactionId());
                         return handleSagaCompensated(sagaState);
                     }
 
                     // waiting for stock result
+                    log.info("Payment completed — waiting for stock result - transactionId: {}", payload.getTransactionId());
                     sagaState.setPaymentStatus(PAID.name());
                     return sagaStateService.save(sagaState);
                 })
@@ -93,14 +98,17 @@ public class OrchestrationCommandHandler {
                 .flatMap(sagaState -> {
                     // if payment already completed, trigger refund
                     if (PAID.name().equalsIgnoreCase(sagaState.getPaymentStatus())) {
+                        log.info("Out of stock + payment already PAID — triggering compensation - transactionId: {}", payload.getTransactionId());
                         return handleSagaCompensated(sagaState);
                     }
                     //if payment is initiated (in progress), wait for payment result
                     if (INITIATED.name().equalsIgnoreCase(sagaState.getPaymentStatus())) {
+                        log.info("Out of stock + payment INITIATED — waiting for payment result - transactionId: {}", payload.getTransactionId());
                         sagaState.setStockStatus(OUT_OF_STOCK.name());
                         return sagaStateService.save(sagaState);
                     }
                     // no payment at all, saga simply fails
+                    log.info("Out of stock + no payment — saga failed - transactionId: {}", payload.getTransactionId());
                     sagaState.setStockStatus(OUT_OF_STOCK.name());
                     sagaState.setSagaStatus(FAILED.name());
                     return sagaStateService.save(sagaState);
@@ -156,6 +164,7 @@ public class OrchestrationCommandHandler {
     }
 
     public Mono<Void> handleOrderRefundCompleted(OrchestratorCommand payload) {
+        log.info("Refund completed — saga compensation done - transactionId: {}", payload.getTransactionId());
         return sagaStateService.findByTransactionId(payload.getTransactionId())
                 .flatMap(sagaState -> {
                     sagaState.setSagaStatus(COMPLETED.name());
@@ -164,10 +173,16 @@ public class OrchestrationCommandHandler {
     }
 
     public Mono<Void> handleOrderRefundFailed(OrchestratorCommand payload) {
+        log.error("Refund failed — manual intervention required - transactionId: {}", payload.getTransactionId());
         return sagaStateService.findByTransactionId(payload.getTransactionId())
                 .flatMap(sagaState -> {
                     sagaState.setSagaStatus(FAILED.name());
                     return sagaStateService.save(sagaState);
                 }).then();
+    }
+
+    public Mono<Void> handleStockReserveRequested(OrchestratorCommand payload) {
+        log.info("Stock reserve requested - initializing saga - transactionId: {}", payload.getTransactionId());
+        return sagaStateService.findOrCreate(payload.getTransactionId(), payload.getCorrelationId()).then();
     }
 }

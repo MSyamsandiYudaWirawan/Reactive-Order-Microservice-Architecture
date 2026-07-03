@@ -51,11 +51,11 @@ public class PaymentServiceImpl implements PaymentService {
     private final AppProperties appProperties;
 
     @Override
-    public Mono<ResponseEntity<CreatePaymentResponse>> createPayment(CreatePaymentRequest request, String token) {
+    public Mono<ResponseEntity<CreatePaymentResponse>> createPayment(CreatePaymentRequest request, String token, String correlationId) {
         log.info("Creating payment for transactionId: {}", request.getTransactionId());
 
         return Mono.zip(jwtService.extractClaims(token),
-                        orderServiceClient.getStatusOrder(request.getTransactionId(), token).switchIfEmpty(Mono.error(new BusinessException(ErrorCode.ORDER_SERVICE_UNAVAILABLE)))
+                        orderServiceClient.getStatusOrder(request.getTransactionId(), token, correlationId).switchIfEmpty(Mono.error(new BusinessException(ErrorCode.ORDER_SERVICE_UNAVAILABLE)))
                 )
                 .flatMap(tuple -> {
                     Claims claims = tuple.getT1();

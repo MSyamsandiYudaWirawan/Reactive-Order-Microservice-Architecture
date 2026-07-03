@@ -51,6 +51,8 @@ public class SchedulerServiceImpl implements SchedulerService {
     }
 
     private Mono<Void> publishExpiredPayment(Payment expiredPayment) {
+        log.info("Publishing expired payment - paymentId: {}, transactionId: {}, correlationId: {}",
+                expiredPayment.getId(), expiredPayment.getTransactionId(), expiredPayment.getCorrelationId());
         PaymentEventPayload payload = PaymentEventPayload.builder()
                 .paymentId(expiredPayment.getId().toString())
                 .transactionId(expiredPayment.getTransactionId())
