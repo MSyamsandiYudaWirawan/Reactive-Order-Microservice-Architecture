@@ -471,6 +471,15 @@ Webhook REFUND_FAILED:
 - Unit tests with Mockito + StepVerifier (~50 test cases)
 - API documentation (Swagger/OpenAPI + Postman collection)
 
+### 🔲 Phase 2.5 — Cloud Deployment & IaC (Planned)
+- Terraform infrastructure as code (AWS ECS Fargate)
+- Amazon MSK (managed Kafka), ElastiCache (Redis), RDS PostgreSQL per service
+- Remote state management (S3 + DynamoDB locking)
+- Secrets Manager for credential management
+- CloudWatch monitoring, alarms, and dashboard
+- ECR for container image registry
+- ECS Service Connect for internal service discovery
+
 ### 🔲 Phase 3 — Observability & CI/CD (Planned)
 - Distributed tracing with Micrometer + Zipkin/Jaeger
 - Prometheus + Grafana metrics dashboard
