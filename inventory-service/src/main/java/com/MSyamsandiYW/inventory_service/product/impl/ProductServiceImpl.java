@@ -3,7 +3,6 @@ package com.MSyamsandiYW.inventory_service.product.impl;
 import com.MSyamsandiYW.common.exception.BusinessException;
 import com.MSyamsandiYW.common.exception.ErrorCode;
 import com.MSyamsandiYW.common.jwt.JwtService;
-import com.MSyamsandiYW.inventory_service.product.Product;
 import com.MSyamsandiYW.inventory_service.product.ProductRepository;
 import com.MSyamsandiYW.inventory_service.product.ProductService;
 import com.MSyamsandiYW.inventory_service.product.request.GetProductsRequest;
@@ -13,94 +12,67 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.reactive.TransactionalOperator;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class ProductServiceImpl implements ProductService {
+    private final TransactionalOperator transactionalOperator;
     private final ProductRepository productRepository;
     private final JwtService jwtService;
 
+    @Transactional
     @Override
-    public Mono<List<Product>> reserveStock(List<StockReservation> reservationList) {
+    public Mono<Void> reserveStock(List<StockReservation> reservationList) {
 
-        return productRepository.findAllById(reservationList.stream()
-                        .map(r -> UUID.fromString(r.getProductId())).toList()).collectList()
-                .flatMap(products -> {
-
-                    //create reservation map for easy access
-                    Map<String, StockReservation> reservationMap = reservationList.stream()
-                            .collect(Collectors.toMap(StockReservation::getProductId, r -> r));
-
-                    for (Product p : products) {
-                        StockReservation r = reservationMap.get(p.getId().toString());
-                        if (r != null) {
-                            // validate if there is stock
-                            if (p.getAvailableQty() < r.getQty() || !p.getIsActive() || p.getIsDeleted()) {
+        return Flux.fromIterable(reservationList)
+                .flatMap(r -> productRepository.reserveStock(UUID.fromString(r.getProductId()), r.getQty())
+                        .flatMap(rowsUpdated -> {
+                            if (rowsUpdated == 0) {
+                                log.warn("Insufficient stock for product ID: {}", r.getProductId());
                                 return Mono.error(new BusinessException(ErrorCode.OUT_OF_STOCK));
                             }
-                            p.setAvailableQty(p.getAvailableQty() - r.getQty());
-                            p.setReservedQty(p.getReservedQty() + r.getQty());
-                            p.setUpdatedBy("INVENTORY_SERVICE");
-                            p.setLastModifiedDate(Instant.now());
-                        }
-                    }
-                    return productRepository.saveAll(products).collectList();
-                });
+                            return Mono.empty();
+                        })
+                ).then()
+                .as(transactionalOperator::transactional);
     }
 
     @Override
-    public Mono<List<Product>> releaseStock(List<StockReservation> reservationList) {
-        return productRepository.findAllById(reservationList.stream()
-                        .map(r -> UUID.fromString(r.getProductId())).toList()).collectList()
-                .flatMap(products -> {
-
-                    //create reservation map for easy access
-                    Map<String, StockReservation> reservationMap = reservationList.stream()
-                            .collect(Collectors.toMap(StockReservation::getProductId, r -> r));
-
-                    for (Product p : products) {
-                        StockReservation r = reservationMap.get(p.getId().toString());
-                        if (r != null) {
-                            p.setAvailableQty(p.getAvailableQty() + r.getQty());
-                            p.setReservedQty(p.getReservedQty() - r.getQty());
-                            p.setUpdatedBy("INVENTORY_SERVICE");
-                            p.setLastModifiedDate(Instant.now());
-                        }
-                    }
-                    // save batch if ALL product is valid means we have stock
-                    return productRepository.saveAll(products).collectList();
-                });
+    public Mono<Void> releaseStock(List<StockReservation> reservationList) {
+        return Flux.fromIterable(reservationList)
+                .flatMap(r -> productRepository.releaseStock(UUID.fromString(r.getProductId()), r.getQty())
+                        .flatMap(rowsUpdated -> {
+                            if (rowsUpdated == 0) {
+                                log.warn("Error release stock for product ID: {}", r.getProductId());
+                                return Mono.error(new BusinessException(ErrorCode.INTERNAL_EXCEPTION));
+                            }
+                            return Mono.empty();
+                        })
+                ).then()
+                .as(transactionalOperator::transactional);
     }
 
     @Override
-    public Mono<List<Product>> deductStock(List<StockReservation> reservationList) {
-        return productRepository.findAllById(reservationList.stream()
-                        .map(r -> UUID.fromString(r.getProductId())).toList()).collectList()
-                .flatMap(products -> {
-
-                    //create reservation map for easy access
-                    Map<String, StockReservation> reservationMap = reservationList.stream().collect(Collectors.toMap(StockReservation::getProductId, r -> r));
-
-                    for (Product p : products) {
-                        StockReservation r = reservationMap.get(p.getId().toString());
-                        if (r != null) {
-                            p.setReservedQty(p.getReservedQty() - r.getQty());
-                            p.setSoldQty(p.getSoldQty() + r.getQty());
-                            p.setUpdatedBy("INVENTORY_SERVICE");
-                            p.setLastModifiedDate(Instant.now());
-                        }
-
-                    }
-                    return productRepository.saveAll(products).collectList();
-                });
+    public Mono<Void> deductStock(List<StockReservation> reservationList) {
+        return Flux.fromIterable(reservationList)
+                .flatMap(r -> productRepository.deductStock(UUID.fromString(r.getProductId()), r.getQty())
+                        .flatMap(rowsUpdated -> {
+                            if (rowsUpdated == 0) {
+                                log.warn("Error deduct stock for product ID: {}", r.getProductId());
+                                return Mono.error(new BusinessException(ErrorCode.INTERNAL_EXCEPTION));
+                            }
+                            return Mono.empty();
+                        })
+                ).then()
+                .as(transactionalOperator::transactional);
     }
 
     @Override

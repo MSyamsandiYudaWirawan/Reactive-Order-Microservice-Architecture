@@ -471,7 +471,7 @@ Webhook REFUND_FAILED:
 - Unit tests with Mockito + StepVerifier (~50 test cases)
 - API documentation (Swagger/OpenAPI + Postman collection)
 
-### 🔲 Phase 2.5 — Cloud Deployment & IaC (Planned)
+### 🔲 Phase 2.5 — AWS Deployment (ECS Fargate) & IaC (Planned)
 - Terraform infrastructure as code (AWS ECS Fargate)
 - Amazon MSK (managed Kafka), ElastiCache (Redis), RDS PostgreSQL per service
 - Remote state management (S3 + DynamoDB locking)
@@ -488,7 +488,7 @@ Webhook REFUND_FAILED:
 - SonarQube code quality integration
 - Integration tests with TestContainers
 
-### 🔲 Phase 4 — Cloud Deployment (Planned)
+### 🔲 Phase 4 — Kubernetes Migration (EKS) (Planned)
 - Kubernetes manifests (Deployments, Services, Ingress)
 - Horizontal Pod Autoscaler per service
 - ConfigMaps + Secrets for environment management

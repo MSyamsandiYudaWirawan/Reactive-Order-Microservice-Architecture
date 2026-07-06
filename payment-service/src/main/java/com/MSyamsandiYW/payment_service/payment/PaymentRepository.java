@@ -30,7 +30,7 @@ public interface PaymentRepository extends R2dbcRepository<Payment, UUID> {
                 SET status = :status,
                     updated_by = 'PAYMENT_SERVICE',
                     last_modified_date = NOW()
-                WHERE id = :id
+                WHERE id = :id AND status = "PENDING"
             """)
     Mono<Integer> updateStatusPayment(UUID id, String status);
 }
