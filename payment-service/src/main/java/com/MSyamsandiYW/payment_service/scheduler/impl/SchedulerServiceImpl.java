@@ -37,7 +37,7 @@ public class SchedulerServiceImpl implements SchedulerService {
         return paymentRepository.findAllExpiredPayments(cutoff)
                 .flatMap(expiredPayment ->
                         // CAS update: only marks FAILED if still PENDING (prevents race with webhook)
-                        paymentRepository.updateStatusPayment(expiredPayment.getId(), FAILED.name())
+                        paymentRepository.updatePendingStatusPayment(expiredPayment.getId(), FAILED.name())
                                 .filter(rowsUpdated -> rowsUpdated > 0)
                                 .flatMap(__ -> {
                                     // sync in-memory object with DB state for accurate ledger recording

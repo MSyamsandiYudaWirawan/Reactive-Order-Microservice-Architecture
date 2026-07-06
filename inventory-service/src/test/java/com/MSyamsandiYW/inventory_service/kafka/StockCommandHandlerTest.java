@@ -4,13 +4,11 @@ import com.MSyamsandiYW.common.exception.BusinessException;
 import com.MSyamsandiYW.common.exception.ErrorCode;
 import com.MSyamsandiYW.inventory_service.kafka.event.StockCommand;
 import com.MSyamsandiYW.inventory_service.kafka.event.StockItem;
-import com.MSyamsandiYW.inventory_service.product.Product;
 import com.MSyamsandiYW.inventory_service.product.ProductService;
 import com.MSyamsandiYW.inventory_service.properties.AppConstant;
 import com.MSyamsandiYW.inventory_service.stock_ledger.StockLedgerService;
 import com.MSyamsandiYW.inventory_service.stock_reservation.StockReservation;
 import com.MSyamsandiYW.inventory_service.stock_reservation.StockReservationService;
-import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -27,7 +25,8 @@ import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class StockCommandHandlerTest {
@@ -75,7 +74,7 @@ class StockCommandHandlerTest {
     void handleStockReserve_happyPath() {
         when(record.value()).thenReturn(command);
         when(stockReservationService.reserveStock(command)).thenReturn(Mono.just(reservations));
-        when(productService.reserveStock(reservations)).thenReturn(Mono.just(List.of()));
+        when(productService.reserveStock(reservations)).thenReturn(Mono.empty());
         when(stockLedgerService.recordStockEvent(reservations)).thenReturn(Mono.empty());
         when(stockEventProducer.send(eq(AppConstant.TOPICS.STOCK_RESERVE_COMPLETED), any(), any()))
                 .thenReturn(Mono.empty());
@@ -112,7 +111,8 @@ class StockCommandHandlerTest {
         when(record.value()).thenReturn(command);
         when(stockReservationService.updateStatusReservation(command.getTransactionId(), AppConstant.RESERVATION_STATUS.RELEASED.name()))
                 .thenReturn(Mono.just(reservations));
-        when(productService.releaseStock(reservations)).thenReturn(Mono.just(List.of()));
+        when(productService.releaseStock(reservations)).thenReturn(Mono.empty())
+        ;
         when(stockLedgerService.recordStockEvent(reservations)).thenReturn(Mono.empty());
 
         StepVerifier.create(handler.handleReleaseStock(record))
@@ -128,7 +128,7 @@ class StockCommandHandlerTest {
         when(record.value()).thenReturn(command);
         when(stockReservationService.updateStatusReservation(command.getTransactionId(), AppConstant.RESERVATION_STATUS.DEDUCTED.name()))
                 .thenReturn(Mono.just(reservations));
-        when(productService.deductStock(reservations)).thenReturn(Mono.just(List.of()));
+        when(productService.deductStock(reservations)).thenReturn(Mono.empty());
         when(stockLedgerService.recordStockEvent(reservations)).thenReturn(Mono.empty());
 
         StepVerifier.create(handler.handleDeductStock(record))

@@ -9,11 +9,11 @@ import reactor.core.publisher.Mono;
 import java.util.List;
 
 public interface ProductService {
-    Mono<List<Product>> reserveStock(List<StockReservation> reservationList);
+    Mono<Void> reserveStock(List<StockReservation> reservationList);
 
-    Mono<List<Product>> releaseStock(List<StockReservation> reservationList);
+    Mono<Void> releaseStock(List<StockReservation> reservationList);
 
-    Mono<List<Product>> deductStock(List<StockReservation> reservationList);
+    Mono<Void> deductStock(List<StockReservation> reservationList);
 
     Mono<ResponseEntity<List<GetProductResponse>>> getProductByIds(String token, GetProductsRequest request, String correlationId);
 }
