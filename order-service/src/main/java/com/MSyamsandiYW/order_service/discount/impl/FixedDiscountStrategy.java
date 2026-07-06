@@ -24,6 +24,7 @@ public class FixedDiscountStrategy implements DiscountStrategy {
 
         double discountedPrice = Math.max(0, order.getTotalAmount() - discount.getValue());
         order.setTotalAmount(discountedPrice);
+        order.setDiscountCode(discount.getCode());
         return order;
     }
 

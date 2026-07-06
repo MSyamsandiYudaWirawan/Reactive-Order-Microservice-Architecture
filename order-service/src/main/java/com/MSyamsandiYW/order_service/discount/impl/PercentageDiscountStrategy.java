@@ -22,6 +22,7 @@ public class PercentageDiscountStrategy implements DiscountStrategy {
 
         double discountedPrice = order.getTotalAmount() * (1 - (discount.getValue() / 100));
         order.setTotalAmount(discountedPrice);
+        order.setDiscountCode(discount.getCode());
         return order;
     }
 

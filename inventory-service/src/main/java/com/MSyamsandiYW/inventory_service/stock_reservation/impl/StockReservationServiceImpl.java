@@ -1,5 +1,7 @@
 package com.MSyamsandiYW.inventory_service.stock_reservation.impl;
 
+import com.MSyamsandiYW.common.exception.BusinessException;
+import com.MSyamsandiYW.common.exception.ErrorCode;
 import com.MSyamsandiYW.inventory_service.kafka.event.StockCommand;
 import com.MSyamsandiYW.inventory_service.stock_reservation.StockReservation;
 import com.MSyamsandiYW.inventory_service.stock_reservation.StockReservationRepository;
@@ -42,14 +44,13 @@ public class StockReservationServiceImpl implements StockReservationService {
 
     @Override
     public Mono<List<StockReservation>> updateStatusReservation(String transactionId, String statusReservation) {
-        return repository.findAllByTransactionId(transactionId).collectList()
-                .flatMap(reservationList -> {
-                    List<StockReservation> updatedReservationList = reservationList.stream().peek(r -> {
-                        r.setStatus(statusReservation);
-                        r.setUpdatedBy("INVENTORY_SERVICE");
-                        r.setLastModifiedDate(Instant.now());
-                    }).toList();
-                    return repository.saveAll(updatedReservationList).collectList();
-                });
+        return repository.updateStatus(transactionId, statusReservation)
+                .flatMap(rowsUpdated -> {
+                    if (rowsUpdated == 0) {
+                        return Mono.error(new BusinessException(ErrorCode.INTERNAL_EXCEPTION));
+                    }
+                    return Mono.just(rowsUpdated);
+                })
+                .flatMap(rowsUpdated -> repository.findAllByTransactionId(transactionId).collectList());
     }
 }
