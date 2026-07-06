@@ -12,7 +12,7 @@ public interface DiscountRepository extends R2dbcRepository<Discount, UUID> {
 
 
     @Query("""
-            UPDATE discounts SET max_usage = max_usage - 1, updated_by = "ORDER_SERVICE", last_modified_date = now()
+            UPDATE discounts SET max_usage = max_usage - 1, updated_by = 'ORDER_SERVICE', last_modified_date = now()
             WHERE code = :code AND max_usage > 0
             """)
     @Modifying

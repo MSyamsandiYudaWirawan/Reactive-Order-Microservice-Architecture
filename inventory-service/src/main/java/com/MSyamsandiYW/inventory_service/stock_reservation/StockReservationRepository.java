@@ -12,7 +12,7 @@ public interface StockReservationRepository extends R2dbcRepository<StockReserva
     Flux<StockReservation> findAllByTransactionId(String transactionId);
 
     @Query("""
-                UPDATE stock_reservation SET status = :status,updated_by = "INVENTORY_SERVICE", last_modified_date = now()
+                UPDATE stock_reservation SET status = :status,updated_by = 'INVENTORY_SERVICE', last_modified_date = now()
                 WHERE transaction_id = :transactionId and status = 'RESERVED'
             """
     )
