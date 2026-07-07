@@ -471,16 +471,22 @@ Webhook REFUND_FAILED:
 - Unit tests with Mockito + StepVerifier (~50 test cases)
 - API documentation (Swagger/OpenAPI + Postman collection)
 
-### 🔲 Phase 2.5 — AWS Deployment (ECS Fargate) & IaC (Planned)
-- Terraform infrastructure as code (AWS ECS Fargate)
-- Amazon MSK (managed Kafka), ElastiCache (Redis), RDS PostgreSQL per service
+### ✅ Phase 3 — AWS Deployment (ECS Fargate) & IaC (Complete)
+- Terraform infrastructure as code (17 numbered `.tf` files)
+- VPC with public/private subnets, IGW, NAT Gateway
+- Amazon MSK (managed Kafka, KRaft mode), ElastiCache (Redis), RDS PostgreSQL × 5
 - Remote state management (S3 + DynamoDB locking)
-- Secrets Manager for credential management
-- CloudWatch monitoring, alarms, and dashboard
-- ECR for container image registry
-- ECS Service Connect for internal service discovery
+- Secrets Manager for credential management (JWT keys + DB credentials)
+- CloudWatch log groups (7-day retention) + alarms (5xx, service down, RDS CPU)
+- ECR repositories × 6 with vulnerability scanning
+- ECS Fargate cluster with Service Connect (internal DNS)
+- ALB as single public entry point → gateway-service
+- IAM roles (execution + task) with least-privilege secrets access
+- Security groups: defense-in-depth (ALB → Gateway → ECS → DB/Messaging)
 
-### 🔲 Phase 3 — Observability & CI/CD (Planned)
+### 🔲 Phase 4 — Outbox Pattern & Observability (Planned)
+- Transactional Outbox pattern (guaranteed event publishing)
+- Debezium CDC or polling publisher for outbox relay
 - Distributed tracing with Micrometer + Zipkin/Jaeger
 - Prometheus + Grafana metrics dashboard
 - Centralized logging (ELK Stack or Loki)
@@ -488,14 +494,17 @@ Webhook REFUND_FAILED:
 - SonarQube code quality integration
 - Integration tests with TestContainers
 
-### 🔲 Phase 4 — Kubernetes Migration (EKS) (Planned)
+### 🔲 Phase 5 — Kubernetes & EKS Migration (Planned)
 - Kubernetes manifests (Deployments, Services, Ingress)
 - Horizontal Pod Autoscaler per service
 - ConfigMaps + Secrets for environment management
-- AWS deployment (ECS or EKS)
-- Terraform infrastructure-as-code
+- PgBouncer sidecar containers per service
+- Migrate from ECS Fargate → Amazon EKS (Terraform)
+- EKS node groups with managed scaling
+- AWS Load Balancer Controller (Ingress → ALB)
+- ExternalDNS + Certificate Manager for HTTPS
 
-### 🔲 Phase 5 — Advanced Patterns (Future)
+### 🔲 Phase 6 — Advanced Patterns (Future)
 - Event sourcing with CQRS
 - GraphQL API layer
 - OAuth2/OIDC integration (Keycloak)
