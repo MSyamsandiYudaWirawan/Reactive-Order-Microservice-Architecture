@@ -1,9 +1,9 @@
 package com.MSyamsandiYW.auth_service.security;
 
-import com.MSyamsandiYW.common.exception.BusinessException;
-import com.MSyamsandiYW.common.exception.ErrorCode;
 import com.MSyamsandiYW.auth_service.user.User;
 import com.MSyamsandiYW.auth_service.user.UserRepository;
+import com.MSyamsandiYW.common.exception.BusinessException;
+import com.MSyamsandiYW.common.exception.ErrorCode;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import org.springframework.beans.factory.annotation.Value;
@@ -27,13 +27,14 @@ public class JwtService {
     private Long accessTokenExpiration;
     @Value("${app.security.jwt.refresh-token-expiration}")
     private Long refreshTokenExpiration;
-
     private UserRepository userRepository;
 
-    public JwtService(UserRepository userRepository) {
+    public JwtService(UserRepository userRepository,
+                      @Value("${jwt.private-key}") String jwtPrivateKey,
+                      @Value("${jwt.public-key}") String jwtPublicKey) {
         this.userRepository = userRepository;
-        this.privateKey = KeyUtils.loadPrivateKey("keys/local-only/private_key.pem");
-        this.publicKey = KeyUtils.loadPublicKey("keys/local-only/public_key.pem");
+        this.privateKey = KeyUtils.loadPrivateKey(jwtPrivateKey).cache();
+        this.publicKey = KeyUtils.loadPublicKey(jwtPublicKey).cache();
     }
 
 
@@ -69,16 +70,16 @@ public class JwtService {
                 });
     }
 
-    public Mono<String> refreshAccessToken(final String refreshToken){
+    public Mono<String> refreshAccessToken(final String refreshToken) {
         return extractClaims(refreshToken)
                 .flatMap(claims -> {
-                    if(!"REFRESH_TOKEN".equals(claims.get(TOKEN_TYPE))){
+                    if (!"REFRESH_TOKEN".equals(claims.get(TOKEN_TYPE))) {
                         return Mono.error(new BusinessException(ErrorCode.INVALID_TOKEN));
                     }
-                    if (claims.getExpiration().before(new Date())){
+                    if (claims.getExpiration().before(new Date())) {
                         return Mono.error(new BusinessException(ErrorCode.REFRESH_TOKEN_EXPIRED));
                     }
-                  return Mono.just(claims.getSubject());
+                    return Mono.just(claims.getSubject());
                 })
                 .flatMap(this::generateAccessToken);
     }

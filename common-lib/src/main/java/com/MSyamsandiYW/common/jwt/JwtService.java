@@ -7,20 +7,20 @@ import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.SignatureException;
+import org.springframework.beans.factory.annotation.Value;
 import reactor.core.publisher.Mono;
 
 import java.security.PublicKey;
 
 public class JwtService {
-    private static final String PUBLIC_KEY_PATH = "keys/public_key.pem";
     private final Mono<PublicKey> publicKey;
 
-    public JwtService() {
-        this.publicKey = KeyUtils.loadPublicKey(PUBLIC_KEY_PATH).cache();
+    public JwtService(@Value("${jwt.public-key}") String jwtPublicKey) {
+        this.publicKey = KeyUtils.loadPublicKey(jwtPublicKey).cache();
     }
 
     public Mono<Claims> extractClaims(String token) {
-        if(token != null && token.startsWith("Bearer ")){
+        if (token != null && token.startsWith("Bearer ")) {
             token = token.substring(7);
         }
         String finalToken = token;
