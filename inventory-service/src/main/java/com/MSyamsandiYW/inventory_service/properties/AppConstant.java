@@ -11,12 +11,14 @@ public class AppConstant {
 
     public static class TOPICS {
 
+        // consume
         public static final String STOCK_RESERVE_REQUESTED = "stock-reserve-requested";  // consumes (from order-service)
-        public static final String STOCK_RESERVE_COMPLETED = "stock-reserve-completed"; // produces (stock reserved OK)
-        public static final String OUT_OF_STOCK = "out-of-stock"; // produces (stock insufficient)
         public static final String RELEASE_STOCK = "release-stock"; // consumes (from fulfillment-service — compensation)
         public static final String DEDUCT_STOCK = "deduct-stock"; // consumes (from fulfillment-service — confirm sold)
+        // produce
         public static final String INVENTORY_DLQ = "inventory-dlq";
+        public static final String STOCK_RESERVE_COMPLETED = "stock-reserve-completed"; // produces (stock reserved OK)
+        public static final String OUT_OF_STOCK = "out-of-stock"; // produces (stock insufficient)
 
     }
 

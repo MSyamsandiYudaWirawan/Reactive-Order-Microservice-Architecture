@@ -17,7 +17,7 @@ public class AppConstant {
     }
 
     public static class TOPICS {
-        public static final String STOCK_RESERVE_REQUESTED = "stock-reserve-requested";
+        //consume
         public static final String STOCK_RESERVE_COMPLETED = "stock-reserve-completed";
         public static final String PAYMENT_COMPLETED = "payment-completed";
         public static final String REFUND_COMPLETED = "order-refund-completed";
@@ -25,6 +25,9 @@ public class AppConstant {
         public static final String ORDER_COMPLETED = "order-completed";
         public static final String OUT_OF_STOCK = "out-of-stock";
         public static final String ORDER_EXPIRED = "order-expired";
+
+        //produce
+        public static final String STOCK_RESERVE_REQUESTED = "stock-reserve-requested";
         public static final String ORDER_DLQ = "order-dlq";
     }
 }
