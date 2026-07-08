@@ -31,6 +31,9 @@ spring:
         spring.json.use.type.headers: false
         spring.json.value.default.type: com.MSyamsandiYW.payment_service.kafka.event.PaymentCommand
 
+jwt:
+  public-key: ${JWT_PUBLIC_KEY}
+
 #actuator
 management:
   endpoints:

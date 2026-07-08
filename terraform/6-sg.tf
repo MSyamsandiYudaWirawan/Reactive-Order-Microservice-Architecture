@@ -1,13 +1,14 @@
-// ALB - only accept HTTP from internet
+// ALB - only accept HTTP from allowed IPs
 resource "aws_security_group" "alb" {
   name = "reactive-order-alb-sg"
   vpc_id = aws_vpc.vpc.id
 
+  // only allow my ip for testing
   ingress {
     from_port = 80
     to_port = 80
     protocol = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = var.allowed_cidr_blocks
   }
 
   egress {

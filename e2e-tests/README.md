@@ -175,12 +175,109 @@ The test suites now generate unique emails automatically (`e2e_<timestamp>@testm
 - Scheduler tests poll up to 8-10 retries with 15s delay (covers 90s expiry + 30s scheduler)
 - Increase `--delay-request` if tests fail on slower environments
 
+## AWS Cloud Testing
+
+Dedicated scripts for testing against the AWS ECS Fargate deployment (ALB → gateway-service).
+
+### Get ALB DNS
+
+```bash
+cd terraform && terraform output alb_dns_name
+```
+
+### Run Tests Against AWS
+
+```bash
+# Windows
+run-all-aws.bat <ALB_DNS>
+run-all-aws.bat <ALB_DNS> --with-scheduler
+run-all-aws.bat <ALB_DNS> --with-scheduler --with-cleanup
+
+# Linux/Mac
+chmod +x run-all-aws.sh
+./run-all-aws.sh <ALB_DNS>
+./run-all-aws.sh <ALB_DNS> --with-scheduler
+./run-all-aws.sh <ALB_DNS> --with-scheduler --with-cleanup
+```
+
+### AWS Database Cleanup
+
+Requires network access to RDS (via bastion host, VPN, or SSM port forwarding).
+
+Set environment variables for RDS credentials:
+
+```bash
+# Individual hosts (from terraform output or AWS console)
+export AWS_RDS_HOST_AUTH=reactive-order-auth.xxxxx.ap-southeast-3.rds.amazonaws.com
+export AWS_RDS_HOST_ORDER=reactive-order-order.xxxxx.ap-southeast-3.rds.amazonaws.com
+export AWS_RDS_HOST_INVENTORY=reactive-order-inventory.xxxxx.ap-southeast-3.rds.amazonaws.com
+export AWS_RDS_HOST_PAYMENT=reactive-order-payment.xxxxx.ap-southeast-3.rds.amazonaws.com
+export AWS_RDS_HOST_ORCHESTRATOR=reactive-order-orchestrator.xxxxx.ap-southeast-3.rds.amazonaws.com
+
+# Passwords (from AWS Secrets Manager)
+export AWS_RDS_PASSWORD_AUTH=<from-secrets-manager>
+export AWS_RDS_PASSWORD_ORDER=<from-secrets-manager>
+export AWS_RDS_PASSWORD_INVENTORY=<from-secrets-manager>
+export AWS_RDS_PASSWORD_PAYMENT=<from-secrets-manager>
+export AWS_RDS_PASSWORD_ORCHESTRATOR=<from-secrets-manager>
+```
+
+Then run cleanup:
+
+```bash
+# Linux/Mac
+./cleanup-dbs-aws.sh
+./cleanup-dbs-aws.sh --force
+
+# Windows (PowerShell)
+.\cleanup-dbs-aws.ps1
+.\cleanup-dbs-aws.ps1 -Force
+```
+
+### AWS vs Local Differences
+
+| Aspect | Local (Docker) | AWS (ECS Fargate) |
+|--------|---------------|-------------------|
+| URL | `http://localhost` | `http://<ALB-DNS>` |
+| Port | `8080` | `80` |
+| Delay | 5s (poll) | 8s (poll), 15s (scheduler) |
+| DB Cleanup | `docker exec` | `psql` to RDS (needs network access) |
+| DLQ Verify | `docker exec kafka-console-consumer` | Skip (no direct Kafka access from outside VPC) |
+
+### SSM Port Forwarding (for DB Cleanup)
+
+If you don't have a bastion host, use AWS SSM to tunnel to RDS:
+
+```bash
+# Forward local port 5432 to RDS through an ECS task
+aws ssm start-session \
+  --target <ecs-task-id> \
+  --document-name AWS-StartPortForwardingSessionToRemoteHost \
+  --parameters '{"host":["reactive-order-auth.xxxxx.rds.amazonaws.com"],"portNumber":["5432"],"localPortNumber":["5432"]}'
+```
+
+Then set `AWS_RDS_HOST_*=localhost` and run cleanup scripts.
+
+### AWS Test Files
+
+| File | Purpose |
+|------|--------|
+| `run-all-aws.sh` | Main test runner (Linux/Mac) |
+| `run-all-aws.bat` | Main test runner (Windows) |
+| `cleanup-dbs-aws.sh` | RDS cleanup (Linux/Mac) |
+| `cleanup-dbs-aws.ps1` | RDS cleanup (Windows/PowerShell) |
+| `environment-aws.json` | Environment variables for AWS |
+
+---
+
 ## CI/CD Integration (GitHub Actions)
 
 ```yaml
-- name: Run E2E Tests
+- name: Run E2E Tests (AWS)
+  env:
+    ALB_DNS: ${{ steps.terraform.outputs.alb_dns_name }}
   run: |
     npm install -g newman
     cd e2e-tests
-    ./run-all.sh http://${{ env.ALB_DNS }} 80 3000 --with-scheduler
+    ./run-all-aws.sh $ALB_DNS --with-scheduler
 ```

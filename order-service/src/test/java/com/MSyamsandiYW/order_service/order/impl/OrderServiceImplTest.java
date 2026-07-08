@@ -105,7 +105,7 @@ class OrderServiceImplTest {
                 .build();
 
         when(jwtService.extractClaims(token)).thenReturn(Mono.just(claims));
-        when(inventoryServiceClient.getProductsById(eq(token), any(), correlationId)).thenReturn(Mono.just(List.of(product)));
+        when(inventoryServiceClient.getProductsById(eq(token), any(), eq(correlationId))).thenReturn(Mono.just(List.of(product)));
         when(discountService.apply(any(), any())).thenAnswer(inv -> Mono.just(inv.getArgument(1)));
         when(orderRepository.save(any(Order.class))).thenReturn(Mono.just(savedOrder));
         when(orderItemRepository.saveAll(anyList())).thenReturn(Flux.just(OrderItem.builder().build()));
@@ -132,7 +132,7 @@ class OrderServiceImplTest {
                 .build();
 
         when(jwtService.extractClaims(token)).thenReturn(Mono.just(claims));
-        when(inventoryServiceClient.getProductsById(eq(token), any(), correlationId)).thenReturn(Mono.empty());
+        when(inventoryServiceClient.getProductsById(eq(token), any(), eq(correlationId))).thenReturn(Mono.empty());
 
         StepVerifier.create(orderService.createOrder(correlationId, token, request))
                 .expectErrorMatches(e -> e instanceof BusinessException
