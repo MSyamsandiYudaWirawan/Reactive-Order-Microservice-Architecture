@@ -1,32 +1,32 @@
 {
   "info": {
-    "name": "E2E - Compensation: Payment Expiry (No Webhook → Payment FAILED → Order EXPIRED)",
+    "name": "E2E - Compensation: Payment Expiry (No Webhook → EXPIRED)",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "COMPENSATION FLOW: Create payment but never send webhook → payment-service scheduler expires payment (30s) → orchestrator scheduler expires order (90s). Total wait: ~2min"
+    "description": "Payment PENDING > timeout → Payment-service scheduler marks FAILED → Orchestrator scheduler expires order. Wait ~2min."
   },
-  "event": [
-    {
-      "listen": "prerequest",
-      "script": {
-        "type": "text/javascript",
-        "exec": [
-          "if (!pm.environment.get('test_email') || pm.environment.get('test_email') === '') {",
-          "    const uniqueEmail = 'e2e_payexp_' + Date.now() + '@testmail.com';",
-          "    pm.environment.set('test_email', uniqueEmail);",
-          "}"
-        ]
-      }
-    }
-  ],
+  "event": [],
   "item": [
     {
       "name": "1. Register",
       "event": [
         {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.environment.get('test_email') || pm.environment.get('test_email') === '') {",
+              "    const ts = Date.now();",
+              "    pm.environment.set('test_email', 'e2e_payexp_' + ts + '@testmail.com');",
+              "    pm.environment.set('test_phone', '+628' + ts.toString().slice(-10));",
+              "}"
+            ]
+          }
+        },
+        {
           "listen": "test",
           "script": {
             "type": "text/javascript",
-            "exec": ["pm.test('OK', function() { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });"]
+            "exec": ["pm.test('Register OK', function() { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });"]
           }
         }
       ],
@@ -35,7 +35,7 @@
         "header": [{ "key": "Content-Type", "value": "application/json" }],
         "body": {
           "mode": "raw",
-          "raw": "{\n    \"name\": \"{{test_name}}\",\n    \"email\": \"{{test_email}}\",\n    \"phoneNumber\": \"+6281234567897\",\n    \"password\": \"{{test_password}}\",\n    \"confirmPassword\": \"{{test_password}}\"\n}"
+          "raw": "{\n    \"name\": \"{{test_name}}\",\n    \"email\": \"{{test_email}}\",\n    \"phoneNumber\": \"{{test_phone}}\",\n    \"password\": \"{{test_password}}\",\n    \"confirmPassword\": \"{{test_password}}\"\n}"
         },
         "url": {
           "raw": "{{base_url}}:{{gateway_port}}/api/v1/auth/register",
@@ -53,11 +53,8 @@
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test('Login OK', function() {",
-              "    pm.response.to.have.status(200);",
-              "    const r = pm.response.json();",
-              "    pm.environment.set('access_token', r.access_token);",
-              "});"
+              "pm.test('Login OK', function() { pm.response.to.have.status(200); });",
+              "pm.environment.set('access_token', pm.response.json().access_token);"
             ]
           }
         }
@@ -93,12 +90,8 @@
             "type": "text/javascript",
             "exec": [
               "pm.test('Order created', function() { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });",
-              "const r = pm.response.json();",
-              "pm.environment.set('transaction_id', r.transactionId);",
-              "console.log('┌─────────────────────────────────────');",
-              "console.log('│ 📦 ORDER CREATED');",
-              "console.log('│ transactionId: ' + r.transactionId);",
-              "console.log('└─────────────────────────────────────');"
+              "pm.environment.set('transaction_id', pm.response.json().transactionId);",
+              "console.log('📦 Order created | transactionId: ' + pm.response.json().transactionId);"
             ]
           }
         }
@@ -130,13 +123,12 @@
           "script": {
             "type": "text/javascript",
             "exec": [
-              "const response = pm.response.json();",
-              "const status = response.orderStatus || response.status;",
+              "const status = pm.response.json().orderStatus;",
               "if (status === 'PENDING') {",
-              "    let r = pm.environment.get('retry_wp2') || 0; r++;",
-              "    if (r < 5) { pm.environment.set('retry_wp2', r); setTimeout(function(){},2000); postman.setNextRequest('4. Confirm WAITING_PAYMENT'); }",
-              "    else { pm.environment.unset('retry_wp2'); pm.test('WAITING_PAYMENT', function(){ pm.expect(status).to.equal('WAITING_PAYMENT'); }); }",
-              "} else { pm.environment.unset('retry_wp2'); pm.test('WAITING_PAYMENT', function(){ pm.expect(status).to.equal('WAITING_PAYMENT'); }); }"
+              "    let c = pm.environment.get('_r1') || 0; c++;",
+              "    if (c < 10) { pm.environment.set('_r1', c); postman.setNextRequest('4. Confirm WAITING_PAYMENT'); }",
+              "    else { pm.environment.unset('_r1'); pm.expect.fail('Timeout'); }",
+              "} else { pm.environment.unset('_r1'); pm.test('WAITING_PAYMENT', function() { pm.expect(status).to.equal('WAITING_PAYMENT'); }); }"
             ]
           }
         }
@@ -169,15 +161,8 @@
             "type": "text/javascript",
             "exec": [
               "pm.test('Payment created', function() { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });",
-              "const r = pm.response.json();",
-              "pm.environment.set('payment_id', r.paymentId);",
-              "pm.environment.set('payment_created_at', Date.now());",
-              "console.log('┌─────────────────────────────────────');",
-              "console.log('│ 💳 PAYMENT CREATED (will NOT send webhook)');",
-              "console.log('│ paymentId:     ' + r.paymentId);",
-              "console.log('│ transactionId: ' + r.transactionId);",
-              "console.log('│ ⏱️ Waiting for payment expiry (30s) + scheduler (30s)...');",
-              "console.log('└─────────────────────────────────────');"
+              "pm.environment.set('payment_id', pm.response.json().paymentId);",
+              "console.log('💳 Payment created (will NOT send webhook) | paymentId: ' + pm.response.json().paymentId);"
             ]
           }
         }
@@ -210,40 +195,15 @@
             "type": "text/javascript",
             "exec": [
               "pm.test('Status retrieved', function() { pm.response.to.have.status(200); });",
-              "",
-              "const response = pm.response.json();",
-              "const status = response.paymentStatus || response.status;",
-              "const elapsed = Math.round((Date.now() - pm.environment.get('payment_created_at')) / 1000);",
-              "console.log('│ 💳 paymentStatus: ' + status + ' | elapsed: ' + elapsed + 's | paymentId: ' + pm.environment.get('payment_id'));",
-              "",
+              "const status = pm.response.json().status;",
+              "console.log('💳 paymentStatus: ' + status);",
               "if (status === 'FAILED') {",
-              "    pm.environment.unset('retry_pay_exp');",
-              "    pm.test('✅ Payment expired (FAILED)', function() {",
-              "        pm.expect(status).to.equal('FAILED');",
-              "    });",
-              "    console.log('✅ Payment expired after ' + elapsed + 's');",
-              "} else if (status === 'PENDING') {",
-              "    let retryCount = pm.environment.get('retry_pay_exp') || 0;",
-              "    retryCount++;",
-              "    if (retryCount < 8) {",
-              "        pm.environment.set('retry_pay_exp', retryCount);",
-              "        console.log('⏳ Still PENDING, retry ' + retryCount + '/8');",
-              "        postman.setNextRequest('6. Poll Payment Status (wait for FAILED)');",
-              "    } else {",
-              "        pm.environment.unset('retry_pay_exp');",
-              "        pm.test('Payment should have expired', function() { pm.expect(status).to.equal('FAILED'); });",
-              "    }",
+              "    pm.environment.unset('_r2');",
+              "    pm.test('✅ Payment expired (FAILED)', function() { pm.expect(status).to.equal('FAILED'); });",
               "} else {",
-              "    let retryCount = pm.environment.get('retry_pay_exp') || 0;",
-              "    retryCount++;",
-              "    if (retryCount < 8) {",
-              "        pm.environment.set('retry_pay_exp', retryCount);",
-              "        console.log('⏳ Unexpected status ' + status + ', retry ' + retryCount + '/8');",
-              "        postman.setNextRequest('6. Poll Payment Status (wait for FAILED)');",
-              "    } else {",
-              "        pm.environment.unset('retry_pay_exp');",
-              "        pm.test('Payment should be FAILED after expiry', function() { pm.expect(status).to.equal('FAILED'); });",
-              "    }",
+              "    let c = pm.environment.get('_r2') || 0; c++;",
+              "    if (c < 8) { pm.environment.set('_r2', c); postman.setNextRequest('6. Poll Payment Status (wait for FAILED)'); }",
+              "    else { pm.environment.unset('_r2'); pm.expect.fail('Timed out waiting for payment FAILED'); }",
               "}"
             ]
           }
@@ -254,10 +214,10 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "{{base_url}}:{{gateway_port}}/api/v1/payments/status/{{payment_id}}",
+          "raw": "{{base_url}}:{{gateway_port}}/api/v1/payments/status/{{transaction_id}}",
           "host": ["{{base_url}}"],
           "port": "{{gateway_port}}",
-          "path": ["api", "v1", "payments", "status", "{{payment_id}}"]
+          "path": ["api", "v1", "payments", "status", "{{transaction_id}}"]
         }
       }
     },
@@ -270,45 +230,15 @@
             "type": "text/javascript",
             "exec": [
               "pm.test('Status retrieved', function() { pm.response.to.have.status(200); });",
-              "",
-              "const response = pm.response.json();",
-              "const status = response.orderStatus || response.status;",
-              "const elapsed = Math.round((Date.now() - pm.environment.get('payment_created_at')) / 1000);",
-              "console.log('│ 📋 orderStatus: ' + status + ' | elapsed: ' + elapsed + 's | transactionId: ' + response.transactionId + ' | correlationId: ' + (response.correlationId || ''));",
-              "",
+              "const status = pm.response.json().orderStatus;",
+              "console.log('📋 orderStatus: ' + status);",
               "if (status === 'EXPIRED') {",
-              "    pm.environment.unset('retry_ord_exp');",
-              "    pm.test('✅ Order EXPIRED after payment expiry', function() {",
-              "        pm.expect(status).to.equal('EXPIRED');",
-              "    });",
-              "    console.log('┌─────────────────────────────────────');",
-              "    console.log('│ 🎉 PAYMENT EXPIRY → ORDER EXPIRED');",
-              "    console.log('│ transactionId: ' + response.transactionId);",
-              "    console.log('│ paymentId:     ' + pm.environment.get('payment_id'));",
-              "    console.log('│ elapsed:       ' + elapsed + 's');",
-              "    console.log('└─────────────────────────────────────');",
-              "} else if (status === 'WAITING_PAYMENT') {",
-              "    let retryCount = pm.environment.get('retry_ord_exp') || 0;",
-              "    retryCount++;",
-              "    if (retryCount < 8) {",
-              "        pm.environment.set('retry_ord_exp', retryCount);",
-              "        console.log('⏳ Still WAITING_PAYMENT, retry ' + retryCount + '/8 (waiting for orchestrator scheduler)');",
-              "        postman.setNextRequest('7. Poll Order Status (wait for EXPIRED)');",
-              "    } else {",
-              "        pm.environment.unset('retry_ord_exp');",
-              "        pm.test('Order should have expired', function() { pm.expect(status).to.equal('EXPIRED'); });",
-              "    }",
+              "    pm.environment.unset('_r3');",
+              "    pm.test('✅ Order EXPIRED after payment expiry', function() { pm.expect(status).to.equal('EXPIRED'); });",
               "} else {",
-              "    let retryCount = pm.environment.get('retry_ord_exp') || 0;",
-              "    retryCount++;",
-              "    if (retryCount < 8) {",
-              "        pm.environment.set('retry_ord_exp', retryCount);",
-              "        console.log('⏳ Unexpected order status ' + status + ', retry ' + retryCount + '/8');",
-              "        postman.setNextRequest('7. Poll Order Status (wait for EXPIRED)');",
-              "    } else {",
-              "        pm.environment.unset('retry_ord_exp');",
-              "        pm.test('Order should have expired', function() { pm.expect(status).to.equal('EXPIRED'); });",
-              "    }",
+              "    let c = pm.environment.get('_r3') || 0; c++;",
+              "    if (c < 8) { pm.environment.set('_r3', c); postman.setNextRequest('7. Poll Order Status (wait for EXPIRED)'); }",
+              "    else { pm.environment.unset('_r3'); pm.expect.fail('Timed out waiting for order EXPIRED'); }",
               "}"
             ]
           }

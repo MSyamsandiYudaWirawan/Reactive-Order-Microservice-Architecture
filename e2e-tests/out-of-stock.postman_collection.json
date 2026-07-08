@@ -1,34 +1,32 @@
 {
   "info": {
-    "name": "E2E - Compensation: Out of Stock (No Payment)",
+    "name": "E2E - Out of Stock (No Payment → OUT_OF_STOCK)",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "COMPENSATION FLOW: Order with quantity exceeding stock → saga FAILED → order OUT_OF_STOCK (no compensation needed since no payment)"
+    "description": "Order qty=99999 + No payment → Stock check fails after 15s → OUT_OF_STOCK (saga FAILED, no compensation needed)"
   },
-  "event": [
-    {
-      "listen": "prerequest",
-      "script": {
-        "type": "text/javascript",
-        "exec": [
-          "if (!pm.environment.get('test_email') || pm.environment.get('test_email') === '') {",
-          "    const uniqueEmail = 'e2e_oos_' + Date.now() + '@testmail.com';",
-          "    pm.environment.set('test_email', uniqueEmail);",
-          "}"
-        ]
-      }
-    }
-  ],
+  "event": [],
   "item": [
     {
-      "name": "1. Register User",
+      "name": "1. Register",
       "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.environment.get('test_email') || pm.environment.get('test_email') === '') {",
+              "    const ts = Date.now();",
+              "    pm.environment.set('test_email', 'e2e_oos_' + ts + '@testmail.com');",
+              "    pm.environment.set('test_phone', '+628' + ts.toString().slice(-10));",
+              "}"
+            ]
+          }
+        },
         {
           "listen": "test",
           "script": {
             "type": "text/javascript",
-            "exec": [
-              "pm.test('Registration successful', function() { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });"
-            ]
+            "exec": ["pm.test('Register OK', function() { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });"]
           }
         }
       ],
@@ -37,7 +35,7 @@
         "header": [{ "key": "Content-Type", "value": "application/json" }],
         "body": {
           "mode": "raw",
-          "raw": "{\n    \"name\": \"{{test_name}}\",\n    \"email\": \"{{test_email}}\",\n    \"phoneNumber\": \"+6281234567891\",\n    \"password\": \"{{test_password}}\",\n    \"confirmPassword\": \"{{test_password}}\"\n}"
+          "raw": "{\n    \"name\": \"{{test_name}}\",\n    \"email\": \"{{test_email}}\",\n    \"phoneNumber\": \"{{test_phone}}\",\n    \"password\": \"{{test_password}}\",\n    \"confirmPassword\": \"{{test_password}}\"\n}"
         },
         "url": {
           "raw": "{{base_url}}:{{gateway_port}}/api/v1/auth/register",
@@ -55,11 +53,8 @@
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test('Login successful', function() {",
-              "    pm.response.to.have.status(200);",
-              "    const r = pm.response.json();",
-              "    pm.environment.set('access_token', r.access_token);",
-              "});"
+              "pm.test('Login OK', function() { pm.response.to.have.status(200); });",
+              "pm.environment.set('access_token', pm.response.json().access_token);"
             ]
           }
         }
@@ -80,7 +75,7 @@
       }
     },
     {
-      "name": "3. Create Order (Excessive Quantity)",
+      "name": "3. Create Order (qty=99999, will be OUT_OF_STOCK)",
       "event": [
         {
           "listen": "prerequest",
@@ -95,12 +90,8 @@
             "type": "text/javascript",
             "exec": [
               "pm.test('Order created', function() { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });",
-              "const response = pm.response.json();",
-              "pm.environment.set('transaction_id', response.transactionId);",
-              "console.log('┌─────────────────────────────────────');",
-              "console.log('│ 📦 ORDER CREATED (qty=99999, expecting OUT_OF_STOCK)');",
-              "console.log('│ transactionId: ' + response.transactionId);",
-              "console.log('└─────────────────────────────────────');"
+              "pm.environment.set('transaction_id', pm.response.json().transactionId);",
+              "console.log('📦 Order created (qty=99999, no payment) | transactionId: ' + pm.response.json().transactionId);"
             ]
           }
         }
@@ -125,39 +116,23 @@
       }
     },
     {
-      "name": "4. Poll Order Status (wait for OUT_OF_STOCK)",
+      "name": "4. Poll Order Status (wait for OUT_OF_STOCK ~15s)",
       "event": [
         {
           "listen": "test",
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test('Order status retrieved', function() { pm.response.to.have.status(200); });",
-              "",
-              "const response = pm.response.json();",
-              "const status = response.orderStatus;",
-              "console.log('│ 📋 status: ' + status + ' | transactionId: ' + response.transactionId + ' | correlationId: ' + response.correlationId);",
-              "",
+              "pm.test('Status retrieved', function() { pm.response.to.have.status(200); });",
+              "const status = pm.response.json().orderStatus;",
+              "console.log('📋 status: ' + status);",
               "if (status === 'PENDING') {",
-              "    let retryCount = pm.environment.get('retry_count_oos') || 0;",
-              "    retryCount++;",
-              "    if (retryCount < 5) {",
-              "        pm.environment.set('retry_count_oos', retryCount);",
-              "        console.log('│ ⏳ Still PENDING, retrying... (' + retryCount + '/5)');",
-              "        postman.setNextRequest('4. Poll Order Status (wait for OUT_OF_STOCK)');",
-              "    } else {",
-              "        pm.environment.unset('retry_count_oos');",
-              "        pm.test('Order should be OUT_OF_STOCK', function() { pm.expect(status).to.equal('OUT_OF_STOCK'); });",
-              "    }",
+              "    let c = pm.environment.get('_r1') || 0; c++;",
+              "    if (c < 10) { pm.environment.set('_r1', c); postman.setNextRequest('4. Poll Order Status (wait for OUT_OF_STOCK ~15s)'); }",
+              "    else { pm.environment.unset('_r1'); pm.expect.fail('Timeout waiting for OUT_OF_STOCK'); }",
               "} else {",
-              "    pm.environment.unset('retry_count_oos');",
+              "    pm.environment.unset('_r1');",
               "    pm.test('✅ Order is OUT_OF_STOCK', function() { pm.expect(status).to.equal('OUT_OF_STOCK'); });",
-              "    console.log('┌─────────────────────────────────────');",
-              "    console.log('│ 🎉 OUT_OF_STOCK VERIFIED');",
-              "    console.log('│ transactionId: ' + response.transactionId);",
-              "    console.log('│ correlationId: ' + response.correlationId);",
-              "    console.log('│ finalStatus:   ' + status);",
-              "    console.log('└─────────────────────────────────────');",
               "}"
             ]
           }

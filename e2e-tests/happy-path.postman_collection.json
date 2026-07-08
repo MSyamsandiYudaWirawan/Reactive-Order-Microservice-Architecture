@@ -1,38 +1,32 @@
 {
   "info": {
-    "name": "E2E - Happy Path (Order Completed)",
+    "name": "E2E - Happy Path (Order COMPLETED)",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "Full happy path: Register → Login → Create Order → Poll WAITING_PAYMENT → Create Payment → Webhook SUCCESS → Verify COMPLETED"
+    "description": "Register → Login → Create Order → WAITING_PAYMENT → Create Payment → Webhook SUCCESS → COMPLETED"
   },
-  "variable": [],
-  "event": [
-    {
-      "listen": "prerequest",
-      "script": {
-        "type": "text/javascript",
-        "exec": [
-          "if (!pm.environment.get('test_email') || pm.environment.get('test_email') === '') {",
-          "    const uniqueEmail = 'e2e_' + Date.now() + '@testmail.com';",
-          "    pm.environment.set('test_email', uniqueEmail);",
-          "}"
-        ]
-      }
-    }
-  ],
+  "event": [],
   "item": [
     {
-      "name": "1. Register User",
+      "name": "1. Register",
       "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.environment.get('test_email') || pm.environment.get('test_email') === '') {",
+              "    const ts = Date.now();",
+              "    pm.environment.set('test_email', 'e2e_' + ts + '@testmail.com');",
+              "    pm.environment.set('test_phone', '+628' + ts.toString().slice(-10));",
+              "}"
+            ]
+          }
+        },
         {
           "listen": "test",
           "script": {
             "type": "text/javascript",
-            "exec": [
-              "pm.test('Registration successful', function() {",
-              "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
-              "});",
-              "console.log('✅ Registered:', pm.environment.get('test_email'));"
-            ]
+            "exec": ["pm.test('Register OK', function() { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });"]
           }
         }
       ],
@@ -41,7 +35,7 @@
         "header": [{ "key": "Content-Type", "value": "application/json" }],
         "body": {
           "mode": "raw",
-          "raw": "{\n    \"name\": \"{{test_name}}\",\n    \"email\": \"{{test_email}}\",\n    \"phoneNumber\": \"+6281234567890\",\n    \"password\": \"{{test_password}}\",\n    \"confirmPassword\": \"{{test_password}}\"\n}"
+          "raw": "{\n    \"name\": \"{{test_name}}\",\n    \"email\": \"{{test_email}}\",\n    \"phoneNumber\": \"{{test_phone}}\",\n    \"password\": \"{{test_password}}\",\n    \"confirmPassword\": \"{{test_password}}\"\n}"
         },
         "url": {
           "raw": "{{base_url}}:{{gateway_port}}/api/v1/auth/register",
@@ -59,13 +53,9 @@
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test('Login successful (200)', function() {",
-              "    pm.response.to.have.status(200);",
-              "});",
-              "const response = pm.response.json();",
-              "pm.environment.set('access_token', response.access_token);",
-              "pm.environment.set('refresh_token', response.refresh_token);",
-              "console.log('✅ Login OK — token saved');"
+              "pm.test('Login OK', function() { pm.response.to.have.status(200); });",
+              "const r = pm.response.json();",
+              "pm.environment.set('access_token', r.access_token);"
             ]
           }
         }
@@ -92,9 +82,7 @@
           "listen": "prerequest",
           "script": {
             "type": "text/javascript",
-            "exec": [
-              "pm.environment.set('idempotency_key', pm.variables.replaceIn('{{$guid}}'));"
-            ]
+            "exec": ["pm.environment.set('idempotency_key', pm.variables.replaceIn('{{$guid}}'));"]
           }
         },
         {
@@ -102,25 +90,16 @@
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test('Order created (201)', function() {",
-              "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
-              "});",
-              "const response = pm.response.json();",
-              "pm.environment.set('transaction_id', response.transactionId);",
-              "console.log('┌─────────────────────────────────────');",
-              "console.log('│ 📦 ORDER CREATED');",
-              "console.log('│ transactionId: ' + response.transactionId);",
-              "console.log('│ idempotencyKey: ' + pm.environment.get('idempotency_key'));",
-              "console.log('└─────────────────────────────────────');"
+              "pm.test('Order created', function() { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });",
+              "const r = pm.response.json();",
+              "pm.environment.set('transaction_id', r.transactionId);",
+              "console.log('📦 Order created | transactionId: ' + r.transactionId);"
             ]
           }
         }
       ],
       "request": {
-        "auth": {
-          "type": "bearer",
-          "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }]
-        },
+        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
         "method": "POST",
         "header": [
           { "key": "Content-Type", "value": "application/json" },
@@ -139,45 +118,31 @@
       }
     },
     {
-      "name": "4. Poll Order Status (wait for WAITING_PAYMENT)",
+      "name": "4. Poll Order Status (WAITING_PAYMENT)",
       "event": [
         {
           "listen": "test",
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test('Order status retrieved', function() { pm.response.to.have.status(200); });",
-              "",
-              "const response = pm.response.json();",
-              "const status = response.orderStatus;",
-              "console.log('│ 📋 status: ' + status + ' | transactionId: ' + response.transactionId + ' | correlationId: ' + response.correlationId);",
-              "",
+              "pm.test('Status retrieved', function() { pm.response.to.have.status(200); });",
+              "const r = pm.response.json();",
+              "const status = r.orderStatus;",
+              "console.log('📋 status: ' + status);",
               "if (status === 'PENDING') {",
-              "    let retryCount = pm.environment.get('retry_count_order') || 0;",
-              "    retryCount++;",
-              "    if (retryCount < 5) {",
-              "        pm.environment.set('retry_count_order', retryCount);",
-              "        console.log('│ ⏳ Still PENDING, retrying... (' + retryCount + '/5)');",
-              "        postman.setNextRequest('4. Poll Order Status (wait for WAITING_PAYMENT)');",
-              "    } else {",
-              "        pm.environment.unset('retry_count_order');",
-              "        pm.test('Order should be WAITING_PAYMENT', function() { pm.expect(status).to.equal('WAITING_PAYMENT'); });",
-              "    }",
+              "    let c = pm.environment.get('_retry') || 0; c++;",
+              "    if (c < 10) { pm.environment.set('_retry', c); postman.setNextRequest('4. Poll Order Status (WAITING_PAYMENT)'); }",
+              "    else { pm.environment.unset('_retry'); pm.expect.fail('Timed out waiting for WAITING_PAYMENT'); }",
               "} else {",
-              "    pm.environment.unset('retry_count_order');",
-              "    pm.environment.set('correlation_id', response.correlationId);",
+              "    pm.environment.unset('_retry');",
               "    pm.test('Order is WAITING_PAYMENT', function() { pm.expect(status).to.equal('WAITING_PAYMENT'); });",
-              "    console.log('│ ✅ correlationId saved: ' + response.correlationId);",
               "}"
             ]
           }
         }
       ],
       "request": {
-        "auth": {
-          "type": "bearer",
-          "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }]
-        },
+        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
         "method": "GET",
         "header": [],
         "url": {
@@ -195,9 +160,7 @@
           "listen": "prerequest",
           "script": {
             "type": "text/javascript",
-            "exec": [
-              "pm.environment.set('payment_idempotency_key', pm.variables.replaceIn('{{$guid}}'));"
-            ]
+            "exec": ["pm.environment.set('payment_idempotency_key', pm.variables.replaceIn('{{$guid}}'));"]
           }
         },
         {
@@ -206,25 +169,15 @@
             "type": "text/javascript",
             "exec": [
               "pm.test('Payment created', function() { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });",
-              "const response = pm.response.json();",
-              "pm.environment.set('payment_id', response.paymentId);",
-              "console.log('┌─────────────────────────────────────');",
-              "console.log('│ 💳 PAYMENT CREATED');",
-              "console.log('│ paymentId:     ' + response.paymentId);",
-              "console.log('│ transactionId: ' + response.transactionId);",
-              "console.log('│ amount:        ' + response.amount);",
-              "console.log('│ method:        ' + response.paymentMethod);",
-              "console.log('│ urlPayment:    ' + response.urlPayment);",
-              "console.log('└─────────────────────────────────────');"
+              "const r = pm.response.json();",
+              "pm.environment.set('payment_id', r.paymentId);",
+              "console.log('💳 Payment created | paymentId: ' + r.paymentId);"
             ]
           }
         }
       ],
       "request": {
-        "auth": {
-          "type": "bearer",
-          "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }]
-        },
+        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
         "method": "POST",
         "header": [
           { "key": "Content-Type", "value": "application/json" },
@@ -250,8 +203,7 @@
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test('Webhook accepted', function() { pm.expect(pm.response.code).to.be.oneOf([200, 202]); });",
-              "console.log('│ 🔔 WEBHOOK sent: PAYMENT_SUCCESS | paymentId: ' + pm.environment.get('payment_id'));"
+              "pm.test('Webhook accepted', function() { pm.expect(pm.response.code).to.be.oneOf([200, 202]); });"
             ]
           }
         }
@@ -272,50 +224,31 @@
       }
     },
     {
-      "name": "7. Poll Order Status (wait for COMPLETED)",
+      "name": "7. Poll Order Status (COMPLETED)",
       "event": [
         {
           "listen": "test",
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test('Order status retrieved', function() { pm.response.to.have.status(200); });",
-              "",
-              "const response = pm.response.json();",
-              "const status = response.orderStatus;",
-              "console.log('│ 📋 status: ' + status + ' | transactionId: ' + response.transactionId + ' | correlationId: ' + response.correlationId);",
-              "",
+              "pm.test('Status retrieved', function() { pm.response.to.have.status(200); });",
+              "const r = pm.response.json();",
+              "const status = r.orderStatus;",
+              "console.log('📋 status: ' + status);",
               "if (status !== 'COMPLETED') {",
-              "    let retryCount = pm.environment.get('retry_count_final') || 0;",
-              "    retryCount++;",
-              "    if (retryCount < 5) {",
-              "        pm.environment.set('retry_count_final', retryCount);",
-              "        console.log('│ ⏳ Not COMPLETED yet, retrying... (' + retryCount + '/5)');",
-              "        postman.setNextRequest('7. Poll Order Status (wait for COMPLETED)');",
-              "    } else {",
-              "        pm.environment.unset('retry_count_final');",
-              "        pm.test('Order should be COMPLETED', function() { pm.expect(status).to.equal('COMPLETED'); });",
-              "    }",
+              "    let c = pm.environment.get('_retry') || 0; c++;",
+              "    if (c < 10) { pm.environment.set('_retry', c); postman.setNextRequest('7. Poll Order Status (COMPLETED)'); }",
+              "    else { pm.environment.unset('_retry'); pm.expect.fail('Timed out waiting for COMPLETED'); }",
               "} else {",
-              "    pm.environment.unset('retry_count_final');",
-              "    pm.test('✅ Order is COMPLETED', function() { pm.expect(status).to.equal('COMPLETED'); });",
-              "    console.log('┌─────────────────────────────────────');",
-              "    console.log('│ 🎉 HAPPY PATH COMPLETED');",
-              "    console.log('│ transactionId: ' + response.transactionId);",
-              "    console.log('│ correlationId: ' + response.correlationId);",
-              "    console.log('│ paymentId:     ' + pm.environment.get('payment_id'));",
-              "    console.log('│ finalStatus:   ' + status);",
-              "    console.log('└─────────────────────────────────────');",
+              "    pm.environment.unset('_retry');",
+              "    pm.test('✅ Order COMPLETED', function() { pm.expect(status).to.equal('COMPLETED'); });",
               "}"
             ]
           }
         }
       ],
       "request": {
-        "auth": {
-          "type": "bearer",
-          "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }]
-        },
+        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
         "method": "GET",
         "header": [],
         "url": {
@@ -335,25 +268,22 @@
             "type": "text/javascript",
             "exec": [
               "pm.test('Payment status retrieved', function() { pm.response.to.have.status(200); });",
-              "const response = pm.response.json();",
-              "pm.test('Payment is SUCCESS', function() { pm.expect(response.status).to.equal('SUCCESS'); });",
-              "console.log('│ 💳 Payment status: ' + response.status + ' | transactionId: ' + response.transactionId);"
+              "const r = pm.response.json();",
+              "pm.test('Payment is SUCCESS', function() { pm.expect(r.status).to.equal('SUCCESS'); });",
+              "console.log('💳 Payment status: ' + r.status);"
             ]
           }
         }
       ],
       "request": {
-        "auth": {
-          "type": "bearer",
-          "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }]
-        },
+        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "{{base_url}}:{{gateway_port}}/api/v1/payments/status/{{payment_id}}",
+          "raw": "{{base_url}}:{{gateway_port}}/api/v1/payments/status/{{transaction_id}}",
           "host": ["{{base_url}}"],
           "port": "{{gateway_port}}",
-          "path": ["api", "v1", "payments", "status", "{{payment_id}}"]
+          "path": ["api", "v1", "payments", "status", "{{transaction_id}}"]
         }
       }
     }

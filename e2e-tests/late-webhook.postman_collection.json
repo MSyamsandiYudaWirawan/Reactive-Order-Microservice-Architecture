@@ -1,8 +1,8 @@
 {
   "info": {
-    "name": "E2E - Compensation: Order Expiry (Never Paid → EXPIRED)",
+    "name": "E2E - Compensation: Late Webhook After Payment Expired",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "Stock RESERVED + No payment within timeout → Scheduler triggers RELEASE_STOCK → Order EXPIRED. Wait ~2min (90s expiry + 30s scheduler cycle)."
+    "description": "Payment expired (marked FAILED) + Late PAYMENT_SUCCESS webhook arrives → Payment-service sees status=FAILED → triggers silent refund → no event produced. Verifies payment stays FAILED/REFUNDED."
   },
   "event": [],
   "item": [
@@ -16,7 +16,7 @@
             "exec": [
               "if (!pm.environment.get('test_email') || pm.environment.get('test_email') === '') {",
               "    const ts = Date.now();",
-              "    pm.environment.set('test_email', 'e2e_expiry_' + ts + '@testmail.com');",
+              "    pm.environment.set('test_email', 'e2e_late_' + ts + '@testmail.com');",
               "    pm.environment.set('test_phone', '+628' + ts.toString().slice(-10));",
               "}"
             ]
@@ -75,7 +75,7 @@
       }
     },
     {
-      "name": "3. Create Order (will never pay)",
+      "name": "3. Create Order",
       "event": [
         {
           "listen": "prerequest",
@@ -90,8 +90,7 @@
             "type": "text/javascript",
             "exec": [
               "pm.test('Order created', function() { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });",
-              "pm.environment.set('transaction_id', pm.response.json().transactionId);",
-              "console.log('📦 Order created (will NOT pay) | transactionId: ' + pm.response.json().transactionId);"
+              "pm.environment.set('transaction_id', pm.response.json().transactionId);"
             ]
           }
         }
@@ -146,7 +145,48 @@
       }
     },
     {
-      "name": "5. Wait for EXPIRED (poll every 15s)",
+      "name": "5. Create Payment (will expire)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.environment.set('payment_idem', pm.variables.replaceIn('{{$guid}}'));"]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Payment created', function() { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });",
+              "pm.environment.set('payment_id', pm.response.json().paymentId);",
+              "console.log('💳 Payment created (will expire) | paymentId: ' + pm.response.json().paymentId);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "X-Idempotency-Key", "value": "{{payment_idem}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"transactionId\": \"{{transaction_id}}\",\n    \"paymentMethod\": \"CREDIT_CARD\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}:{{gateway_port}}/api/v1/payments",
+          "host": ["{{base_url}}"],
+          "port": "{{gateway_port}}",
+          "path": ["api", "v1", "payments"]
+        }
+      }
+    },
+    {
+      "name": "6. Wait for Payment to Expire (FAILED)",
       "event": [
         {
           "listen": "test",
@@ -154,15 +194,15 @@
             "type": "text/javascript",
             "exec": [
               "pm.test('Status retrieved', function() { pm.response.to.have.status(200); });",
-              "const status = pm.response.json().orderStatus;",
-              "console.log('📋 status: ' + status);",
-              "if (status === 'EXPIRED') {",
+              "const status = pm.response.json().status;",
+              "console.log('💳 paymentStatus: ' + status);",
+              "if (status === 'FAILED') {",
               "    pm.environment.unset('_r2');",
-              "    pm.test('✅ Order EXPIRED', function() { pm.expect(status).to.equal('EXPIRED'); });",
+              "    pm.test('Payment expired (FAILED)', function() { pm.expect(status).to.equal('FAILED'); });",
               "} else {",
               "    let c = pm.environment.get('_r2') || 0; c++;",
-              "    if (c < 12) { pm.environment.set('_r2', c); postman.setNextRequest('5. Wait for EXPIRED (poll every 15s)'); }",
-              "    else { pm.environment.unset('_r2'); pm.expect.fail('Timed out waiting for EXPIRED'); }",
+              "    if (c < 8) { pm.environment.set('_r2', c); postman.setNextRequest('6. Wait for Payment to Expire (FAILED)'); }",
+              "    else { pm.environment.unset('_r2'); pm.expect.fail('Timed out waiting for payment FAILED'); }",
               "}"
             ]
           }
@@ -173,10 +213,71 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "{{base_url}}:{{gateway_port}}/api/v1/orders/status/{{transaction_id}}",
+          "raw": "{{base_url}}:{{gateway_port}}/api/v1/payments/status/{{transaction_id}}",
           "host": ["{{base_url}}"],
           "port": "{{gateway_port}}",
-          "path": ["api", "v1", "orders", "status", "{{transaction_id}}"]
+          "path": ["api", "v1", "payments", "status", "{{transaction_id}}"]
+        }
+      }
+    },
+    {
+      "name": "7. Send Late Webhook SUCCESS (after expiry)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Late webhook accepted', function() { pm.expect(pm.response.code).to.be.oneOf([200, 202]); });",
+              "console.log('🔔 Late PAYMENT_SUCCESS webhook sent after payment already FAILED');"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"paymentId\": \"{{payment_id}}\",\n    \"paymentStatus\": \"PAYMENT_SUCCESS\",\n    \"failureCode\": \"\",\n    \"failureMessage\": \"\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}:{{gateway_port}}/api/v1/payments/webhook/callback",
+          "host": ["{{base_url}}"],
+          "port": "{{gateway_port}}",
+          "path": ["api", "v1", "payments", "webhook", "callback"]
+        }
+      }
+    },
+    {
+      "name": "8. Verify Payment Status (silent refund, no order event)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Payment status retrieved', function() { pm.response.to.have.status(200); });",
+              "const status = pm.response.json().status;",
+              "console.log('💳 Final payment status: ' + status);",
+              "// After late webhook, payment-service triggers silent refund",
+              "// Status should be REFUNDED (silent) or still FAILED",
+              "pm.test('✅ Payment handled gracefully (FAILED or REFUNDED)', function() {",
+              "    pm.expect(['FAILED', 'REFUNDED']).to.include(status);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}:{{gateway_port}}/api/v1/payments/status/{{transaction_id}}",
+          "host": ["{{base_url}}"],
+          "port": "{{gateway_port}}",
+          "path": ["api", "v1", "payments", "status", "{{transaction_id}}"]
         }
       }
     }

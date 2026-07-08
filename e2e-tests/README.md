@@ -99,9 +99,78 @@ Edit `environment.json` or pass parameters to the runner script:
 | `product_id` | `d4e5f6a7-...` | Product ID from init.sql seed data |
 | `test_password` | `TestUser_1!` | Password for test users |
 
+## Database Cleanup
+
+To avoid conflicts from previous test runs, use the built-in cleanup scripts:
+
+### Auto-Cleanup (Recommended)
+The test runners automatically clean databases before running tests:
+
+```bash
+# Windows
+run-with-cleanup.bat              # Fast tests + cleanup
+run-with-cleanup.bat --with-scheduler  # All tests + cleanup
+
+# Linux/Mac
+./run-with-cleanup.sh
+./run-with-cleanup.sh --with-scheduler
+```
+
+### Manual Cleanup
+Clean databases without running tests:
+
+```bash
+# Windows - Standard cleanup (preserves reference data)
+cleanup-dbs.bat                  # Local Docker databases
+cleanup-dbs.bat aws              # AWS RDS (requires AWS_RDS_HOST env var)
+
+# Windows - Force clean (ALL tables including reference data)
+cleanup-dbs.bat --force
+cleanup-dbs.bat aws --force
+
+# Linux/Mac - Standard cleanup (preserves reference data)
+./cleanup-dbs.sh
+./cleanup-dbs.sh aws
+
+# Linux/Mac - Force clean (ALL tables including reference data)
+./cleanup-dbs.sh --force
+./cleanup-dbs.sh aws --force
+```
+
+### What Gets Cleaned
+The cleanup script selectively truncates tables in 5 databases:
+
+| Database | Port | Cleaned | Preserved (Reference Data) |
+|----------|------|----------|---------------------------|
+| `auth_service_db` | 5432 | ✅ `users` | None |
+| `order_service_db` | 5433 | ✅ `orders`, `order_items`, `order_ledger` | ✅ `discounts` |
+| `inventory_service_db` | 5434 | ✅ `stock_reservation`, `stock_ledger` | ✅ `products` |
+| `payment_service_db` | 5435 | ✅ `payments`, `payment_ledger` | None |
+| `orchestrator_service_db` | 5436 | ✅ `saga_state` | None |
+
+**Standard cleanup** (default) preserves reference data:
+- `products` table in inventory service (sample products for testing)
+- `discounts` table in order service (discount codes)
+
+**Force cleanup** (`--force` flag) cleans ALL tables including reference data.
+
+This ensures each test run starts with a clean slate while preserving your test data.
+
+## Troubleshooting
+
+### 409 Conflict on Registration
+If you see `409 Conflict` on `/api/v1/auth/register`:
+
+1. **Ensure cleanup runs** - Use `run-with-cleanup.sh` instead of `run-all.sh`
+2. **Clear Postman environment** - Delete the `test_email` variable in Postman
+3. **Check database** - Verify cleanup script succeeded (look for "All databases cleaned successfully")
+
+The test suites now generate unique emails automatically (`e2e_<timestamp>@testmail.com`), so this should be resolved with the auto-cleanup scripts.
+
 ## Notes
 
 - Each test suite creates its own user (unique email with timestamp) — no shared state between runs
+- Auto-cleanup scripts are now integrated into test runners to prevent conflicts
 - Fast tests poll up to 5 retries with `--delay-request` between each
 - Scheduler tests poll up to 8-10 retries with 15s delay (covers 90s expiry + 30s scheduler)
 - Increase `--delay-request` if tests fail on slower environments

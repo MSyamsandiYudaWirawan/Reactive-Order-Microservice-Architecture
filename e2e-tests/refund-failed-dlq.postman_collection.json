@@ -1,8 +1,8 @@
 {
   "info": {
-    "name": "E2E - Compensation: Payment Failed + Retry (COMPLETED)",
+    "name": "E2E - Compensation: Refund Failed → DLQ (Manual Intervention)",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "Payment FAILED → Order stays WAITING_PAYMENT → User retries with new payment → SUCCESS → COMPLETED"
+    "description": "Order qty=99999 → Create Payment immediately (before stock check) → Webhook SUCCESS → OUT_OF_STOCK → Orchestrator triggers REFUND → Webhook REFUND_FAILED → payment-dlq produced → Order REFUND_FAILED"
   },
   "event": [],
   "item": [
@@ -16,7 +16,7 @@
             "exec": [
               "if (!pm.environment.get('test_email') || pm.environment.get('test_email') === '') {",
               "    const ts = Date.now();",
-              "    pm.environment.set('test_email', 'e2e_pf_' + ts + '@testmail.com');",
+              "    pm.environment.set('test_email', 'e2e_dlq_' + ts + '@testmail.com');",
               "    pm.environment.set('test_phone', '+628' + ts.toString().slice(-10));",
               "}"
             ]
@@ -75,7 +75,7 @@
       }
     },
     {
-      "name": "3. Create Order",
+      "name": "3. Create Order (qty=99999, will be OUT_OF_STOCK after 15s)",
       "event": [
         {
           "listen": "prerequest",
@@ -91,7 +91,7 @@
             "exec": [
               "pm.test('Order created', function() { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });",
               "pm.environment.set('transaction_id', pm.response.json().transactionId);",
-              "console.log('📦 Order created | transactionId: ' + pm.response.json().transactionId);"
+              "console.log('📦 Order created (qty=99999) | transactionId: ' + pm.response.json().transactionId);"
             ]
           }
         }
@@ -105,7 +105,7 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n    \"discountCode\": \"\",\n    \"items\": [\n        {\n            \"productId\": \"{{product_id}}\",\n            \"quantity\": 1\n        }\n    ]\n}"
+          "raw": "{\n    \"discountCode\": \"\",\n    \"items\": [\n        {\n            \"productId\": \"{{product_id}}\",\n            \"quantity\": 99999\n        }\n    ]\n}"
         },
         "url": {
           "raw": "{{base_url}}:{{gateway_port}}/api/v1/orders",
@@ -116,43 +116,13 @@
       }
     },
     {
-      "name": "4. Poll Order (WAITING_PAYMENT)",
-      "event": [
-        {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "const status = pm.response.json().orderStatus;",
-              "if (status === 'PENDING') {",
-              "    let c = pm.environment.get('_r1') || 0; c++;",
-              "    if (c < 10) { pm.environment.set('_r1', c); postman.setNextRequest('4. Poll Order (WAITING_PAYMENT)'); }",
-              "    else { pm.environment.unset('_r1'); pm.expect.fail('Timeout'); }",
-              "} else { pm.environment.unset('_r1'); pm.test('WAITING_PAYMENT', function() { pm.expect(status).to.equal('WAITING_PAYMENT'); }); }"
-            ]
-          }
-        }
-      ],
-      "request": {
-        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
-        "method": "GET",
-        "header": [],
-        "url": {
-          "raw": "{{base_url}}:{{gateway_port}}/api/v1/orders/status/{{transaction_id}}",
-          "host": ["{{base_url}}"],
-          "port": "{{gateway_port}}",
-          "path": ["api", "v1", "orders", "status", "{{transaction_id}}"]
-        }
-      }
-    },
-    {
-      "name": "5. Create Payment (1st attempt - will fail)",
+      "name": "4. Create Payment immediately (before stock check completes)",
       "event": [
         {
           "listen": "prerequest",
           "script": {
             "type": "text/javascript",
-            "exec": ["pm.environment.set('payment_idem_1', pm.variables.replaceIn('{{$guid}}'));"]
+            "exec": ["pm.environment.set('payment_idem', pm.variables.replaceIn('{{$guid}}'));"]
           }
         },
         {
@@ -161,8 +131,8 @@
             "type": "text/javascript",
             "exec": [
               "pm.test('Payment created', function() { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });",
-              "pm.environment.set('payment_id_1', pm.response.json().paymentId);",
-              "console.log('💳 Payment #1 created (will FAIL) | paymentId: ' + pm.response.json().paymentId);"
+              "pm.environment.set('payment_id', pm.response.json().paymentId);",
+              "console.log('💳 Payment created immediately | paymentId: ' + pm.response.json().paymentId);"
             ]
           }
         }
@@ -172,103 +142,7 @@
         "method": "POST",
         "header": [
           { "key": "Content-Type", "value": "application/json" },
-          { "key": "X-Idempotency-Key", "value": "{{payment_idem_1}}" }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n    \"transactionId\": \"{{transaction_id}}\",\n    \"paymentMethod\": \"DEBIT_CARD\"\n}"
-        },
-        "url": {
-          "raw": "{{base_url}}:{{gateway_port}}/api/v1/payments",
-          "host": ["{{base_url}}"],
-          "port": "{{gateway_port}}",
-          "path": ["api", "v1", "payments"]
-        }
-      }
-    },
-    {
-      "name": "6. Webhook - Payment FAILED",
-      "event": [
-        {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": ["pm.test('Webhook OK', function() { pm.expect(pm.response.code).to.be.oneOf([200, 202]); });"]
-          }
-        }
-      ],
-      "request": {
-        "method": "POST",
-        "header": [{ "key": "Content-Type", "value": "application/json" }],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n    \"paymentId\": \"{{payment_id_1}}\",\n    \"paymentStatus\": \"PAYMENT_FAILED\",\n    \"failureCode\": \"INSUFFICIENT_FUNDS\",\n    \"failureMessage\": \"Card declined\"\n}"
-        },
-        "url": {
-          "raw": "{{base_url}}:{{gateway_port}}/api/v1/payments/webhook/callback",
-          "host": ["{{base_url}}"],
-          "port": "{{gateway_port}}",
-          "path": ["api", "v1", "payments", "webhook", "callback"]
-        }
-      }
-    },
-    {
-      "name": "7. Verify Order Still WAITING_PAYMENT",
-      "event": [
-        {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "pm.test('Order still WAITING_PAYMENT', function() {",
-              "    pm.response.to.have.status(200);",
-              "    pm.expect(pm.response.json().orderStatus).to.equal('WAITING_PAYMENT');",
-              "});",
-              "console.log('✅ Order stays WAITING_PAYMENT (user can retry)');"
-            ]
-          }
-        }
-      ],
-      "request": {
-        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
-        "method": "GET",
-        "header": [],
-        "url": {
-          "raw": "{{base_url}}:{{gateway_port}}/api/v1/orders/status/{{transaction_id}}",
-          "host": ["{{base_url}}"],
-          "port": "{{gateway_port}}",
-          "path": ["api", "v1", "orders", "status", "{{transaction_id}}"]
-        }
-      }
-    },
-    {
-      "name": "8. Create Payment (2nd attempt - retry)",
-      "event": [
-        {
-          "listen": "prerequest",
-          "script": {
-            "type": "text/javascript",
-            "exec": ["pm.environment.set('payment_idem_2', pm.variables.replaceIn('{{$guid}}'));"]
-          }
-        },
-        {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "pm.test('Retry payment created', function() { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });",
-              "pm.environment.set('payment_id_2', pm.response.json().paymentId);",
-              "console.log('💳 Payment #2 created (retry) | paymentId: ' + pm.response.json().paymentId);"
-            ]
-          }
-        }
-      ],
-      "request": {
-        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
-        "method": "POST",
-        "header": [
-          { "key": "Content-Type", "value": "application/json" },
-          { "key": "X-Idempotency-Key", "value": "{{payment_idem_2}}" }
+          { "key": "X-Idempotency-Key", "value": "{{payment_idem}}" }
         ],
         "body": {
           "mode": "raw",
@@ -283,13 +157,16 @@
       }
     },
     {
-      "name": "9. Webhook - Payment SUCCESS (retry)",
+      "name": "5. Webhook PAYMENT_SUCCESS (payment charged before stock result)",
       "event": [
         {
           "listen": "test",
           "script": {
             "type": "text/javascript",
-            "exec": ["pm.test('Webhook OK', function() { pm.expect(pm.response.code).to.be.oneOf([200, 202]); });"]
+            "exec": [
+              "pm.test('Webhook OK', function() { pm.expect(pm.response.code).to.be.oneOf([200, 202]); });",
+              "console.log('🔔 PAYMENT_SUCCESS webhook sent — orchestrator will see OUT_OF_STOCK + PAID → triggers REFUND');"
+            ]
           }
         }
       ],
@@ -298,7 +175,7 @@
         "header": [{ "key": "Content-Type", "value": "application/json" }],
         "body": {
           "mode": "raw",
-          "raw": "{\n    \"paymentId\": \"{{payment_id_2}}\",\n    \"paymentStatus\": \"PAYMENT_SUCCESS\",\n    \"failureCode\": \"\",\n    \"failureMessage\": \"\"\n}"
+          "raw": "{\n    \"paymentId\": \"{{payment_id}}\",\n    \"paymentStatus\": \"PAYMENT_SUCCESS\",\n    \"failureCode\": \"\",\n    \"failureMessage\": \"\"\n}"
         },
         "url": {
           "raw": "{{base_url}}:{{gateway_port}}/api/v1/payments/webhook/callback",
@@ -309,20 +186,92 @@
       }
     },
     {
-      "name": "10. Poll Order (COMPLETED)",
+      "name": "6. Wait for orchestrator to trigger refund (~15s stock delay)",
       "event": [
         {
           "listen": "test",
           "script": {
             "type": "text/javascript",
             "exec": [
+              "pm.test('Status retrieved', function() { pm.response.to.have.status(200); });",
+              "const status = pm.response.json().status;",
+              "console.log('💳 Payment status: ' + status);",
+              "// Payment should become SUCCESS (from our webhook in step 5)",
+              "// Then orchestrator sees OUT_OF_STOCK + PAID → triggers refund-requested",
+              "// Payment stays SUCCESS until refund webhook arrives",
+              "if (status === 'PENDING') {",
+              "    let c = pm.environment.get('_r1') || 0; c++;",
+              "    if (c < 10) { pm.environment.set('_r1', c); postman.setNextRequest('6. Wait for orchestrator to trigger refund (~15s stock delay)'); }",
+              "    else { pm.environment.unset('_r1'); pm.expect.fail('Timeout'); }",
+              "} else {",
+              "    pm.environment.unset('_r1');",
+              "    pm.test('Payment is SUCCESS (refund pending from provider)', function() { pm.expect(status).to.equal('SUCCESS'); });",
+              "    console.log('✅ Payment SUCCESS confirmed — orchestrator should have triggered refund by now');",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}:{{gateway_port}}/api/v1/payments/status/{{transaction_id}}",
+          "host": ["{{base_url}}"],
+          "port": "{{gateway_port}}",
+          "path": ["api", "v1", "payments", "status", "{{transaction_id}}"]
+        }
+      }
+    },
+    {
+      "name": "7. Webhook REFUND_FAILED (provider cannot refund)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Webhook OK', function() { pm.expect(pm.response.code).to.be.oneOf([200, 202]); });",
+              "console.log('🔔 REFUND_FAILED webhook sent — payment-service will produce to payment-dlq + order-refund-failed');"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"paymentId\": \"{{payment_id}}\",\n    \"paymentStatus\": \"REFUND_FAILED\",\n    \"failureCode\": \"PROVIDER_ERROR\",\n    \"failureMessage\": \"Refund rejected by payment provider\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}:{{gateway_port}}/api/v1/payments/webhook/callback",
+          "host": ["{{base_url}}"],
+          "port": "{{gateway_port}}",
+          "path": ["api", "v1", "payments", "webhook", "callback"]
+        }
+      }
+    },
+    {
+      "name": "8. Verify Order is REFUND_FAILED",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status retrieved', function() { pm.response.to.have.status(200); });",
               "const status = pm.response.json().orderStatus;",
-              "console.log('📋 status: ' + status);",
-              "if (status !== 'COMPLETED') {",
+              "console.log('📋 orderStatus: ' + status);",
+              "if (status !== 'REFUND_FAILED') {",
               "    let c = pm.environment.get('_r2') || 0; c++;",
-              "    if (c < 5) { pm.environment.set('_r2', c); postman.setNextRequest('10. Poll Order (COMPLETED)'); }",
-              "    else { pm.environment.unset('_r2'); pm.expect.fail('Timeout'); }",
-              "} else { pm.environment.unset('_r2'); pm.test('✅ Order COMPLETED after retry', function() { pm.expect(status).to.equal('COMPLETED'); }); }"
+              "    if (c < 10) { pm.environment.set('_r2', c); postman.setNextRequest('8. Verify Order is REFUND_FAILED'); }",
+              "    else { pm.environment.unset('_r2'); pm.expect.fail('Timeout waiting for REFUND_FAILED'); }",
+              "} else {",
+              "    pm.environment.unset('_r2');",
+              "    pm.test('✅ Order is REFUND_FAILED (needs manual intervention)', function() { pm.expect(status).to.equal('REFUND_FAILED'); });",
+              "}"
             ]
           }
         }
@@ -336,6 +285,34 @@
           "host": ["{{base_url}}"],
           "port": "{{gateway_port}}",
           "path": ["api", "v1", "orders", "status", "{{transaction_id}}"]
+        }
+      }
+    },
+    {
+      "name": "9. Verify Payment is REFUND_FAILED",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Payment status retrieved', function() { pm.response.to.have.status(200); });",
+              "const status = pm.response.json().status;",
+              "pm.test('✅ Payment is REFUND_FAILED', function() { pm.expect(status).to.equal('REFUND_FAILED'); });",
+              "console.log('💳 Payment status: ' + status + ' — DLQ message should be in payment-dlq topic');"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}:{{gateway_port}}/api/v1/payments/status/{{transaction_id}}",
+          "host": ["{{base_url}}"],
+          "port": "{{gateway_port}}",
+          "path": ["api", "v1", "payments", "status", "{{transaction_id}}"]
         }
       }
     }
