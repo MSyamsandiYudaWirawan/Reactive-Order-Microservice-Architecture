@@ -1,0 +1,206 @@
+{
+  "info": {
+    "name": "E2E - Idempotency Test",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Tests idempotency: same X-Idempotency-Key returns same transactionId, missing key returns error"
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "if (!pm.environment.get('test_email') || pm.environment.get('test_email') === '') {",
+          "    const uniqueEmail = 'e2e_idem_' + Date.now() + '@testmail.com';",
+          "    pm.environment.set('test_email', uniqueEmail);",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Register",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('OK', function() { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });"]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"name\": \"{{test_name}}\",\n    \"email\": \"{{test_email}}\",\n    \"phoneNumber\": \"+6281234567895\",\n    \"password\": \"{{test_password}}\",\n    \"confirmPassword\": \"{{test_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}:{{gateway_port}}/api/v1/auth/register",
+          "host": ["{{base_url}}"],
+          "port": "{{gateway_port}}",
+          "path": ["api", "v1", "auth", "register"]
+        }
+      }
+    },
+    {
+      "name": "2. Login",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Login OK', function() {",
+              "    pm.response.to.have.status(200);",
+              "    const r = pm.response.json();",
+              "    pm.environment.set('access_token', r.access_token);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"email\": \"{{test_email}}\",\n    \"password\": \"{{test_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}:{{gateway_port}}/api/v1/auth/login",
+          "host": ["{{base_url}}"],
+          "port": "{{gateway_port}}",
+          "path": ["api", "v1", "auth", "login"]
+        }
+      }
+    },
+    {
+      "name": "3. Create Order (save idempotency key)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Use a fixed idempotency key for this test",
+              "pm.environment.set('fixed_idempotency_key', 'e2e-idem-test-' + Date.now());"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Order created', function() {",
+              "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+              "    const r = pm.response.json();",
+              "    pm.environment.set('transaction_id', r.transactionId);",
+              "    console.log('✅ 1st call transactionId:', r.transactionId);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "X-Idempotency-Key", "value": "{{fixed_idempotency_key}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"discountCode\": \"\",\n    \"items\": [\n        {\n            \"productId\": \"{{product_id}}\",\n            \"quantity\": 1\n        }\n    ]\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}:{{gateway_port}}/api/v1/orders",
+          "host": ["{{base_url}}"],
+          "port": "{{gateway_port}}",
+          "path": ["api", "v1", "orders"]
+        }
+      }
+    },
+    {
+      "name": "4. Retry Same Idempotency Key (should return same result)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Idempotent response (same transactionId or 409)', function() {",
+              "    // Either returns same transactionId (200) or conflict (409)",
+              "    if (pm.response.code === 200 || pm.response.code === 201) {",
+              "        const r = pm.response.json();",
+              "        const originalTxId = pm.environment.get('transaction_id');",
+              "        pm.expect(r.transactionId).to.equal(originalTxId);",
+              "        console.log('✅ Idempotent: same transactionId returned');",
+              "    } else if (pm.response.code === 409) {",
+              "        console.log('✅ Idempotent: duplicate rejected with 409');",
+              "    } else {",
+              "        pm.expect.fail('Unexpected status: ' + pm.response.code);",
+              "    }",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "X-Idempotency-Key", "value": "{{fixed_idempotency_key}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"discountCode\": \"\",\n    \"items\": [\n        {\n            \"productId\": \"{{product_id}}\",\n            \"quantity\": 1\n        }\n    ]\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}:{{gateway_port}}/api/v1/orders",
+          "host": ["{{base_url}}"],
+          "port": "{{gateway_port}}",
+          "path": ["api", "v1", "orders"]
+        }
+      }
+    },
+    {
+      "name": "5. Missing Idempotency Key (should fail)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Missing idempotency key rejected (400)', function() {",
+              "    pm.expect(pm.response.code).to.equal(400);",
+              "    console.log('✅ Missing X-Idempotency-Key correctly rejected');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"discountCode\": \"\",\n    \"items\": [\n        {\n            \"productId\": \"{{product_id}}\",\n            \"quantity\": 1\n        }\n    ]\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}:{{gateway_port}}/api/v1/orders",
+          "host": ["{{base_url}}"],
+          "port": "{{gateway_port}}",
+          "path": ["api", "v1", "orders"]
+        }
+      }
+    }
+  ]
+}

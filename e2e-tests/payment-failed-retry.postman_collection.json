@@ -1,0 +1,385 @@
+{
+  "info": {
+    "name": "E2E - Compensation: Payment Failed + Retry",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "COMPENSATION FLOW: Payment fails → order stays WAITING_PAYMENT (user can retry) → retry with new payment → SUCCESS → COMPLETED"
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "if (!pm.environment.get('test_email') || pm.environment.get('test_email') === '') {",
+          "    const uniqueEmail = 'e2e_pf_' + Date.now() + '@testmail.com';",
+          "    pm.environment.set('test_email', uniqueEmail);",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Register User",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('OK', function() { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });"]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"name\": \"{{test_name}}\",\n    \"email\": \"{{test_email}}\",\n    \"phoneNumber\": \"+6281234567892\",\n    \"password\": \"{{test_password}}\",\n    \"confirmPassword\": \"{{test_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}:{{gateway_port}}/api/v1/auth/register",
+          "host": ["{{base_url}}"],
+          "port": "{{gateway_port}}",
+          "path": ["api", "v1", "auth", "register"]
+        }
+      }
+    },
+    {
+      "name": "2. Login",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Login OK', function() {",
+              "    pm.response.to.have.status(200);",
+              "    pm.environment.set('access_token', pm.response.json().access_token);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"email\": \"{{test_email}}\",\n    \"password\": \"{{test_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}:{{gateway_port}}/api/v1/auth/login",
+          "host": ["{{base_url}}"],
+          "port": "{{gateway_port}}",
+          "path": ["api", "v1", "auth", "login"]
+        }
+      }
+    },
+    {
+      "name": "3. Create Order",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.environment.set('idempotency_key', pm.variables.replaceIn('{{$guid}}'));"]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Order created', function() { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });",
+              "const r = pm.response.json();",
+              "pm.environment.set('transaction_id', r.transactionId);",
+              "console.log('┌─────────────────────────────────────');",
+              "console.log('│ 📦 ORDER CREATED');",
+              "console.log('│ transactionId: ' + r.transactionId);",
+              "console.log('└─────────────────────────────────────');"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "X-Idempotency-Key", "value": "{{idempotency_key}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"discountCode\": \"\",\n    \"items\": [\n        {\n            \"productId\": \"{{product_id}}\",\n            \"quantity\": 1\n        }\n    ]\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}:{{gateway_port}}/api/v1/orders",
+          "host": ["{{base_url}}"],
+          "port": "{{gateway_port}}",
+          "path": ["api", "v1", "orders"]
+        }
+      }
+    },
+    {
+      "name": "4. Poll Order Status (WAITING_PAYMENT)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const response = pm.response.json();",
+              "const status = response.orderStatus;",
+              "console.log('│ 📋 status: ' + status + ' | transactionId: ' + response.transactionId + ' | correlationId: ' + response.correlationId);",
+              "if (status === 'PENDING') {",
+              "    let r = pm.environment.get('retry_pf_1') || 0; r++;",
+              "    if (r < 5) { pm.environment.set('retry_pf_1', r); postman.setNextRequest('4. Poll Order Status (WAITING_PAYMENT)'); }",
+              "    else { pm.environment.unset('retry_pf_1'); pm.test('WAITING_PAYMENT', function(){ pm.expect(status).to.equal('WAITING_PAYMENT'); }); }",
+              "} else {",
+              "    pm.environment.unset('retry_pf_1');",
+              "    pm.environment.set('correlation_id', response.correlationId);",
+              "    pm.test('WAITING_PAYMENT', function(){ pm.expect(status).to.equal('WAITING_PAYMENT'); });",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}:{{gateway_port}}/api/v1/orders/status/{{transaction_id}}",
+          "host": ["{{base_url}}"],
+          "port": "{{gateway_port}}",
+          "path": ["api", "v1", "orders", "status", "{{transaction_id}}"]
+        }
+      }
+    },
+    {
+      "name": "5. Create Payment (1st attempt — will fail)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.environment.set('payment_idempotency_key', pm.variables.replaceIn('{{$guid}}'));"]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Payment created', function() { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });",
+              "const r = pm.response.json();",
+              "pm.environment.set('payment_id', r.paymentId);",
+              "console.log('┌─────────────────────────────────────');",
+              "console.log('│ 💳 PAYMENT #1 CREATED (will send FAILED webhook)');",
+              "console.log('│ paymentId:     ' + r.paymentId);",
+              "console.log('│ transactionId: ' + r.transactionId);",
+              "console.log('│ amount:        ' + r.amount);",
+              "console.log('└─────────────────────────────────────');"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "X-Idempotency-Key", "value": "{{payment_idempotency_key}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"transactionId\": \"{{transaction_id}}\",\n    \"paymentMethod\": \"DEBIT_CARD\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}:{{gateway_port}}/api/v1/payments",
+          "host": ["{{base_url}}"],
+          "port": "{{gateway_port}}",
+          "path": ["api", "v1", "payments"]
+        }
+      }
+    },
+    {
+      "name": "6. Webhook - Payment Failed",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Webhook accepted', function() { pm.expect(pm.response.code).to.be.oneOf([200, 202]); });",
+              "console.log('│ 🔔 WEBHOOK sent: PAYMENT_FAILED | paymentId: ' + pm.environment.get('payment_id'));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"paymentId\": \"{{payment_id}}\",\n    \"paymentStatus\": \"PAYMENT_FAILED\",\n    \"failureCode\": \"INSUFFICIENT_FUNDS\",\n    \"failureMessage\": \"Card declined\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}:{{gateway_port}}/api/v1/payments/webhook/callback",
+          "host": ["{{base_url}}"],
+          "port": "{{gateway_port}}",
+          "path": ["api", "v1", "payments", "webhook", "callback"]
+        }
+      }
+    },
+    {
+      "name": "7. Verify Order Still WAITING_PAYMENT",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Order still WAITING_PAYMENT', function() {",
+              "    pm.response.to.have.status(200);",
+              "    const r = pm.response.json();",
+              "    pm.expect(r.orderStatus).to.equal('WAITING_PAYMENT');",
+              "    console.log('│ ✅ Order stays WAITING_PAYMENT (user can retry) | correlationId: ' + r.correlationId);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}:{{gateway_port}}/api/v1/orders/status/{{transaction_id}}",
+          "host": ["{{base_url}}"],
+          "port": "{{gateway_port}}",
+          "path": ["api", "v1", "orders", "status", "{{transaction_id}}"]
+        }
+      }
+    },
+    {
+      "name": "8. Create Payment (2nd attempt — retry)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.environment.set('payment_idempotency_key_2', pm.variables.replaceIn('{{$guid}}'));"]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Retry payment created', function() { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });",
+              "const r = pm.response.json();",
+              "pm.environment.set('payment_id', r.paymentId);",
+              "console.log('┌─────────────────────────────────────');",
+              "console.log('│ 💳 PAYMENT #2 CREATED (retry, will succeed)');",
+              "console.log('│ paymentId:     ' + r.paymentId);",
+              "console.log('│ transactionId: ' + r.transactionId);",
+              "console.log('│ amount:        ' + r.amount);",
+              "console.log('└─────────────────────────────────────');"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "X-Idempotency-Key", "value": "{{payment_idempotency_key_2}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"transactionId\": \"{{transaction_id}}\",\n    \"paymentMethod\": \"CREDIT_CARD\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}:{{gateway_port}}/api/v1/payments",
+          "host": ["{{base_url}}"],
+          "port": "{{gateway_port}}",
+          "path": ["api", "v1", "payments"]
+        }
+      }
+    },
+    {
+      "name": "9. Webhook - Payment Success (retry)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Webhook accepted', function() { pm.expect(pm.response.code).to.be.oneOf([200, 202]); });",
+              "console.log('│ 🔔 WEBHOOK sent: PAYMENT_SUCCESS | paymentId: ' + pm.environment.get('payment_id'));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"paymentId\": \"{{payment_id}}\",\n    \"paymentStatus\": \"PAYMENT_SUCCESS\",\n    \"failureCode\": \"\",\n    \"failureMessage\": \"\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}:{{gateway_port}}/api/v1/payments/webhook/callback",
+          "host": ["{{base_url}}"],
+          "port": "{{gateway_port}}",
+          "path": ["api", "v1", "payments", "webhook", "callback"]
+        }
+      }
+    },
+    {
+      "name": "10. Poll Order Status (COMPLETED)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const response = pm.response.json();",
+              "const status = response.orderStatus;",
+              "console.log('│ 📋 status: ' + status + ' | transactionId: ' + response.transactionId + ' | correlationId: ' + response.correlationId);",
+              "if (status !== 'COMPLETED') {",
+              "    let r = pm.environment.get('retry_pf_final') || 0; r++;",
+              "    if (r < 5) { pm.environment.set('retry_pf_final', r); postman.setNextRequest('10. Poll Order Status (COMPLETED)'); }",
+              "    else { pm.environment.unset('retry_pf_final'); pm.test('COMPLETED', function(){ pm.expect(status).to.equal('COMPLETED'); }); }",
+              "} else {",
+              "    pm.environment.unset('retry_pf_final');",
+              "    pm.test('✅ Order COMPLETED after payment retry', function(){ pm.expect(status).to.equal('COMPLETED'); });",
+              "    console.log('┌─────────────────────────────────────');",
+              "    console.log('│ 🎉 PAYMENT RETRY FLOW COMPLETED');",
+              "    console.log('│ transactionId: ' + response.transactionId);",
+              "    console.log('│ correlationId: ' + response.correlationId);",
+              "    console.log('│ paymentId:     ' + pm.environment.get('payment_id'));",
+              "    console.log('│ finalStatus:   ' + status);",
+              "    console.log('└─────────────────────────────────────');",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}:{{gateway_port}}/api/v1/orders/status/{{transaction_id}}",
+          "host": ["{{base_url}}"],
+          "port": "{{gateway_port}}",
+          "path": ["api", "v1", "orders", "status", "{{transaction_id}}"]
+        }
+      }
+    }
+  ]
+}
