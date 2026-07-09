@@ -1,11 +1,11 @@
 resource "aws_msk_cluster" "main" {
   cluster_name           = "reactive-order-kafka"
   kafka_version          = "3.7.x.kraft"
-  number_of_broker_nodes = 1
+  number_of_broker_nodes = 2
 
   broker_node_group_info {
-    instance_type   = "kafka.t3.small"
-    client_subnets  = [aws_subnet.private-ap-southeast-3a.id]
+    instance_type   = "kafka.m5.large"
+    client_subnets  = [aws_subnet.private-ap-southeast-3a.id, aws_subnet.private-ap-southeast-3b.id]
     security_groups = [aws_security_group.messaging.id]
 
     storage_info {

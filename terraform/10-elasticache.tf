@@ -13,7 +13,7 @@ resource "aws_elasticache_cluster" "redis" {
   subnet_group_name = aws_elasticache_subnet_group.main.name
   security_group_ids = [aws_security_group.messaging.id]
   az_mode = "single-az"
-  preferred_availability_zones = "ap-southeast-3a" # Elastic in one AZ only for demo
+  preferred_availability_zones = ["ap-southeast-3a"] # Elastic in one AZ only for demo
 
   tags = {
     Name = "reactive-order-redis"

@@ -9,6 +9,16 @@ locals {
 }
 
 
+resource "aws_db_parameter_group" "no_ssl" {
+  name   = "reactive-order-no-ssl"
+  family = "postgres17"
+
+  parameter {
+    name  = "rds.force_ssl"
+    value = "0"
+  }
+}
+
 resource "aws_db_subnet_group" "main" {
   name = "reactive-order-db-subnet-group"
   subnet_ids = [aws_subnet.private-ap-southeast-3a.id, aws_subnet.private-ap-southeast-3b.id]
@@ -35,6 +45,8 @@ resource "aws_db_instance" "services" {
 
   publicly_accessible = false
   skip_final_snapshot = true
+
+  parameter_group_name = aws_db_parameter_group.no_ssl.name
 
   tags = {
     Name = "reactive-order-${each.key}-db"

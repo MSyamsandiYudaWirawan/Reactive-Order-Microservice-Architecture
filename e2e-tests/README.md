@@ -15,17 +15,11 @@ npm install -g newman-reporter-htmlextra  # optional: HTML reports
 
 | Suite | File | Flow Tested |
 |-------|------|-------------|
-| Auth Flow | `auth-flow` | Register → Login → Refresh → Invalid token (401) → Duplicate email (409) |
 | Happy Path | `happy-path` | Register → Login → Order → WAITING_PAYMENT → Pay → Webhook SUCCESS → COMPLETED |
-| Idempotency | `idempotency-test` | Same X-Idempotency-Key → same result, missing key → 400 |
-
-### Compensation Tests — Instant (no scheduler wait)
-
-| Suite | File | Compensation Flow |
-|-------|------|-------------------|
-| Out of Stock | `out-of-stock` | Order qty > available → saga FAILED → order OUT_OF_STOCK (no refund needed) |
 | Payment Failed + Retry | `payment-failed-retry` | Webhook FAILED → order stays WAITING_PAYMENT → user retries → SUCCESS → COMPLETED |
-| Refund (stock exhaustion) | `refund-flow` | Order 1 reserves 55/60 → Order 2 (10) gets OUT_OF_STOCK → Order 1 completes |
+| Out of Stock | `out-of-stock` | Order qty=99999 → saga FAILED → order OUT_OF_STOCK (no refund needed) |
+| Refund Flow | `refund-flow` | Order qty=99999 → Pay immediately → Webhook SUCCESS → OUT_OF_STOCK → REFUND → REFUNDED |
+| Refund Failed + DLQ | `refund-failed-dlq` | Same as refund flow but Webhook REFUND_FAILED → REFUND_FAILED + payment-dlq |
 
 ### Compensation Tests — Scheduler-Dependent (~2 min each, opt-in)
 
@@ -33,8 +27,11 @@ npm install -g newman-reporter-htmlextra  # optional: HTML reports
 |-------|------|-------------------|--------|
 | Order Expiry | `order-expiry` | Stock reserved → never pay → scheduler expires order + releases stock | 90s expiry + 30s scheduler |
 | Payment Expiry | `payment-expiry` | Payment created → no webhook → payment expires (30s) → order expires (90s) | ~2 min total |
+| Late Webhook | `late-webhook` | Payment expired (FAILED) → late PAYMENT_SUCCESS webhook → silent refund, no event | ~2 min total |
 
-## Run All Tests
+---
+
+## Run All Tests (Local Docker)
 
 ### Windows
 ```bash
@@ -46,21 +43,21 @@ run-all.bat
 # Include scheduler-dependent compensation tests
 run-all.bat --with-scheduler
 
-# AWS ALB
-run-all.bat http://your-alb-dns.amazonaws.com 80
-
-# AWS ALB + scheduler tests
-run-all.bat http://your-alb-dns.amazonaws.com 80 3000 --with-scheduler
+# With database cleanup before tests
+run-with-cleanup.bat
+run-with-cleanup.bat --with-scheduler
 ```
 
 ### Linux/Mac
 ```bash
 cd e2e-tests
-chmod +x run-all.sh
+chmod +x run-all.sh run-with-cleanup.sh
 
 ./run-all.sh
 ./run-all.sh --with-scheduler
-./run-all.sh http://your-alb-dns.amazonaws.com 80 3000 --with-scheduler
+
+./run-with-cleanup.sh
+./run-with-cleanup.sh --with-scheduler
 ```
 
 ## Run Individual Test
@@ -76,6 +73,8 @@ newman run order-expiry.postman_collection.json -e environment.json --delay-requ
 newman run happy-path.postman_collection.json -e environment.json --delay-request 3000 -r htmlextra
 ```
 
+---
+
 ## Scheduler Timing Configuration
 
 Current testing values (in source code):
@@ -88,6 +87,8 @@ Current testing values (in source code):
 
 The logic: payment expires first (30s) → payment-service marks FAILED → orchestrator picks up on next cycle (30s) → if order also expired (90s) → marks EXPIRED + releases stock/refunds.
 
+---
+
 ## Configuration
 
 Edit `environment.json` or pass parameters to the runner script:
@@ -97,7 +98,9 @@ Edit `environment.json` or pass parameters to the runner script:
 | `base_url` | `http://localhost` | Base URL of your deployment |
 | `gateway_port` | `8080` | Gateway port (use `80` for ALB) |
 | `product_id` | `d4e5f6a7-...` | Product ID from init.sql seed data |
-| `test_password` | `TestUser_1!` | Password for test users |
+| `test_password` | `Syamsandi_1!` | Password for test users |
+
+---
 
 ## Database Cleanup
 
@@ -120,60 +123,44 @@ run-with-cleanup.bat --with-scheduler  # All tests + cleanup
 Clean databases without running tests:
 
 ```bash
-# Windows - Standard cleanup (preserves reference data)
-cleanup-dbs.bat                  # Local Docker databases
-cleanup-dbs.bat aws              # AWS RDS (requires AWS_RDS_HOST env var)
+# Windows (PowerShell)
+.\cleanup-dbs.ps1
+.\cleanup-dbs.ps1 -Force
 
-# Windows - Force clean (ALL tables including reference data)
+# Windows (cmd)
+cleanup-dbs.bat
 cleanup-dbs.bat --force
-cleanup-dbs.bat aws --force
 
-# Linux/Mac - Standard cleanup (preserves reference data)
+# Linux/Mac
 ./cleanup-dbs.sh
-./cleanup-dbs.sh aws
-
-# Linux/Mac - Force clean (ALL tables including reference data)
 ./cleanup-dbs.sh --force
-./cleanup-dbs.sh aws --force
 ```
 
 ### What Gets Cleaned
-The cleanup script selectively truncates tables in 5 databases:
 
-| Database | Port | Cleaned | Preserved (Reference Data) |
-|----------|------|----------|---------------------------|
-| `auth_service_db` | 5432 | ✅ `users` | None |
-| `order_service_db` | 5433 | ✅ `orders`, `order_items`, `order_ledger` | ✅ `discounts` |
-| `inventory_service_db` | 5434 | ✅ `stock_reservation`, `stock_ledger` | ✅ `products` |
-| `payment_service_db` | 5435 | ✅ `payments`, `payment_ledger` | None |
-| `orchestrator_service_db` | 5436 | ✅ `saga_state` | None |
+| Database | Cleaned | Preserved (Reference Data) |
+|----------|----------|---------------------------|
+| `auth_service_db` | ✅ `users` | None |
+| `order_service_db` | ✅ `orders`, `order_items`, `order_ledger` | ✅ `discounts` |
+| `inventory_service_db` | ✅ `stock_reservation`, `stock_ledger` | ✅ `products` |
+| `payment_service_db` | ✅ `payments`, `payment_ledger` | None |
+| `orchestrator_service_db` | ✅ `saga_state` | None |
 
-**Standard cleanup** (default) preserves reference data:
-- `products` table in inventory service (sample products for testing)
-- `discounts` table in order service (discount codes)
+**Standard cleanup** (default) preserves reference data (`products`, `discounts`) and resets stock quantities.
 
 **Force cleanup** (`--force` flag) cleans ALL tables including reference data.
 
-This ensures each test run starts with a clean slate while preserving your test data.
+### Verify Cleanup
 
-## Troubleshooting
+```bash
+# Windows
+verify-cleanup.bat
 
-### 409 Conflict on Registration
-If you see `409 Conflict` on `/api/v1/auth/register`:
+# Linux/Mac
+./verify-cleanup.sh
+```
 
-1. **Ensure cleanup runs** - Use `run-with-cleanup.sh` instead of `run-all.sh`
-2. **Clear Postman environment** - Delete the `test_email` variable in Postman
-3. **Check database** - Verify cleanup script succeeded (look for "All databases cleaned successfully")
-
-The test suites now generate unique emails automatically (`e2e_<timestamp>@testmail.com`), so this should be resolved with the auto-cleanup scripts.
-
-## Notes
-
-- Each test suite creates its own user (unique email with timestamp) — no shared state between runs
-- Auto-cleanup scripts are now integrated into test runners to prevent conflicts
-- Fast tests poll up to 5 retries with `--delay-request` between each
-- Scheduler tests poll up to 8-10 retries with 15s delay (covers 90s expiry + 30s scheduler)
-- Increase `--delay-request` if tests fail on slower environments
+---
 
 ## AWS Cloud Testing
 
@@ -241,6 +228,7 @@ Then run cleanup:
 | URL | `http://localhost` | `http://<ALB-DNS>` |
 | Port | `8080` | `80` |
 | Delay | 5s (poll) | 8s (poll), 15s (scheduler) |
+| Refund/DLQ delay | 3s (race condition window) | 3s (same — must fire before 15s stock check) |
 | DB Cleanup | `docker exec` | `psql` to RDS (needs network access) |
 | DLQ Verify | `docker exec kafka-console-consumer` | Skip (no direct Kafka access from outside VPC) |
 
@@ -258,15 +246,60 @@ aws ssm start-session \
 
 Then set `AWS_RDS_HOST_*=localhost` and run cleanup scripts.
 
-### AWS Test Files
+---
+
+## File Reference
 
 | File | Purpose |
-|------|--------|
-| `run-all-aws.sh` | Main test runner (Linux/Mac) |
-| `run-all-aws.bat` | Main test runner (Windows) |
-| `cleanup-dbs-aws.sh` | RDS cleanup (Linux/Mac) |
-| `cleanup-dbs-aws.ps1` | RDS cleanup (Windows/PowerShell) |
-| `environment-aws.json` | Environment variables for AWS |
+|------|---------|
+| **Test Collections** | |
+| `happy-path.postman_collection.json` | Happy path: order → pay → COMPLETED |
+| `payment-failed-retry.postman_collection.json` | Payment fails → retry → COMPLETED |
+| `out-of-stock.postman_collection.json` | Qty exceeds stock → OUT_OF_STOCK |
+| `refund-flow.postman_collection.json` | Paid + OUT_OF_STOCK → REFUNDED |
+| `refund-failed-dlq.postman_collection.json` | Refund fails → REFUND_FAILED + DLQ |
+| `order-expiry.postman_collection.json` | Never paid → scheduler EXPIRED |
+| `payment-expiry.postman_collection.json` | No webhook → payment expires → order EXPIRED |
+| `late-webhook.postman_collection.json` | Late webhook after payment expired → silent refund |
+| **Runners (Local)** | |
+| `run-all.sh` / `run-all.bat` | Run all tests (local Docker) |
+| `run-with-cleanup.sh` / `run-with-cleanup.bat` | Cleanup DBs + run all tests |
+| **Runners (AWS)** | |
+| `run-all-aws.sh` / `run-all-aws.bat` | Run all tests against ALB |
+| **Cleanup (Local)** | |
+| `cleanup-dbs.sh` / `cleanup-dbs.ps1` / `cleanup-dbs.bat` | Clean Docker databases |
+| `verify-cleanup.sh` / `verify-cleanup.bat` | Verify cleanup preserved reference data |
+| **Cleanup (AWS)** | |
+| `cleanup-dbs-aws.sh` / `cleanup-dbs-aws.ps1` | Clean RDS databases |
+| **Environments** | |
+| `environment.json` | Local Docker environment |
+| `environment-aws.json` | AWS ALB environment |
+| **SQL** | |
+| `truncate.sql` | Truncate all tables |
+| `truncate-preserve-discounts.sql` | Truncate except discounts |
+| `truncate-preserve-products.sql` | Truncate except products |
+
+---
+
+## Troubleshooting
+
+### 409 Conflict on Registration
+Each test suite generates unique emails (`e2e_<timestamp>@testmail.com`). If you still get 409:
+1. Use `run-with-cleanup` scripts instead of `run-all`
+2. Or run cleanup manually before tests
+
+### Timeout on Polling
+- Increase `--delay-request` for slower environments
+- Check service health: `curl http://<host>:<port>/actuator/health`
+
+### Refund/DLQ Tests Fail (Order becomes OUT_OF_STOCK instead of REFUNDED)
+- The payment + webhook must fire **before** the 15s stock delay completes
+- Ensure delay is 3s (not 8s) for `refund-flow` and `refund-failed-dlq` collections
+- If network latency is high, reduce stock delay in `inventory-service` for testing
+
+### Scheduler Tests Timeout
+- Ensure payment expiry (30s) + order expiry (90s) + scheduler cycle (30s) fits within polling window
+- Default: 8-12 retries × 15s = 120-180s coverage
 
 ---
 
@@ -281,3 +314,13 @@ Then set `AWS_RDS_HOST_*=localhost` and run cleanup scripts.
     cd e2e-tests
     ./run-all-aws.sh $ALB_DNS --with-scheduler
 ```
+
+---
+
+## Notes
+
+- Each test suite creates its own user (unique email with timestamp) — no shared state between runs
+- Environment is reset between each test suite in the AWS runner
+- Fast tests poll up to 10 retries with `--delay-request` between each
+- Scheduler tests poll up to 8-12 retries with 15s delay (covers 90s expiry + 30s scheduler)
+- Refund/DLQ tests use 3s delay to preserve the race condition timing window

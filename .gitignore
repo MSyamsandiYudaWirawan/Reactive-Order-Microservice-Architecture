@@ -42,3 +42,8 @@ LINKEDIN_SERIES.md
 terraform-plan.md
 .claude-memory/
 .claude
+
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.backup
+terraform/errored.tfstate

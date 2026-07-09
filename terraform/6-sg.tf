@@ -48,13 +48,14 @@ resource "aws_security_group" "ecs" {
     from_port = 8080
     to_port = 8085
     protocol = "tcp"
+    self = true # ECS tasks can talk to each other
   }
 
-  egress {
+  ingress {
     from_port = 8080
     to_port = 8085
     protocol = "tcp"
-    self = true # ECS tasks can talk to each other (service-to-service)
+    security_groups = [aws_security_group.gateway.id] # Gateway can reach backend services
   }
 
   egress {
@@ -92,7 +93,7 @@ resource "aws_security_group" "messaging" {
     from_port = 6379
     to_port = 6379
     protocol = "tcp"
-    security_groups = [aws_security_group.ecs.id] #Redis
+    security_groups = [aws_security_group.ecs.id, aws_security_group.gateway.id] #Redis
   }
 
   ingress {

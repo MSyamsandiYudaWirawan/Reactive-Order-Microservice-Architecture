@@ -1,11 +1,3 @@
-terraform {
-  required_providers {
-    random = {
-      source  = "hashicorp/random"
-      version = "3.7.2"
-    }
-  }
-}
 // aws_secretsmanager_secret is just a container for secrets
 // aws_secretsmanager_secret_version is the actual secret value
 
@@ -17,7 +9,7 @@ resource "aws_secretsmanager_secret" "jwt_private_key" {
 
 resource "aws_secretsmanager_secret_version" "jwt_private_key" {
   secret_id     = aws_secretsmanager_secret.jwt_private_key.id
-  secret_string = file("${path.module}/keys/private_key.pem")
+  secret_string = file("${path.module}/module/keys/private_key.pem")
 }
 
 resource "aws_secretsmanager_secret" "jwt_public_key" {
@@ -27,7 +19,7 @@ resource "aws_secretsmanager_secret" "jwt_public_key" {
 
 resource "aws_secretsmanager_secret_version" "jwt_public_key" {
   secret_id     = aws_secretsmanager_secret.jwt_public_key.id
-  secret_string = file("${path.module}/keys/public_key.pem")
+  secret_string = file("${path.module}/module/keys/public_key.pem")
 }
 
 # ===== DB Credentials =====

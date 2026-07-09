@@ -1,0 +1,7 @@
+spring:
+  config:
+    import: ""
+  r2dbc:
+    url: r2dbc:postgresql://${DB_URL}:${DB_PORT}/${DB_NAME}?sslMode=require
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
