@@ -50,14 +50,6 @@ public class SagaStateServiceImpl implements SagaStateService {
     }
 
     @Override
-    public Flux<SagaState> saveAll(List<SagaState> sagaStateList) {
-        return sagaStateRepository.saveAll(sagaStateList.stream().peek(sagaState -> {
-            sagaState.setUpdatedBy("ORCHESTRATION_SERVICE");
-            sagaState.setLastModifiedDate(Instant.now());
-        }).toList());
-    }
-
-    @Override
     public Flux<SagaState> findAllExpiredTransaction(Instant cutoff) {
         return sagaStateRepository.findAllExpiredTransaction(cutoff);
     }

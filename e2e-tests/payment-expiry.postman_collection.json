@@ -4,7 +4,19 @@
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "description": "Payment PENDING > timeout → Payment-service scheduler marks FAILED → Orchestrator scheduler expires order. Wait ~2min."
   },
-  "event": [],
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "if (pm.response.code >= 400) {",
+          "    console.log('\u274c [' + pm.response.code + '] ' + pm.info.requestName + ' \u2192 ' + pm.response.text());",
+          "}"
+        ]
+      }
+    }
+  ],
   "item": [
     {
       "name": "1. Register",

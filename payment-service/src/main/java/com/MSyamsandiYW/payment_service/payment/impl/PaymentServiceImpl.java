@@ -151,7 +151,7 @@ public class PaymentServiceImpl implements PaymentService {
                 return refundPayment(payment.getId()).then(Mono.empty());
             }
             // FAILED (expired) + SUCCESS -> silent refund(scheduler already expired it, but provider charge it)
-            if(currentStatus.equalsIgnoreCase(FAILED.name())){
+            if (currentStatus.equalsIgnoreCase(FAILED.name())) {
                 log.info("Payment {} was FAILED (expired) but provider charged — triggering silent refund", payment.getId());
                 return refundPayment(payment.getId()).then(Mono.empty());
             }
@@ -281,13 +281,13 @@ public class PaymentServiceImpl implements PaymentService {
         log.debug("Updating payment entity for transactionId: {}, new status: {}", payment.getTransactionId(), request.getPaymentStatus());
 
         if (PAYMENT_SUCCESS.name().equalsIgnoreCase(request.getPaymentStatus())) {
-            return updatePaymentStatus(payment.getId(),SUCCESS.name(),null,null);
+            return updatePaymentStatus(payment, SUCCESS.name(), null, null);
         } else if (AppConstant.WEBHOOK_CALLBACK_PAYMENT_STATUS.PAYMENT_FAILED.name().equalsIgnoreCase(request.getPaymentStatus())) {
-            return updatePaymentStatus(payment.getId(),FAILED.name(),request.getFailureCode(),request.getFailureMessage());
+            return updatePaymentStatus(payment, FAILED.name(), request.getFailureCode(), request.getFailureMessage());
         } else if (REFUND_SUCCESS.name().equalsIgnoreCase(request.getPaymentStatus())) {
-            return updatePaymentStatus(payment.getId(),REFUNDED.name(),null,null);
+            return updatePaymentStatus(payment, REFUNDED.name(), null, null);
         } else if (AppConstant.ORDER_STATUS.REFUND_FAILED.name().equalsIgnoreCase(request.getPaymentStatus())) {
-            return updatePaymentStatus(payment.getId(),REFUND_FAILED.name(),request.getFailureCode(),request.getFailureMessage());
+            return updatePaymentStatus(payment, REFUND_FAILED.name(), request.getFailureCode(), request.getFailureMessage());
         }
         return Mono.error(new BusinessException(ErrorCode.INTERNAL_EXCEPTION));
     }
@@ -323,9 +323,9 @@ public class PaymentServiceImpl implements PaymentService {
         // find active current payment
         return paymentRepository.findFirstByTransactionIdAndStatus(transactionId, AppConstant.PAYMENT_STATUS.PENDING.name())
                 // cancel current payment if exist
-                .flatMap(existingPayment -> paymentRepository.updatePendingStatusPayment(existingPayment.getId(),CANCELLED.name())
+                .flatMap(existingPayment -> paymentRepository.updatePendingStatusPayment(existingPayment.getId(), CANCELLED.name())
                         .filter(rows -> rows > 0)
-                        .flatMap(__ ->{
+                        .flatMap(__ -> {
                             log.info("Cancelled existing PENDING payment: {}", existingPayment.getId());
                             // call third party provide to cancel current payment
                             return Mono.empty();
@@ -360,11 +360,18 @@ public class PaymentServiceImpl implements PaymentService {
         return paymentEventProducer.send(PAYMENT_DLQ, request.getPaymentId(), payload);
     }
 
-    private Mono<Payment> updatePaymentStatus(UUID id, String status, String failureCode, String failureMessage){
-        return paymentRepository.updateStatusPayment(id,status,failureCode,failureMessage)
+    private Mono<Payment> updatePaymentStatus(Payment payment, String status, String failureCode, String failureMessage) {
+        //update with cas for atomic
+        return paymentRepository.updateStatusPayment(payment.getId(), status, failureCode, failureMessage)
                 .filter(rows -> rows > 0)
-                .flatMap(rows -> paymentRepository.findById(id));
+                .map(__ -> {
+                    log.info("Payment status updated to {} - transactionId: {}, correlationId: {}",
+                            status, payment.getTransactionId(), payment.getCorrelationId());
+                    // this payment in memory is for ledger
+                    payment.setStatus(status);
+                    payment.setFailureCode(failureCode);
+                    payment.setFailureMessage(failureMessage);
+                    return payment;
+                });
     }
-
-
 }

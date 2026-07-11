@@ -2,7 +2,7 @@
   "id": "e2e-env-aws",
   "name": "E2E Test Environment (AWS)",
   "values": [
-    {"key": "base_url", "value": "http://reactive-order-alb-1663871223.ap-southeast-3.elb.amazonaws.com", "enabled": true},
+    {"key": "base_url", "value": "http://reactive-order-alb-1859749346.ap-southeast-3.elb.amazonaws.com", "enabled": true},
     {"key": "gateway_port", "value": "80", "enabled": true},
     {"key": "test_email", "value": "", "enabled": true},
     {"key": "test_phone", "value": "", "enabled": true},

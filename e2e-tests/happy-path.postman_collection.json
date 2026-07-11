@@ -4,7 +4,20 @@
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "description": "Register → Login → Create Order → WAITING_PAYMENT → Create Payment → Webhook SUCCESS → COMPLETED"
   },
-  "event": [],
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "if (pm.response.code >= 400) {",
+          "    var body = ''; try { body = JSON.stringify(pm.response.json()); } catch(e) { body = pm.response.text(); }",
+          "    console.log('❌ [' + pm.response.code + '] ' + pm.info.requestName + ' → ' + body);",
+          "}"
+        ]
+      }
+    }
+  ],
   "item": [
     {
       "name": "1. Register",

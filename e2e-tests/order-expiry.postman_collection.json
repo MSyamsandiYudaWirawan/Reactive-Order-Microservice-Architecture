@@ -4,7 +4,19 @@
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "description": "Stock RESERVED + No payment within timeout → Scheduler triggers RELEASE_STOCK → Order EXPIRED. Wait ~2min (90s expiry + 30s scheduler cycle)."
   },
-  "event": [],
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "if (pm.response.code >= 400) {",
+          "    console.log('\u274c [' + pm.response.code + '] ' + pm.info.requestName + ' \u2192 ' + pm.response.text());",
+          "}"
+        ]
+      }
+    }
+  ],
   "item": [
     {
       "name": "1. Register",

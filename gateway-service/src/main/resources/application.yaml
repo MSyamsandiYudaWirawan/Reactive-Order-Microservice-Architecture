@@ -37,3 +37,12 @@ spring:
                  redis-rate-limiter.burstCapacity: 20
                  redis-rate-limiter.requestedTokens: 1
                  key-resolver: "#{@ipKeyResolver}"
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never

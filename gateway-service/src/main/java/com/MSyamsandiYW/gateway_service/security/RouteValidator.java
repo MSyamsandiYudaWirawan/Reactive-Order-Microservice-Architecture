@@ -10,6 +10,7 @@ public class RouteValidator {
 
     private final List<String> openPaths = List.of(
             "/api/v1/auth",
+            "/actuator",
             //bypass webhook callback for ease testing
             "/api/v1/payments/webhook/callback"
     );
