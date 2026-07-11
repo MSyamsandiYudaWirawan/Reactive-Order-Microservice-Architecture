@@ -39,4 +39,15 @@ public interface SagaStateRepository extends R2dbcRepository<SagaState, UUID> {
             ON CONFLICT (transaction_id) DO NOTHING 
             """)
     Mono<Integer> insertIfAbsent(String transactionId, String correlationId);
+
+    @Modifying
+    @Query("""
+    UPDATE saga_state 
+    SET saga_status = :newStatus, 
+        updated_by = 'ORCHESTRATION_SERVICE', 
+        last_modified_date = NOW()
+    WHERE transaction_id = :transactionId 
+      AND saga_status = 'COMPENSATING'
+    """)
+    Mono<Integer> updateCompensatingStatus(String transactionId, String newStatus);
 }

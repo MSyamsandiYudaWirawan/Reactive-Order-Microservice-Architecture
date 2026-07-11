@@ -67,4 +67,15 @@ public class SagaStateServiceImpl implements SagaStateService {
         return sagaStateRepository.insertIfAbsent(transactionId,correlationId)
                 .then(sagaStateRepository.findFirstByTransactionId(transactionId));
     }
+
+    @Override
+    public Mono<Void> updateCompensatingStatus(String transactionId, String name) {
+        return sagaStateRepository.updateCompensatingStatus(transactionId, name)
+                .filter(rows -> rows > 0)
+                .map(__ -> {
+                    log.info("Compensation status updated for transactionId: {}", transactionId);
+                    return Mono.empty();
+                })
+                .then();
+    }
 }

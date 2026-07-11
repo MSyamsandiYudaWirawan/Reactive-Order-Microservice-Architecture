@@ -165,20 +165,14 @@ public class OrchestrationCommandHandler {
 
     public Mono<Void> handleOrderRefundCompleted(OrchestratorCommand payload) {
         log.info("Refund completed — saga compensation done - transactionId: {}", payload.getTransactionId());
-        return sagaStateService.findByTransactionId(payload.getTransactionId())
-                .flatMap(sagaState -> {
-                    sagaState.setSagaStatus(COMPLETED.name());
-                    return sagaStateService.save(sagaState);
-                }).then();
+        return sagaStateService.updateCompensatingStatus(payload.getTransactionId(), COMPLETED.name())
+                .then();
     }
 
     public Mono<Void> handleOrderRefundFailed(OrchestratorCommand payload) {
         log.error("Refund failed — manual intervention required - transactionId: {}", payload.getTransactionId());
-        return sagaStateService.findByTransactionId(payload.getTransactionId())
-                .flatMap(sagaState -> {
-                    sagaState.setSagaStatus(FAILED.name());
-                    return sagaStateService.save(sagaState);
-                }).then();
+        return sagaStateService.updateCompensatingStatus(payload.getTransactionId(), FAILED.name())
+                .then();
     }
 
     public Mono<Void> handleStockReserveRequested(OrchestratorCommand payload) {

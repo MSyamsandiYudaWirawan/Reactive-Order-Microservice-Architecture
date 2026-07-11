@@ -1,5 +1,6 @@
 package com.MSyamsandiYW.orchestrator_service.saga_state;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -20,4 +21,6 @@ public interface SagaStateService {
     Flux<SagaState> findAllExpiredTransaction(Instant cutoff);
 
     Mono<SagaState> findOrCreate(String transactionId, String correlationId);
+
+    Mono<Void> updateCompensatingStatus(String transactionId, String name);
 }
