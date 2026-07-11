@@ -1,0 +1,17 @@
+{
+  "id": "e2e-env",
+  "name": "E2E Test Environment",
+  "values": [
+    {"key": "base_url", "value": "http://localhost", "enabled": true},
+    {"key": "gateway_port", "value": "8080", "enabled": true},
+    {"key": "test_email", "value": "", "enabled": true},
+    {"key": "test_phone", "value": "", "enabled": true},
+    {"key": "test_password", "value": "Syamsandi_1!", "enabled": true},
+    {"key": "test_name", "value": "Syamsandi", "enabled": true},
+    {"key": "access_token", "value": "", "enabled": true},
+    {"key": "refresh_token", "value": "", "enabled": true},
+    {"key": "transaction_id", "value": "", "enabled": true},
+    {"key": "payment_id", "value": "", "enabled": true},
+    {"key": "product_id", "value": "d4e5f6a7-b8c9-0123-defa-234567890123", "enabled": true}
+  ]
+}

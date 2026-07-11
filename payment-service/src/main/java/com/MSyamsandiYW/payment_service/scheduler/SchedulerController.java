@@ -11,9 +11,8 @@ import org.springframework.stereotype.Component;
 public class SchedulerController {
     private final SchedulerService schedulerService;
 
-    // runs every 30 minutes to expire stale saga transactions
-    //TODO  2 minute for testing
-    @Scheduled(cron = "0 */2 * * * *")
+    // runs every 30 seconds for testing (production: every 30 minutes)
+    @Scheduled(cron = "*/30 * * * * *")
     public void runScheduler() {
         log.info("Payment expiry scheduler started");
         schedulerService.executeScheduler()

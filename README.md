@@ -131,6 +131,18 @@ Payment FAILED → Order stays WAITING_PAYMENT → User picks new payment method
   → Cancel existing PENDING payment → Create new payment → New attempt
 ```
 
+### Out of Stock (No Payment Made)
+```
+Stock OUT_OF_STOCK + No payment exists → Orchestrator marks saga FAILED → Order OUT_OF_STOCK
+```
+
+### Refund Failed (DLQ — Manual Intervention)
+```
+Refund requested + Provider returns REFUND_FAILED webhook →
+  → Payment-service marks REFUND_FAILED → produces ORDER_REFUND_FAILED + PAYMENT_DLQ
+  → Order marked REFUND_FAILED → requires manual intervention
+```
+
 ### Late Webhook After Payment Expired (Race Condition)
 ```
 Payment expired (marked FAILED) + Late PAYMENT_SUCCESS webhook arrives →

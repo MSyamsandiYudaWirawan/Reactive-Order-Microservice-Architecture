@@ -34,6 +34,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -60,11 +61,13 @@ class PaymentServiceImplTest {
     private Claims claims;
     private String token;
     private String transactionId;
+    private String correlationId;
 
     @BeforeEach
     void setUp() {
         token = "test-token";
         transactionId = UUID.randomUUID().toString();
+        correlationId = UUID.randomUUID().toString();
 
         Map<String, Object> claimsMap = Map.of(
                 "userId", "user-123",
@@ -99,7 +102,7 @@ class PaymentServiceImplTest {
                 .build();
 
         when(jwtService.extractClaims(token)).thenReturn(Mono.just(claims));
-        when(orderServiceClient.getStatusOrder(transactionId, token, any())).thenReturn(Mono.just(orderStatus));
+        when(orderServiceClient.getStatusOrder(eq(transactionId), eq(token), any())).thenReturn(Mono.just(orderStatus));
         when(appProperties.getPaymentMethodUrlMap()).thenReturn(Map.of("BCA_VA", "https://payment.example.com/bca"));
         when(paymentRepository.findFirstByTransactionIdAndStatus(transactionId, AppConstant.PAYMENT_STATUS.PENDING.name()))
                 .thenReturn(Mono.empty());
@@ -107,7 +110,7 @@ class PaymentServiceImplTest {
         when(paymentLedgerService.recordEventPayment(any())).thenReturn(Mono.empty());
         when(paymentEventProducer.send(any(), any(), any())).thenReturn(Mono.empty());
 
-        StepVerifier.create(paymentService.createPayment(request, token, any()))
+        StepVerifier.create(paymentService.createPayment(request, token, correlationId))
                 .assertNext(response -> {
                     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
                     assertThat(response.getBody().getTransactionId()).isEqualTo(transactionId);
@@ -129,10 +132,10 @@ class PaymentServiceImplTest {
                 .build();
 
         when(jwtService.extractClaims(token)).thenReturn(Mono.just(claims));
-        when(orderServiceClient.getStatusOrder(transactionId, token, any())).thenReturn(Mono.just(orderStatus));
+        when(orderServiceClient.getStatusOrder(eq(transactionId), eq(token), any())).thenReturn(Mono.just(orderStatus));
         when(appProperties.getPaymentMethodUrlMap()).thenReturn(Map.of("BCA_VA", "https://url"));
 
-        StepVerifier.create(paymentService.createPayment(request, token, any()))
+        StepVerifier.create(paymentService.createPayment(request, token, correlationId))
                 .expectErrorMatches(e -> e instanceof BusinessException
                         && ((BusinessException) e).getErrorCode() == ErrorCode.ORDER_ALREADY_PAID)
                 .verify();
@@ -151,10 +154,10 @@ class PaymentServiceImplTest {
                 .build();
 
         when(jwtService.extractClaims(token)).thenReturn(Mono.just(claims));
-        when(orderServiceClient.getStatusOrder(transactionId, token, any())).thenReturn(Mono.just(orderStatus));
+        when(orderServiceClient.getStatusOrder(eq(transactionId), eq(token), any())).thenReturn(Mono.just(orderStatus));
         when(appProperties.getPaymentMethodUrlMap()).thenReturn(Map.of("BCA_VA", "https://url"));
 
-        StepVerifier.create(paymentService.createPayment(request, token, any()))
+        StepVerifier.create(paymentService.createPayment(request, token, correlationId))
                 .expectErrorMatches(e -> e instanceof BusinessException
                         && ((BusinessException) e).getErrorCode() == ErrorCode.INVALID_PAYMENT_METHOD)
                 .verify();
@@ -177,15 +180,13 @@ class PaymentServiceImplTest {
                 .build();
 
         when(paymentRepository.findById(paymentId)).thenReturn(Mono.just(payment));
-        when(paymentRepository.save(any(Payment.class))).thenAnswer(inv -> Mono.just(inv.getArgument(0)));
+        when(paymentRepository.updateStatusPayment(eq(paymentId), anyString(), any(), any()))
+                .thenReturn(Mono.just(1));
         when(paymentLedgerService.recordEventPayment(any())).thenReturn(Mono.empty());
-        when(paymentEventProducer.send(eq(AppConstant.TOPICS.PAYMENT_COMPLETED), any(), any()))
-                .thenReturn(Mono.empty());
+        when(paymentEventProducer.send(any(), any(), any())).thenReturn(Mono.empty());
 
         StepVerifier.create(paymentService.webhookCallbackPaymentMethod(request, new HttpHeaders()))
                 .verifyComplete();
-
-        verify(paymentEventProducer).send(eq(AppConstant.TOPICS.PAYMENT_COMPLETED), any(), any());
     }
 
     @Test

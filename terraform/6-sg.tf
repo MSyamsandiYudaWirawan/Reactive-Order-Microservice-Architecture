@@ -1,13 +1,14 @@
-// ALB - only accept HTTP from internet
+// ALB - only accept HTTP from allowed IPs
 resource "aws_security_group" "alb" {
   name = "reactive-order-alb-sg"
   vpc_id = aws_vpc.vpc.id
 
+  // only allow my ip for testing
   ingress {
     from_port = 80
     to_port = 80
     protocol = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = var.allowed_cidr_blocks
   }
 
   egress {
@@ -47,13 +48,14 @@ resource "aws_security_group" "ecs" {
     from_port = 8080
     to_port = 8085
     protocol = "tcp"
+    self = true # ECS tasks can talk to each other
   }
 
-  egress {
+  ingress {
     from_port = 8080
     to_port = 8085
     protocol = "tcp"
-    self = true # ECS tasks can talk to each other (service-to-service)
+    security_groups = [aws_security_group.gateway.id] # Gateway can reach backend services
   }
 
   egress {
@@ -91,7 +93,7 @@ resource "aws_security_group" "messaging" {
     from_port = 6379
     to_port = 6379
     protocol = "tcp"
-    security_groups = [aws_security_group.ecs.id] #Redis
+    security_groups = [aws_security_group.ecs.id, aws_security_group.gateway.id] #Redis
   }
 
   ingress {

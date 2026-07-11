@@ -52,6 +52,11 @@ public class KafkaConfig {
     }
 
     @Bean
+    public NewTopic orderRefundFailed() {
+        return TopicBuilder.name(ORDER_REFUND_FAILED).partitions(3).replicas(1).build();
+    }
+
+    @Bean
     public NewTopic paymentDlqTopic() {
         return TopicBuilder.name(PAYMENT_DLQ).partitions(1).replicas(1).build();
     }

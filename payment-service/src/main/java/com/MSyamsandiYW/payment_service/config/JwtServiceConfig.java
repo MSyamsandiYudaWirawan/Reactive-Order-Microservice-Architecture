@@ -1,6 +1,7 @@
 package com.MSyamsandiYW.payment_service.config;
 
 import com.MSyamsandiYW.common.jwt.JwtService;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -8,7 +9,7 @@ import org.springframework.context.annotation.Configuration;
 public class JwtServiceConfig {
 
     @Bean
-    public JwtService jwtService(){
-        return new JwtService();
+    public JwtService jwtService(@Value("${jwt.public-key}") String jwtPublicKey) {
+        return new JwtService(jwtPublicKey);
     }
 }

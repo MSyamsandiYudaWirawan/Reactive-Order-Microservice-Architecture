@@ -52,18 +52,19 @@ resource "aws_ecs_task_definition" "services" {
   family                   = "reactive-order-${each.key}"
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
-  cpu                      = "256"
-  memory                   = "512"
+  cpu    = "256"
+  memory = "512"
   execution_role_arn       = aws_iam_role.ecs_execution.arn
   task_role_arn            = aws_iam_role.ecs_task.arn
 
-  container_definitions = jsonencode({
+  container_definitions = jsonencode([{
     name      = each.key
     image     = "${aws_ecr_repository.services[each.key].repository_url}:latest"
     essential = true
 
     portMappings = [
       {
+        name          = each.key
         containerPort = each.value.port
         protocol      = "tcp"
       }
@@ -90,9 +91,17 @@ resource "aws_ecs_task_definition" "services" {
       ] : [],
       # Gateway-specific: service URLs via Service Connect
       each.key == "gateway" ? [
-        { name = "AUTH_SERVICE_URL", value = "http://auth:8081" },
-        { name = "ORDER_SERVICE_URL", value = "http://order:8082" },
-        { name = "PAYMENT_SERVICE_URL", value = "http://payment:8084" },
+        { name = "AUTH_SERVICE_URL", value = "http://auth-service:8081" },
+        { name = "ORDER_SERVICE_URL", value = "http://order-service:8082" },
+        { name = "PAYMENT_SERVICE_URL", value = "http://payment-service:8084" },
+      ] : [],
+      # Order-service needs to call inventory-service
+      each.key == "order" ? [
+        { name = "APP_INVENTORY_SERVICE_URL", value = "http://inventory-service:8083" },
+      ] : [],
+      # Payment-service needs to call order-service
+      each.key == "payment" ? [
+        { name = "APP_ORDER_SERVICE_URL", value = "http://order-service:8082" },
       ] : []
     )
 
@@ -120,7 +129,7 @@ resource "aws_ecs_task_definition" "services" {
         "awslogs-stream-prefix" = each.key
       }
     }
-    }
+    }]
   )
 
   tags = {
@@ -141,6 +150,9 @@ resource "aws_ecs_service" "services" {
   desired_count   = 1
   launch_type     = "FARGATE"
 
+  # Gateway takes ~90s to start on Fargate (0.25 vCPU) — don't kill it during startup
+  health_check_grace_period_seconds = each.key == "gateway" ? 240 : 0
+
   network_configuration {
     subnets          = [aws_subnet.private-ap-southeast-3a.id]
     security_groups  = each.key == "gateway" ? [aws_security_group.gateway.id] : [aws_security_group.ecs.id]
@@ -156,7 +168,7 @@ resource "aws_ecs_service" "services" {
       port_name = each.key
       client_alias {
         port     = each.value.port
-        dns_name = each.key
+        dns_name = "${each.key}-service"
       }
     }
   }

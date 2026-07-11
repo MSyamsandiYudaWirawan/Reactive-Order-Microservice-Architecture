@@ -50,14 +50,6 @@ public class SagaStateServiceImpl implements SagaStateService {
     }
 
     @Override
-    public Flux<SagaState> saveAll(List<SagaState> sagaStateList) {
-        return sagaStateRepository.saveAll(sagaStateList.stream().peek(sagaState -> {
-            sagaState.setUpdatedBy("ORCHESTRATION_SERVICE");
-            sagaState.setLastModifiedDate(Instant.now());
-        }).toList());
-    }
-
-    @Override
     public Flux<SagaState> findAllExpiredTransaction(Instant cutoff) {
         return sagaStateRepository.findAllExpiredTransaction(cutoff);
     }
@@ -66,5 +58,16 @@ public class SagaStateServiceImpl implements SagaStateService {
     public Mono<SagaState> findOrCreate(String transactionId, String correlationId) {
         return sagaStateRepository.insertIfAbsent(transactionId,correlationId)
                 .then(sagaStateRepository.findFirstByTransactionId(transactionId));
+    }
+
+    @Override
+    public Mono<Void> updateCompensatingStatus(String transactionId, String name) {
+        return sagaStateRepository.updateCompensatingStatus(transactionId, name)
+                .filter(rows -> rows > 0)
+                .map(__ -> {
+                    log.info("Compensation status updated for transactionId: {}", transactionId);
+                    return Mono.empty();
+                })
+                .then();
     }
 }
