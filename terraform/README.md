@@ -10,8 +10,8 @@ Infrastructure as Code for deploying the Reactive Order Microservice Architectur
 
 | Decision | Rationale |
 |----------|-----------|
-| **ECS Fargate over EKS** | No cluster management overhead. Pay only for running containers. EKS adds ~$73/month just for the control plane — overkill for this architecture. Fargate is serverless containers: define CPU/memory, AWS handles the rest. |
-| **ECS Fargate over EC2** | No server patching, no capacity planning. Each service gets exactly the resources it needs (256 CPU / 512MB). Perfect for microservices that scale independently. |
+| **ECS Fargate first, EKS later** | ECS Fargate for Phase 3 to learn serverless containers and AWS-native orchestration. EKS planned for Phase 5 to learn Kubernetes, HPA, PgBouncer sidecars, and cluster management — progressive skill building. |
+| **ECS Fargate over EC2** | No server patching, no capacity planning. Each service gets exactly the resources it needs (256 CPU / 512MB). Focuses learning on containerization and service orchestration rather than OS-level management. |
 | **Single cluster, multiple services** | All 6 services share one ECS cluster but run as independent services with their own task definitions. Simpler management, independent deployments. |
 
 ---
@@ -89,7 +89,7 @@ The ALB isn't just for load balancing. It solves a fundamental networking proble
 ### Security Groups — Defense in Depth
 
 ```
-Internet → [ALB SG: port 80 from anywhere]
+Internet → [ALB SG: port 80 from allowed IPs]
               → [Gateway SG: port 8080 from ALB only]
                   → [ECS SG: ports 8080-8085 between services]
                       → [DB SG: port 5432 from ECS only]
@@ -133,6 +133,7 @@ The Terraform code uses `for_each` extensively (RDS × 5, ECR × 6, CloudWatch a
 | **No Container Insights** | Disabled — adds ~$0.01/container/hour. Not needed for demo. |
 | **No encryption in transit (MSK)** | PLAINTEXT for demo simplicity. Production would use TLS. |
 | **`skip_final_snapshot`** | No RDS snapshots on destroy — faster cleanup, no leftover costs |
+| **No PgBouncer** | Single task per service (`desired_count = 1`, no autoscaling) — R2DBC pool `max-size: 5` × 5 services = 25 connections, well within RDS `db.t3.micro` limit (60). Deferred to Phase 5 (EKS) when HPA introduces unpredictable pod counts. |
 
 **Estimated cost: ~$0.29/hr (~$0.58 for a 2-hour demo)**
 
@@ -228,7 +229,7 @@ Files are numbered for readability. Terraform resolves dependencies automaticall
 
 ## Future: EKS Migration
 
-This ECS Fargate deployment is Phase 2.5. After completing the Kubernetes manifests phase (Phase 4), the infrastructure will migrate to **Amazon EKS** with:
+This ECS Fargate deployment is Phase 3. After completing the Kubernetes manifests phase (Phase 5), the infrastructure will migrate to **Amazon EKS** with:
 
 - EKS managed node groups replacing Fargate tasks
 - Kubernetes-native service discovery (CoreDNS) replacing ECS Service Connect
