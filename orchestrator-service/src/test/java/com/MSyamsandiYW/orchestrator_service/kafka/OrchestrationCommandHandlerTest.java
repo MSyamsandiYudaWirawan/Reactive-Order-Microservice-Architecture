@@ -205,33 +205,25 @@ class OrchestrationCommandHandlerTest {
     @Test
     @DisplayName("handleOrderRefundCompleted - should mark saga COMPLETED")
     void handleOrderRefundCompleted_shouldMarkCompleted() {
-        sagaState.setSagaStatus(AppConstant.SAGA_STATUS.COMPENSATING.name());
-
-        when(sagaStateService.findByTransactionId(command.getTransactionId()))
-                .thenReturn(Mono.just(sagaState));
-        when(sagaStateService.save(any(SagaState.class)))
-                .thenAnswer(inv -> Mono.just(inv.getArgument(0)));
+        when(sagaStateService.updateCompensatingStatus(command.getTransactionId(), AppConstant.SAGA_STATUS.COMPLETED.name()))
+                .thenReturn(Mono.empty());
 
         StepVerifier.create(handler.handleOrderRefundCompleted(command))
                 .verifyComplete();
 
-        verify(sagaStateService).save(any(SagaState.class));
+        verify(sagaStateService).updateCompensatingStatus(command.getTransactionId(), AppConstant.SAGA_STATUS.COMPLETED.name());
     }
 
     @Test
     @DisplayName("handleOrderRefundFailed - should mark saga FAILED")
     void handleOrderRefundFailed_shouldMarkFailed() {
-        sagaState.setSagaStatus(AppConstant.SAGA_STATUS.COMPENSATING.name());
-
-        when(sagaStateService.findByTransactionId(command.getTransactionId()))
-                .thenReturn(Mono.just(sagaState));
-        when(sagaStateService.save(any(SagaState.class)))
-                .thenAnswer(inv -> Mono.just(inv.getArgument(0)));
+        when(sagaStateService.updateCompensatingStatus(command.getTransactionId(), AppConstant.SAGA_STATUS.FAILED.name()))
+                .thenReturn(Mono.empty());
 
         StepVerifier.create(handler.handleOrderRefundFailed(command))
                 .verifyComplete();
 
-        verify(sagaStateService).save(any(SagaState.class));
+        verify(sagaStateService).updateCompensatingStatus(command.getTransactionId(), AppConstant.SAGA_STATUS.FAILED.name());
     }
 
     @Test

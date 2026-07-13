@@ -137,7 +137,7 @@
               "const status = pm.response.json().orderStatus;",
               "if (status === 'PENDING') {",
               "    let c = pm.environment.get('_r1') || 0; c++;",
-              "    if (c < 10) { pm.environment.set('_r1', c); postman.setNextRequest('4. Confirm WAITING_PAYMENT'); }",
+              "    if (c < 10) { pm.environment.set('_r1', c); pm.execution.setNextRequest('4. Confirm WAITING_PAYMENT'); }",
               "    else { pm.environment.unset('_r1'); pm.expect.fail('Timeout'); }",
               "} else { pm.environment.unset('_r1'); pm.test('WAITING_PAYMENT', function() { pm.expect(status).to.equal('WAITING_PAYMENT'); }); }"
             ]
@@ -213,7 +213,7 @@
               "    pm.test('Payment expired (FAILED)', function() { pm.expect(status).to.equal('FAILED'); });",
               "} else {",
               "    let c = pm.environment.get('_r2') || 0; c++;",
-              "    if (c < 8) { pm.environment.set('_r2', c); postman.setNextRequest('6. Wait for Payment to Expire (FAILED)'); }",
+              "    if (c < 8) { pm.environment.set('_r2', c); pm.execution.setNextRequest('6. Wait for Payment to Expire (FAILED)'); }",
               "    else { pm.environment.unset('_r2'); pm.expect.fail('Timed out waiting for payment FAILED'); }",
               "}"
             ]

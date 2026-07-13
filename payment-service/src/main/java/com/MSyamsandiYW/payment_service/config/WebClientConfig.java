@@ -15,7 +15,7 @@ public class WebClientConfig {
     public WebClient webClient() {
         HttpClient httpClient = HttpClient.create()
                 .resolver(spec -> spec
-                        .negativeTtl(Duration.ofSeconds(5))
+                        .cacheNegativeTimeToLive(Duration.ofSeconds(5))
                         .queryTimeout(Duration.ofSeconds(5))
                 );
 

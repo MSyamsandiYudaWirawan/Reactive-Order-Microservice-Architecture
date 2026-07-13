@@ -10,6 +10,7 @@ import java.util.Map;
 @Getter
 @Setter
 @Builder
+@ToString
 public class DlqEventPayload {
     private String originalTopic;
     private String originalKey;

@@ -15,7 +15,7 @@ if %errorlevel% neq 0 (echo Maven build failed & exit /b 1)
 
 for %%s in (auth gateway order inventory payment orchestrator) do (
     echo === Building %%s ===
-    docker build -t %REGISTRY%/reactive-order/%%s:latest ./%%s-service
+    docker build --no-cache -t %REGISTRY%/reactive-order/%%s:latest ./%%s-service
     if %errorlevel% neq 0 (echo Docker build failed for %%s & exit /b 1)
 
     echo === Pushing %%s ===

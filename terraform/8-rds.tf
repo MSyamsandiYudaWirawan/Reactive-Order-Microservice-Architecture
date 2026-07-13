@@ -46,7 +46,7 @@ resource "aws_db_instance" "services" {
   publicly_accessible = false
   skip_final_snapshot = true
 
-  parameter_group_name = aws_db_parameter_group.no_ssl.name
+  # parameter_group_name = aws_db_parameter_group.no_ssl.name
 
   tags = {
     Name = "reactive-order-${each.key}-db"

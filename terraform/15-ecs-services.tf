@@ -26,7 +26,7 @@ locals {
       has_db    = true
       has_kafka = true
       has_redis = true
-      jwt_keys  = "none" # internal only, no JWT validation
+      jwt_keys  = "public" # needed by ProductServiceImpl -> JwtService
     }
     payment = {
       port      = 8084
