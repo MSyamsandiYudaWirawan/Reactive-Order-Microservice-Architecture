@@ -140,7 +140,7 @@
               "console.log('📋 status: ' + status);",
               "if (status === 'PENDING') {",
               "    let c = pm.environment.get('_r1') || 0; c++;",
-              "    if (c < 10) { pm.environment.set('_r1', c); postman.setNextRequest('4. Poll Order Status (wait for OUT_OF_STOCK ~15s)'); }",
+              "    if (c < 10) { pm.environment.set('_r1', c); pm.execution.setNextRequest('4. Poll Order Status (wait for OUT_OF_STOCK ~15s)'); }",
               "    else { pm.environment.unset('_r1'); pm.expect.fail('Timeout waiting for OUT_OF_STOCK'); }",
               "} else {",
               "    pm.environment.unset('_r1');",

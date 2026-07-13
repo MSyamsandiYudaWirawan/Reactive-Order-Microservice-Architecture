@@ -49,4 +49,5 @@ terraform/*.tfstate.backup
 terraform/errored.tfstate
 terraform/module/keys/
 *.tfstate
+*.tfstate.*
 *.tfstate.backup

@@ -138,7 +138,7 @@
               "const status = pm.response.json().orderStatus;",
               "if (status === 'PENDING') {",
               "    let c = pm.environment.get('_r1') || 0; c++;",
-              "    if (c < 10) { pm.environment.set('_r1', c); postman.setNextRequest('4. Confirm WAITING_PAYMENT'); }",
+              "    if (c < 10) { pm.environment.set('_r1', c); pm.execution.setNextRequest('4. Confirm WAITING_PAYMENT'); }",
               "    else { pm.environment.unset('_r1'); pm.expect.fail('Timeout'); }",
               "} else { pm.environment.unset('_r1'); pm.test('WAITING_PAYMENT', function() { pm.expect(status).to.equal('WAITING_PAYMENT'); }); }"
             ]
@@ -173,7 +173,7 @@
               "    pm.test('✅ Order EXPIRED', function() { pm.expect(status).to.equal('EXPIRED'); });",
               "} else {",
               "    let c = pm.environment.get('_r2') || 0; c++;",
-              "    if (c < 12) { pm.environment.set('_r2', c); postman.setNextRequest('5. Wait for EXPIRED (poll every 15s)'); }",
+              "    if (c < 12) { pm.environment.set('_r2', c); pm.execution.setNextRequest('5. Wait for EXPIRED (poll every 15s)'); }",
               "    else { pm.environment.unset('_r2'); pm.expect.fail('Timed out waiting for EXPIRED'); }",
               "}"
             ]

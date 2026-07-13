@@ -194,6 +194,8 @@ services:
     depends_on:
       auth-pgbouncer:
         condition: service_started
+    env_file:
+      - ./auth-service/.env
     environment:
       DB_URL: auth-pgbouncer
       DB_PORT: 5432
@@ -214,6 +216,8 @@ services:
         condition: service_started
       redis:
         condition: service_healthy
+    env_file:
+      - ./gateway-service/.env
     environment:
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
@@ -232,6 +236,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    env_file:
+      - ./order-service/.env
     environment:
       DB_URL: order-pgbouncer
       DB_PORT: 5432
@@ -253,6 +259,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    env_file:
+      - ./inventory-service/.env
     environment:
       DB_URL: inventory-pgbouncer
       DB_PORT: 5432
@@ -274,6 +282,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    env_file:
+      - ./payment-service/.env
     environment:
       DB_URL: payment-pgbouncer
       DB_PORT: 5432
@@ -295,6 +305,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    env_file:
+      - ./orchestrator-service/.env
     environment:
       DB_URL: orchestrator-pgbouncer
       DB_PORT: 5432
