@@ -28,6 +28,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.reactive.TransactionalOperator;
 import reactor.core.publisher.Mono;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -68,17 +69,17 @@ public class OrderServiceImpl implements OrderService {
                     }
 
                     //build price lookup map
-                    Map<String, Double> priceMap = products.stream()
+                    Map<String, BigDecimal> priceMap = products.stream()
                             .collect(Collectors.toMap(GetProductResponse::getProductId, GetProductResponse::getPrice));
 
                     //calculate total amount
-                    double totalAmount = 0;
+                    BigDecimal totalAmount = BigDecimal.ZERO;
                     for (OrderItemRequest item : request.getItems()) {
-                        Double price = priceMap.get(item.getProductId());
+                        BigDecimal price = priceMap.get(item.getProductId());
                         if (price == null) {
                             return Mono.error(new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
                         }
-                        totalAmount += item.getQuantity() * price;
+                        totalAmount = totalAmount.add(price.multiply(BigDecimal.valueOf(item.getQuantity())));
                     }
 
                     // build order entity
@@ -190,7 +191,7 @@ public class OrderServiceImpl implements OrderService {
                 ;
     }
 
-    private Mono<Order> saveOrderWithItems(Order order, CreateOrderRequest request, Map<String, Double> priceMap) {
+    private Mono<Order> saveOrderWithItems(Order order, CreateOrderRequest request, Map<String, BigDecimal> priceMap) {
         return orderRepository.save(order)
                 .flatMap(saved -> {
                     List<OrderItem> orderItems = request.getItems().stream()

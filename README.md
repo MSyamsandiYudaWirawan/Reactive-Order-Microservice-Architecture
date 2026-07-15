@@ -340,7 +340,7 @@ service/src/main/java/com/MSyamsandiYW/<service_name>/
 | **Orchestrator Saga** (not Choreography) | Single source of truth for saga decisions, easier to debug |
 | **Conditional DB update** for race conditions | Optimistic concurrency — whoever commits first wins |
 | **Redis event deduplication** | Prevents duplicate processing on Kafka redelivery |
-| **Gateway-first security** | Single entry point for auth; internal services trust headers |
+| **Gateway-first security** | Single entry point for auth; downstream services extract claims from forwarded JWT directly |
 | **Auth behind Gateway** | Simplifies K8s Ingress config (single entry point, one cluster) |
 | **No Eureka/Config Server** | Kubernetes provides service discovery and config natively |
 | **Database-per-service** | Full autonomy, independent scaling and schema evolution |

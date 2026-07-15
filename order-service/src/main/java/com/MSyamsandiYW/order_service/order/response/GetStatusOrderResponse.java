@@ -2,6 +2,7 @@ package com.MSyamsandiYW.order_service.order.response;
 
 import lombok.*;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 
 @AllArgsConstructor
@@ -14,6 +15,6 @@ public class GetStatusOrderResponse {
     private String correlationId;
     private String orderStatus;
     private String discountCode;
-    private Double totalAmount;
+    private BigDecimal totalAmount;
     private Instant createdDate;
 }

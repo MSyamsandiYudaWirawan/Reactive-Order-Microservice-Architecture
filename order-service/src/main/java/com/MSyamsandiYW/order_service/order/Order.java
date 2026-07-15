@@ -7,6 +7,7 @@ import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -31,7 +32,7 @@ public class Order {
     @Column("order_status")
     private String orderStatus;
     @Column("total_amount")
-    private Double totalAmount;
+    private BigDecimal totalAmount;
     @Column("failure_code")
     private String failureCode;
     @Column("failure_message")

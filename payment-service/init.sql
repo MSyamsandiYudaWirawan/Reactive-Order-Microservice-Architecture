@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS payments
     transaction_id     VARCHAR(255) NOT NULL,
     correlation_id     VARCHAR(255) NOT NULL,
     payment_method     VARCHAR(50)  NOT NULL,
-    amount             DECIMAL      NOT NULL,
+    amount             NUMERIC(19,2) NOT NULL,
     status             VARCHAR(50)  NOT NULL,
     failure_code       VARCHAR(100),
     failure_message    VARCHAR(500),

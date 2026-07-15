@@ -7,6 +7,7 @@ import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.ZonedDateTime;
 import java.util.UUID;
@@ -26,11 +27,11 @@ public class Discount {
     @Column("discount_type")
     private String discountType;
     @Column("value")
-    private Double value;
+    private BigDecimal value;
     @Column("minimum_order_value")
-    private Double minimumOrderValue;
+    private BigDecimal minimumOrderValue;
     @Column("maximum_order_value")
-    private Double maximumOrderValue;
+    private BigDecimal maximumOrderValue;
     @Column("max_usage")
     private Integer maxUsage;
     @Column("valid_from")
