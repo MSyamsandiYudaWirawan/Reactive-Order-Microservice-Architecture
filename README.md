@@ -503,10 +503,9 @@ Webhook REFUND_FAILED:
 - Prometheus + Grafana metrics dashboard
 
 ### 🔲 Phase 5 — DevOps & Quality (Planned)
-- Centralized logging (ELK Stack or Loki)
-- GitHub Actions CI/CD pipeline
+- GitHub Actions CI/CD pipeline (build, test, push to ECR)
+- Integration tests with TestContainers (happy path, compensation flow, idempotency)
 - SonarQube code quality integration
-- Integration tests with TestContainers
 
 ### 🔲 Phase 6 — Kubernetes & EKS Migration (Planned)
 - Kubernetes manifests (Deployments, Services, Ingress)
