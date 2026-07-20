@@ -457,7 +457,7 @@ Webhook REFUND_SUCCESS:
 Webhook REFUND_FAILED:
 ├── Payment is CANCELLED     → mark REFUND_FAILED, produce ORDER_REFUND_FAILED and PAYMENT_DLQ(need manual intervention)
 ├── Payment is SUCCESS       → mark REFUND_FAILED, produce ORDER_REFUND_FAILED and PAYMENT_DLQ(need manual intervention)
-├── Any other status         → ignore (log warning)1    
+├── Any other status         → ignore (log warning)
 ```
 
 ---
@@ -496,17 +496,19 @@ Webhook REFUND_FAILED:
 - IAM roles (execution + task) with least-privilege secrets access
 - Security groups: defense-in-depth (ALB → Gateway → ECS → DB/Messaging)
 
-### 🔲 Phase 4 — Outbox Pattern & Observability (Planned)
+### 🔲 Phase 4 — Outbox Pattern & Core Observability (Planned)
 - Transactional Outbox pattern (guaranteed event publishing)
-- Debezium CDC or polling publisher for outbox relay
+- Debezium CDC outbox relay (Kafka Connect + PostgreSQL WAL)
 - Distributed tracing with Micrometer + Zipkin/Jaeger
 - Prometheus + Grafana metrics dashboard
+
+### 🔲 Phase 5 — DevOps & Quality (Planned)
 - Centralized logging (ELK Stack or Loki)
 - GitHub Actions CI/CD pipeline
 - SonarQube code quality integration
 - Integration tests with TestContainers
 
-### 🔲 Phase 5 — Kubernetes & EKS Migration (Planned)
+### 🔲 Phase 6 — Kubernetes & EKS Migration (Planned)
 - Kubernetes manifests (Deployments, Services, Ingress)
 - Horizontal Pod Autoscaler per service
 - ConfigMaps + Secrets for environment management
@@ -516,7 +518,7 @@ Webhook REFUND_FAILED:
 - AWS Load Balancer Controller (Ingress → ALB)
 - ExternalDNS + Certificate Manager for HTTPS
 
-### 🔲 Phase 6 — Advanced Patterns (Future)
+### 🔲 Phase 7 — Advanced Patterns (Future)
 - Event sourcing with CQRS
 - GraphQL API layer
 - OAuth2/OIDC integration (Keycloak)

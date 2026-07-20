@@ -1,14 +1,22 @@
-.idea
-auth-service/src/main/resources/keys/local-only/*
-.amazonq/
+# Build output
 target/
-
-HELP.md
-.mvn/wrapper/maven-wrapper.jar
+build/
 !**/src/main/**/target/
 !**/src/test/**/target/
+!**/src/main/**/build/
+!**/src/test/**/build/
 
-### STS ###
+# Maven wrapper
+.mvn/wrapper/maven-wrapper.jar
+
+# IDE
+.idea/
+*.iws
+*.iml
+*.ipr
+.amazonq/
+.claude/
+.vscode/
 .apt_generated
 .classpath
 .factorypath
@@ -16,38 +24,23 @@ HELP.md
 .settings
 .springBeans
 .sts4-cache
-
-### IntelliJ IDEA ###
-*.iws
-*.iml
-*.ipr
-
-### NetBeans ###
 /nbproject/private/
 /nbbuild/
 /dist/
 /nbdist/
 /.nb-gradle/
-build/
-!**/src/main/**/build/
-!**/src/test/**/build/
 
-### VS Code ###
-.vscode/
+# Environment & secrets
 .env
-Reactive_Order_Microservice_Architecture_Notes.md
-DEMO_SCRIPT.md
-LINKEDIN_SERIES.md
-/posts/
-terraform-plan.md
-.claude-memory/
-.claude
+auth-service/src/main/resources/keys/local-only/*
 
+# Terraform
 terraform/.terraform/
-terraform/*.tfstate
-terraform/*.tfstate.backup
-terraform/errored.tfstate
 terraform/module/keys/
 *.tfstate
 *.tfstate.*
 *.tfstate.backup
+terraform/errored.tfstate
+
+# Personal
+personal/
