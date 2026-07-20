@@ -340,7 +340,7 @@ service/src/main/java/com/MSyamsandiYW/<service_name>/
 | **Orchestrator Saga** (not Choreography) | Single source of truth for saga decisions, easier to debug |
 | **Conditional DB update** for race conditions | Optimistic concurrency — whoever commits first wins |
 | **Redis event deduplication** | Prevents duplicate processing on Kafka redelivery |
-| **Gateway-first security** | Single entry point for auth; internal services trust headers |
+| **Gateway-first security** | Single entry point for auth; downstream services extract claims from forwarded JWT directly |
 | **Auth behind Gateway** | Simplifies K8s Ingress config (single entry point, one cluster) |
 | **No Eureka/Config Server** | Kubernetes provides service discovery and config natively |
 | **Database-per-service** | Full autonomy, independent scaling and schema evolution |
@@ -457,7 +457,7 @@ Webhook REFUND_SUCCESS:
 Webhook REFUND_FAILED:
 ├── Payment is CANCELLED     → mark REFUND_FAILED, produce ORDER_REFUND_FAILED and PAYMENT_DLQ(need manual intervention)
 ├── Payment is SUCCESS       → mark REFUND_FAILED, produce ORDER_REFUND_FAILED and PAYMENT_DLQ(need manual intervention)
-├── Any other status         → ignore (log warning)1    
+├── Any other status         → ignore (log warning)
 ```
 
 ---
@@ -496,17 +496,19 @@ Webhook REFUND_FAILED:
 - IAM roles (execution + task) with least-privilege secrets access
 - Security groups: defense-in-depth (ALB → Gateway → ECS → DB/Messaging)
 
-### 🔲 Phase 4 — Outbox Pattern & Observability (Planned)
+### 🔲 Phase 4 — Outbox Pattern & Core Observability (Planned)
 - Transactional Outbox pattern (guaranteed event publishing)
-- Debezium CDC or polling publisher for outbox relay
+- Debezium CDC outbox relay (Kafka Connect + PostgreSQL WAL)
 - Distributed tracing with Micrometer + Zipkin/Jaeger
 - Prometheus + Grafana metrics dashboard
+
+### 🔲 Phase 5 — DevOps & Quality (Planned)
 - Centralized logging (ELK Stack or Loki)
 - GitHub Actions CI/CD pipeline
 - SonarQube code quality integration
 - Integration tests with TestContainers
 
-### 🔲 Phase 5 — Kubernetes & EKS Migration (Planned)
+### 🔲 Phase 6 — Kubernetes & EKS Migration (Planned)
 - Kubernetes manifests (Deployments, Services, Ingress)
 - Horizontal Pod Autoscaler per service
 - ConfigMaps + Secrets for environment management
@@ -516,7 +518,7 @@ Webhook REFUND_FAILED:
 - AWS Load Balancer Controller (Ingress → ALB)
 - ExternalDNS + Certificate Manager for HTTPS
 
-### 🔲 Phase 6 — Advanced Patterns (Future)
+### 🔲 Phase 7 — Advanced Patterns (Future)
 - Event sourcing with CQRS
 - GraphQL API layer
 - OAuth2/OIDC integration (Keycloak)

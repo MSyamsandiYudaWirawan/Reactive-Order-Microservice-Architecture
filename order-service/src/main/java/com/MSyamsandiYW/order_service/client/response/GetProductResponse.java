@@ -2,6 +2,8 @@ package com.MSyamsandiYW.order_service.client.response;
 
 import lombok.*;
 
+import java.math.BigDecimal;
+
 @AllArgsConstructor
 @NoArgsConstructor
 @Getter
@@ -9,5 +11,5 @@ import lombok.*;
 @Builder
 public class GetProductResponse {
     private String productId;
-    private Double price;
+    private BigDecimal price;
 }

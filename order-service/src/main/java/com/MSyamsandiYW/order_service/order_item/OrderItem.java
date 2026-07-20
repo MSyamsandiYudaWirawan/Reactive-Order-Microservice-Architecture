@@ -7,6 +7,7 @@ import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -29,7 +30,7 @@ public class OrderItem {
     @Column("quantity")
     private Integer quantity;
     @Column("price")
-    private Double price;
+    private BigDecimal price;
     @Column("created_by")
     private String createdBy;
     @Column("updated_by")

@@ -1,7 +1,7 @@
 CREATE TABLE IF NOT EXISTS products(
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
-    price DECIMAL NOT NULL ,
+    price NUMERIC(19,2) NOT NULL ,
     available_qty INTEGER NOT NULL ,
     reserved_qty INTEGER NOT NULL ,
     sold_qty INTEGER NOT NULL ,

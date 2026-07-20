@@ -7,6 +7,7 @@ import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -23,7 +24,7 @@ public class Product {
     @Column("name")
     private String name;
     @Column("price")
-    private Double price;
+    private BigDecimal price;
     @Column("available_qty")
     private Integer availableQty;
     @Column("reserved_qty")

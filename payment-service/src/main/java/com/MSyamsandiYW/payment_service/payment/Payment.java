@@ -7,6 +7,7 @@ import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -29,7 +30,7 @@ public class Payment {
     @Column("payment_method")
     private String paymentMethod;
     @Column("amount")
-    private Double amount;
+    private BigDecimal amount;
     @Column("status")
     private String status;
     @Column("failure_code")
