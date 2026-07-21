@@ -35,12 +35,12 @@ build/
 auth-service/src/main/resources/keys/local-only/*
 
 # Terraform
-terraform/.terraform/
-terraform/module/keys/
+infra/terraform/.terraform/
+infra/terraform/module/keys/
 *.tfstate
 *.tfstate.*
 *.tfstate.backup
-terraform/errored.tfstate
+infra/terraform/errored.tfstate
 
 # Personal
 personal/
