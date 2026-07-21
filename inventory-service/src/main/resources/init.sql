@@ -37,6 +37,16 @@ CREATE TABLE IF NOT EXISTS stock_ledger(
     created_date TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS outbox
+(
+    id  UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    aggregate_type VARCHAR(255) NOT NULL,
+    aggregate_id VARCHAR(255) NOT NULL,
+    event_type VARCHAR(255) NOT NULL,
+    payload JSONB NOT NULL,
+    created_date TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Sample products for testing
 INSERT INTO products (id, name, price, available_qty, reserved_qty, sold_qty, description, is_active, is_deleted, created_by)
 SELECT 'a1b2c3d4-e5f6-7890-abcd-ef1234567890', 'Wireless Mouse', 29.99, 100, 0, 0, 'Ergonomic wireless mouse with USB receiver', TRUE, FALSE, 'SYSTEM'

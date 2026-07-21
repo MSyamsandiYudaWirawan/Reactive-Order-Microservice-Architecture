@@ -55,5 +55,15 @@ CREATE TABLE IF NOT EXISTS order_ledger
     created_date         TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS outbox
+(
+    id  UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    aggregate_type VARCHAR(255) NOT NULL,
+    aggregate_id VARCHAR(255) NOT NULL,
+    event_type VARCHAR(255) NOT NULL,
+    payload JSONB NOT NULL,
+    created_date TIMESTAMPTZ DEFAULT NOW()
+);
+
 CREATE INDEX idx_orders_user_id ON orders(user_id);
 CREATE INDEX idx_orders_transaction_id ON orders(transaction_id);
