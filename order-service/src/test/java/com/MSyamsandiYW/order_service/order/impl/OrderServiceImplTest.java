@@ -6,7 +6,6 @@ import com.MSyamsandiYW.common.jwt.JwtService;
 import com.MSyamsandiYW.order_service.client.InventoryServiceClient;
 import com.MSyamsandiYW.order_service.client.response.GetProductResponse;
 import com.MSyamsandiYW.order_service.discount.DiscountService;
-import com.MSyamsandiYW.order_service.kafka.OrderCommandProducer;
 import com.MSyamsandiYW.order_service.order.Order;
 import com.MSyamsandiYW.order_service.order.OrderRepository;
 import com.MSyamsandiYW.order_service.order.request.CreateOrderRequest;
@@ -14,7 +13,9 @@ import com.MSyamsandiYW.order_service.order_item.OrderItem;
 import com.MSyamsandiYW.order_service.order_item.OrderItemRepository;
 import com.MSyamsandiYW.order_service.order_item.request.OrderItemRequest;
 import com.MSyamsandiYW.order_service.order_ledger.OrderStatusHistoryService;
+import com.MSyamsandiYW.order_service.outbox.OutboxService;
 import com.MSyamsandiYW.order_service.properties.AppConstant;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.impl.DefaultClaims;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,6 +24,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.transaction.reactive.TransactionalOperator;
@@ -46,8 +48,6 @@ class OrderServiceImplTest {
     @Mock
     private OrderRepository orderRepository;
     @Mock
-    private OrderCommandProducer orderCommandProducer;
-    @Mock
     private JwtService jwtService;
     @Mock
     private OrderItemRepository orderItemRepository;
@@ -59,6 +59,10 @@ class OrderServiceImplTest {
     private OrderStatusHistoryService orderStatusHistoryService;
     @Mock
     private InventoryServiceClient inventoryServiceClient;
+    @Mock
+    private OutboxService outboxService;
+    @Spy
+    private ObjectMapper objectMapper = new ObjectMapper();
 
     @InjectMocks
     private OrderServiceImpl orderService;
@@ -111,8 +115,8 @@ class OrderServiceImplTest {
         when(orderRepository.save(any(Order.class))).thenReturn(Mono.just(savedOrder));
         when(orderItemRepository.saveAll(anyList())).thenReturn(Flux.just(OrderItem.builder().build()));
         when(transactionalOperator.transactional(any(Mono.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(orderStatusHistoryService.recordOrderEvent(any())).thenReturn(Mono.empty());
-        when(orderCommandProducer.send(any(), any(), any())).thenReturn(Mono.empty());
+        when(orderStatusHistoryService.recordOrderStatus(any())).thenReturn(Mono.empty());
+        when(outboxService.save(any())).thenReturn(Mono.empty());
 
         StepVerifier.create(orderService.createOrder(correlationId, token, request))
                 .assertNext(response -> {
@@ -122,7 +126,7 @@ class OrderServiceImplTest {
                 })
                 .verifyComplete();
 
-        verify(orderCommandProducer).send(eq(AppConstant.TOPICS.STOCK_RESERVE_REQUESTED), any(), any());
+        verify(outboxService).save(any());
     }
 
     @Test

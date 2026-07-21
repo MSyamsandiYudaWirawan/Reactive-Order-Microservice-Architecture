@@ -26,3 +26,4 @@ CREATE TABLE IF NOT EXISTS payment_ledger
 );
 
 CREATE INDEX idx_payments_user_id ON payments(user_id);
+ALTER USER username REPLICATION;

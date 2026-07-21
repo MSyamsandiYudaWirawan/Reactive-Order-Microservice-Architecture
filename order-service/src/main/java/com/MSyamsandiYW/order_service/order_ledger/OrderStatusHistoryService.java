@@ -4,5 +4,5 @@ import com.MSyamsandiYW.order_service.order.Order;
 import reactor.core.publisher.Mono;
 
 public interface OrderStatusHistoryService {
-    Mono<Void> recordOrderEvent(Order order);
+    Mono<Void> recordOrderStatus(Order order);
 }

@@ -78,7 +78,7 @@ public class OrderEventHandler {
                             .correlationId(payload.getCorrelationId())
                             .orderStatus(targetStatus.name())
                             .build();
-                    return orderStatusHistoryService.recordOrderEvent(order);
+                    return orderStatusHistoryService.recordOrderStatus(order);
                 })
                 .then();
     }

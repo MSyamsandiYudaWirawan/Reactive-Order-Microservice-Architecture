@@ -18,7 +18,7 @@ public class OrderStatusHistoryServiceImpl implements OrderStatusHistoryService 
     private final OrderStatusHistoryRepository orderStatusHistoryRepository;
 
     @Override
-    public Mono<Void> recordOrderEvent(Order order) {
+    public Mono<Void> recordOrderStatus(Order order) {
         OrderStatusHistory orderStatusHistory = OrderStatusHistory.builder()
                 .transactionId(order.getTransactionId())
                 .correlationId(order.getCorrelationId())

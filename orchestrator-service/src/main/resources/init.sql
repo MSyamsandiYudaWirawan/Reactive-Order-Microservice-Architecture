@@ -22,3 +22,5 @@ CREATE TABLE IF NOT EXISTS outbox
     payload JSONB NOT NULL,
     created_date TIMESTAMPTZ DEFAULT NOW()
 );
+
+ALTER USER username REPLICATION;

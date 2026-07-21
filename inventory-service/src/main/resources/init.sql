@@ -69,3 +69,4 @@ SELECT 'e5f6a7b8-c9d0-1234-efab-345678901234', 'Webcam HD', 59.99, 60, 0, 0, '10
 WHERE NOT EXISTS (SELECT 1 FROM products WHERE id = 'e5f6a7b8-c9d0-1234-efab-345678901234');
 
 CREATE INDEX IF NOT EXISTS idx_stock_reservation_transaction_id ON stock_reservation(transaction_id);
+ALTER USER username REPLICATION;
