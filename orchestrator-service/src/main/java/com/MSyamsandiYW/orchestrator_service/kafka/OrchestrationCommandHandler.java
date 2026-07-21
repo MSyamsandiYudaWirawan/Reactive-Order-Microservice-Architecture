@@ -53,7 +53,7 @@ public class OrchestrationCommandHandler {
                     sagaState.setPaymentId(payload.getPaymentId());
                     sagaState.setPaymentStatus(INITIATED.name());
                     sagaState.setUpdatedBy("ORCHESTRATION_SERVICE");
-                    sagaState.setLastModifiedDate(Instant.now());
+                    sagaState.setUpdatedAt(Instant.now());
                     return sagaStateService.save(sagaState);
                 })
                 .then();

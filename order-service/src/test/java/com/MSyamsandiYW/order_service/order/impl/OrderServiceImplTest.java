@@ -13,7 +13,7 @@ import com.MSyamsandiYW.order_service.order.request.CreateOrderRequest;
 import com.MSyamsandiYW.order_service.order_item.OrderItem;
 import com.MSyamsandiYW.order_service.order_item.OrderItemRepository;
 import com.MSyamsandiYW.order_service.order_item.request.OrderItemRequest;
-import com.MSyamsandiYW.order_service.order_ledger.OrderLedgerService;
+import com.MSyamsandiYW.order_service.order_ledger.OrderStatusHistoryService;
 import com.MSyamsandiYW.order_service.properties.AppConstant;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.impl.DefaultClaims;
@@ -30,6 +30,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -55,7 +56,7 @@ class OrderServiceImplTest {
     @Mock
     private DiscountService discountService;
     @Mock
-    private OrderLedgerService orderLedgerService;
+    private OrderStatusHistoryService orderStatusHistoryService;
     @Mock
     private InventoryServiceClient inventoryServiceClient;
 
@@ -91,7 +92,7 @@ class OrderServiceImplTest {
 
         GetProductResponse product = GetProductResponse.builder()
                 .productId("product-1")
-                .price(50.0)
+                .price(new BigDecimal("50.0"))
                 .build();
 
         Order savedOrder = Order.builder()
@@ -100,8 +101,8 @@ class OrderServiceImplTest {
                 .transactionId(UUID.randomUUID().toString())
                 .userId("user-123")
                 .orderStatus(AppConstant.ORDER_STATUS.PENDING.name())
-                .totalAmount(100.0)
-                .createdDate(Instant.now())
+                .totalAmount(new BigDecimal("100.0"))
+                .createdAt(Instant.now())
                 .build();
 
         when(jwtService.extractClaims(token)).thenReturn(Mono.just(claims));
@@ -110,7 +111,7 @@ class OrderServiceImplTest {
         when(orderRepository.save(any(Order.class))).thenReturn(Mono.just(savedOrder));
         when(orderItemRepository.saveAll(anyList())).thenReturn(Flux.just(OrderItem.builder().build()));
         when(transactionalOperator.transactional(any(Mono.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(orderLedgerService.recordOrderEvent(any())).thenReturn(Mono.empty());
+        when(orderStatusHistoryService.recordOrderEvent(any())).thenReturn(Mono.empty());
         when(orderCommandProducer.send(any(), any(), any())).thenReturn(Mono.empty());
 
         StepVerifier.create(orderService.createOrder(correlationId, token, request))
@@ -149,8 +150,8 @@ class OrderServiceImplTest {
                 .correlationId(correlationId)
                 .userId("user-123")
                 .orderStatus(AppConstant.ORDER_STATUS.WAITING_PAYMENT.name())
-                .totalAmount(100.0)
-                .createdDate(Instant.now())
+                .totalAmount(new BigDecimal("100.0"))
+                .createdAt(Instant.now())
                 .build();
 
         when(jwtService.extractClaims(token)).thenReturn(Mono.just(claims));
@@ -202,8 +203,8 @@ class OrderServiceImplTest {
                 .transactionId(UUID.randomUUID().toString())
                 .correlationId(correlationId)
                 .orderStatus(AppConstant.ORDER_STATUS.COMPLETED.name())
-                .totalAmount(200.0)
-                .createdDate(Instant.now())
+                .totalAmount(new BigDecimal("200.0"))
+                .createdAt(Instant.now())
                 .build();
 
         when(jwtService.extractClaims(token)).thenReturn(Mono.just(claims));

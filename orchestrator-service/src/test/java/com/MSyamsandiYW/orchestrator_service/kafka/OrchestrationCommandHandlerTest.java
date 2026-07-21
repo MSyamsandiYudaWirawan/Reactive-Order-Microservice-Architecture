@@ -50,7 +50,7 @@ class OrchestrationCommandHandlerTest {
                 .correlationId(command.getCorrelationId())
                 .sagaStatus(AppConstant.SAGA_STATUS.IN_PROGRESS.name())
                 .createdBy("ORCHESTRATION_SERVICE")
-                .createdDate(Instant.now())
+                .createdAt(Instant.now())
                 .build();
 
         // Default mock for findOrCreate — used by most handler methods

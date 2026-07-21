@@ -28,6 +28,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
@@ -87,7 +88,7 @@ class PaymentServiceImplTest {
         GetOrderStatusResponse orderStatus = GetOrderStatusResponse.builder()
                 .orderStatus(AppConstant.ORDER_STATUS.WAITING_PAYMENT.name())
                 .correlationId(UUID.randomUUID().toString())
-                .totalAmount(100.0)
+                .totalAmount(new BigDecimal("100.0"))
                 .build();
 
         Payment savedPayment = Payment.builder()
@@ -96,9 +97,9 @@ class PaymentServiceImplTest {
                 .transactionId(transactionId)
                 .correlationId(orderStatus.getCorrelationId())
                 .paymentMethod("BCA_VA")
-                .amount(100.0)
+                .amount(new BigDecimal("100.0"))
                 .status(AppConstant.PAYMENT_STATUS.PENDING.name())
-                .createdDate(Instant.now())
+                .createdAt(Instant.now())
                 .build();
 
         when(jwtService.extractClaims(token)).thenReturn(Mono.just(claims));
@@ -212,9 +213,9 @@ class PaymentServiceImplTest {
         Payment payment = Payment.builder()
                 .transactionId(transactionId)
                 .paymentMethod("BCA_VA")
-                .amount(50.0)
-                .status(AppConstant.PAYMENT_STATUS.SUCCESS.name())
-                .createdDate(Instant.now())
+                .amount(new BigDecimal("50.0"))
+                .status(AppConstant.PAYMENT_STATUS.PAID.name())
+                .createdAt(Instant.now())
                 .build();
 
         when(jwtService.extractClaims(token)).thenReturn(Mono.just(claims));
@@ -224,7 +225,7 @@ class PaymentServiceImplTest {
                 .assertNext(response -> {
                     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
                     assertThat(response.getBody()).hasSize(1);
-                    assertThat(response.getBody().get(0).getStatus()).isEqualTo("SUCCESS");
+                    assertThat(response.getBody().get(0).getStatus()).isEqualTo("PAID");
                 })
                 .verifyComplete();
     }
@@ -239,7 +240,7 @@ class PaymentServiceImplTest {
                 .build();
 
         when(jwtService.extractClaims(token)).thenReturn(Mono.just(claims));
-        when(paymentRepository.findFirstByTransactionIdOrderByCreatedDateDesc(transactionId))
+        when(paymentRepository.findFirstByTransactionIdOrderByCreatedAtDesc(transactionId))
                 .thenReturn(Mono.just(payment));
 
         StepVerifier.create(paymentService.getPaymentStatus(transactionId, token))

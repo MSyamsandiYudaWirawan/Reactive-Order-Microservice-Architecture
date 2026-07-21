@@ -32,10 +32,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
-import static com.MSyamsandiYW.payment_service.properties.AppConstant.ORDER_STATUS.*;
 import static com.MSyamsandiYW.payment_service.properties.AppConstant.PAYMENT_STATUS.*;
-import static com.MSyamsandiYW.payment_service.properties.AppConstant.PAYMENT_STATUS.REFUNDED;
-import static com.MSyamsandiYW.payment_service.properties.AppConstant.PAYMENT_STATUS.REFUND_FAILED;
 import static com.MSyamsandiYW.payment_service.properties.AppConstant.TOPICS.*;
 import static com.MSyamsandiYW.payment_service.properties.AppConstant.WEBHOOK_CALLBACK_PAYMENT_STATUS.PAYMENT_SUCCESS;
 import static com.MSyamsandiYW.payment_service.properties.AppConstant.WEBHOOK_CALLBACK_PAYMENT_STATUS.REFUND_SUCCESS;
@@ -68,19 +65,19 @@ public class PaymentServiceImpl implements PaymentService {
                     }
 
                     // validate order status
-                    if (order.getOrderStatus().equalsIgnoreCase(PAID.name())) {
+                    if (order.getOrderStatus().equalsIgnoreCase(AppConstant.ORDER_STATUS.PAID.name())) {
                         return Mono.error(new BusinessException(ErrorCode.ORDER_ALREADY_PAID));
                     }
-                    if (order.getOrderStatus().equalsIgnoreCase(COMPLETED.name())) {
+                    if (order.getOrderStatus().equalsIgnoreCase(AppConstant.ORDER_STATUS.COMPLETED.name())) {
                         return Mono.error(new BusinessException(ErrorCode.ORDER_ALREADY_COMPLETED));
                     }
                     if (order.getOrderStatus().equalsIgnoreCase(AppConstant.ORDER_STATUS.REFUNDED.name())) {
                         return Mono.error(new BusinessException(ErrorCode.ORDER_ALREADY_REFUNDED));
                     }
-                    if (order.getOrderStatus().equalsIgnoreCase(OUT_OF_STOCK.name())) {
+                    if (order.getOrderStatus().equalsIgnoreCase(AppConstant.ORDER_STATUS.OUT_OF_STOCK.name())) {
                         return Mono.error(new BusinessException(ErrorCode.ORDER_OUT_OF_STOCK));
                     }
-                    if (order.getOrderStatus().equalsIgnoreCase(EXPIRED.name())) {
+                    if (order.getOrderStatus().equalsIgnoreCase(AppConstant.ORDER_STATUS.EXPIRED.name())) {
                         return Mono.error(new BusinessException(ErrorCode.ORDER_ALREADY_EXPIRED));
                     }
                     if (order.getOrderStatus().equalsIgnoreCase(AppConstant.ORDER_STATUS.REFUND_FAILED.name())) {
