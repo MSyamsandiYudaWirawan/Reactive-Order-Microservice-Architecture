@@ -25,12 +25,12 @@ public class StockLedger {
     private String transactionId;
     @Column("correlation_id")
     private String correlationId;
-    @Column("event_type")
-    private String eventType;
+    @Column("status")
+    private String status;
     @Column("qty")
     private Integer qty;
 
     @CreatedDate
-    @Column("created_date")
-    private Instant createdDate;
+    @Column("created_at")
+    private Instant createdAt;
 }

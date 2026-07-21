@@ -96,7 +96,7 @@ public class PaymentServiceImpl implements PaymentService {
                             .amount(order.getTotalAmount())
                             .status(AppConstant.PAYMENT_STATUS.PENDING.name())
                             .createdBy("PAYMENT_SERVICE")
-                            .createdDate(Instant.now())
+                            .createdAt(Instant.now())
                             .build());
                 })
                 // validate current active payment
@@ -179,13 +179,13 @@ public class PaymentServiceImpl implements PaymentService {
                 log.info("Silent refund completed for CANCELLED paymentId: {}", payment.getId());
                 payment.setStatus(REFUNDED.name());
                 payment.setUpdatedBy("PAYMENT_SERVICE");
-                payment.setLastModifiedDate(Instant.now());
+                payment.setUpdatedAt(Instant.now());
                 return paymentRepository.save(payment)
                         .flatMap(saved -> paymentLedgerService.recordEventPayment(saved).thenReturn(saved))
                         .then(Mono.empty());
             }
             // Only SUCCESS or REFUND_FAILED are valid for REFUND_SUCCESS
-            if (!Set.of(SUCCESS.name(), REFUND_FAILED.name()).contains(currentStatus)) {
+            if (!Set.of(PAID.name(), REFUND_FAILED.name()).contains(currentStatus)) {
                 log.warn("Ignoring REFUND_SUCCESS webhook for paymentId: {} — current status: {}", payment.getId(), currentStatus);
                 return Mono.empty();
             }
@@ -194,7 +194,7 @@ public class PaymentServiceImpl implements PaymentService {
         // === REFUND_FAILED webhook ===
         if (webhookStatus.equalsIgnoreCase(AppConstant.ORDER_STATUS.REFUND_FAILED.name())) {
             // Only CANCELLED or SUCCESS are valid for REFUND_FAILED
-            if (!Set.of(CANCELLED.name(), SUCCESS.name()).contains(currentStatus)) {
+            if (!Set.of(CANCELLED.name(), PAID.name()).contains(currentStatus)) {
                 log.warn("Ignoring REFUND_FAILED webhook for paymentId: {} — current status: {}", payment.getId(), currentStatus);
                 return Mono.empty();
             }
@@ -236,7 +236,7 @@ public class PaymentServiceImpl implements PaymentService {
                                     .paymentMethod(p.getPaymentMethod())
                                     .amount(p.getAmount())
                                     .status(p.getStatus())
-                                    .createdDate(p.getCreatedDate())
+                                    .createdAt(p.getCreatedAt())
                                     .build())
                             .toList();
 
@@ -250,7 +250,7 @@ public class PaymentServiceImpl implements PaymentService {
         //extract token and get payment by transactionId
         return Mono.zip(
                         jwtService.extractClaims(token),
-                        paymentRepository.findFirstByTransactionIdOrderByCreatedDateDesc(transactionId)
+                        paymentRepository.findFirstByTransactionIdOrderByCreatedAtDesc(transactionId)
                                 .switchIfEmpty(Mono.error(new BusinessException(ErrorCode.PAYMENT_NOT_FOUND))))
                 .flatMap(tuple -> {
                     Claims claims = tuple.getT1();
@@ -271,7 +271,7 @@ public class PaymentServiceImpl implements PaymentService {
                                 .paymentMethod(payment.getPaymentMethod())
                                 .amount(payment.getAmount())
                                 .status(payment.getStatus())
-                                .createdDate(payment.getCreatedDate())
+                                .createdAt(payment.getCreatedAt())
                                 .build()
                 )))
                 ;
@@ -281,7 +281,7 @@ public class PaymentServiceImpl implements PaymentService {
         log.debug("Updating payment entity for transactionId: {}, new status: {}", payment.getTransactionId(), request.getPaymentStatus());
 
         if (PAYMENT_SUCCESS.name().equalsIgnoreCase(request.getPaymentStatus())) {
-            return updatePaymentStatus(payment, SUCCESS.name(), null, null);
+            return updatePaymentStatus(payment, PAID.name(), null, null);
         } else if (AppConstant.WEBHOOK_CALLBACK_PAYMENT_STATUS.PAYMENT_FAILED.name().equalsIgnoreCase(request.getPaymentStatus())) {
             return updatePaymentStatus(payment, FAILED.name(), request.getFailureCode(), request.getFailureMessage());
         } else if (REFUND_SUCCESS.name().equalsIgnoreCase(request.getPaymentStatus())) {
@@ -302,7 +302,7 @@ public class PaymentServiceImpl implements PaymentService {
                 .build();
 
 
-        if (payment.getStatus().equalsIgnoreCase(SUCCESS.name())) {
+        if (payment.getStatus().equalsIgnoreCase(PAID.name())) {
             return paymentEventProducer.send(PAYMENT_COMPLETED, UUID.randomUUID().toString(), payload);
         } else if (payment.getStatus().equalsIgnoreCase(AppConstant.PAYMENT_STATUS.PENDING.name())) {
             return paymentEventProducer.send(PAYMENT_INITIATED, UUID.randomUUID().toString(), payload);

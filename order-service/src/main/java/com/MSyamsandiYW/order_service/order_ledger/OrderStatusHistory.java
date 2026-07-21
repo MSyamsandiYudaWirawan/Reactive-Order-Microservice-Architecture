@@ -15,8 +15,8 @@ import java.util.UUID;
 @Getter
 @Setter
 @Builder
-@Table("order_ledger")
-public class OrderLedger {
+@Table("order_status_history")
+public class OrderStatusHistory {
 
     @Id
     private UUID id;
@@ -24,10 +24,10 @@ public class OrderLedger {
     private String transactionId;
     @Column("correlation_id")
     private String correlationId;
-    @Column("event_type")
-    private String eventType;
+    @Column("status")
+    private String status;
 
     @CreatedDate
-    @Column("created_date")
-    private Instant createdDate;
+    @Column("created_at")
+    private Instant createdAt;
 }

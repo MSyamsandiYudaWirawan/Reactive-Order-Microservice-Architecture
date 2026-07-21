@@ -18,7 +18,7 @@ import com.MSyamsandiYW.order_service.order.response.GetStatusOrderResponse;
 import com.MSyamsandiYW.order_service.order_item.OrderItem;
 import com.MSyamsandiYW.order_service.order_item.OrderItemRepository;
 import com.MSyamsandiYW.order_service.order_item.request.OrderItemRequest;
-import com.MSyamsandiYW.order_service.order_ledger.OrderLedgerService;
+import com.MSyamsandiYW.order_service.order_ledger.OrderStatusHistoryService;
 import com.MSyamsandiYW.order_service.properties.AppConstant;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -45,7 +45,7 @@ public class OrderServiceImpl implements OrderService {
     private final OrderItemRepository orderItemRepository;
     private final TransactionalOperator transactionalOperator;
     private final DiscountService discountService;
-    private final OrderLedgerService orderLedgerService;
+    private final OrderStatusHistoryService orderStatusHistoryService;
     private final InventoryServiceClient inventoryServiceClient;
 
     @Override
@@ -90,7 +90,7 @@ public class OrderServiceImpl implements OrderService {
                             .orderStatus(AppConstant.ORDER_STATUS.PENDING.name())
                             .totalAmount(totalAmount)
                             .createdBy("SYSTEM")
-                            .createdDate(Instant.now())
+                            .createdAt(Instant.now())
                             .build();
 
                     // apply discount then save
@@ -102,7 +102,7 @@ public class OrderServiceImpl implements OrderService {
                                 order.getId(), correlationId))
 
                 // record order event to ledger
-                .flatMap(order -> orderLedgerService.recordOrderEvent(order).thenReturn(order))
+                .flatMap(order -> orderStatusHistoryService.recordOrderEvent(order).thenReturn(order))
 
                 // produce event to reserve stock consumed by  inventory-service
                 .flatMap(order -> {
@@ -160,7 +160,7 @@ public class OrderServiceImpl implements OrderService {
                                 .orderStatus(order.getOrderStatus())
                                 .totalAmount(order.getTotalAmount())
                                 .discountCode(order.getDiscountCode())
-                                .createdDate(order.getCreatedDate())
+                                .createdAt(order.getCreatedAt())
                                 .build())
                 );
     }
@@ -184,7 +184,7 @@ public class OrderServiceImpl implements OrderService {
                                 .orderStatus(order.getOrderStatus())
                                 .totalAmount(order.getTotalAmount())
                                 .discountCode(order.getDiscountCode())
-                                .createdDate(order.getCreatedDate())
+                                .createdAt(order.getCreatedAt())
                                 .build()
                         ).toList())
                 )
@@ -202,7 +202,7 @@ public class OrderServiceImpl implements OrderService {
                                     .quantity(item.getQuantity())
                                     .price(priceMap.get(item.getProductId()))
                                     .createdBy("SYSTEM")
-                                    .createdDate(Instant.now())
+                                    .createdAt(Instant.now())
                                     .build())
                             .toList();
                     return orderItemRepository.saveAll(orderItems).collectList().thenReturn(saved);

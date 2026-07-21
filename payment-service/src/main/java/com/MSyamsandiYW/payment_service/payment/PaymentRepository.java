@@ -11,7 +11,7 @@ import java.util.UUID;
 
 public interface PaymentRepository extends R2dbcRepository<Payment, UUID> {
 
-    Mono<Payment> findFirstByTransactionIdOrderByCreatedDateDesc(String transactionId);
+    Mono<Payment> findFirstByTransactionIdOrderByCreatedAtDesc(String transactionId);
 
     Flux<Payment> findByUserId(String transactionId);
 
@@ -20,7 +20,7 @@ public interface PaymentRepository extends R2dbcRepository<Payment, UUID> {
     @Query("""
                 SELECT * FROM payments
                 WHERE status = 'PENDING'
-                  AND created_date < :cutoff
+                  AND created_at < :cutoff
             """)
     Flux<Payment> findAllExpiredPayments(Instant cutoff);
 
@@ -29,7 +29,7 @@ public interface PaymentRepository extends R2dbcRepository<Payment, UUID> {
                 UPDATE payments
                 SET status = :status,
                     updated_by = 'PAYMENT_SERVICE',
-                    last_modified_date = NOW()
+                    updated_at = NOW()
                 WHERE id = :id AND status = 'PENDING'
             """)
     Mono<Integer> updatePendingStatusPayment(UUID id, String status);
@@ -41,7 +41,7 @@ public interface PaymentRepository extends R2dbcRepository<Payment, UUID> {
                     failure_code = :failureCode,
                     failure_message = :failureMessage,
                     updated_by = 'PAYMENT_SERVICE',
-                    last_modified_date = NOW()
+                    updated_at = NOW()
                 WHERE id = :id
                 AND status != :status
             """)

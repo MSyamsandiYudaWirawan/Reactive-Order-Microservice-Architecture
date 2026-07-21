@@ -32,7 +32,7 @@ public class SagaStateServiceImpl implements SagaStateService {
                 .correlationId(correlationId)
                 .sagaStatus(IN_PROGRESS.name())
                 .createdBy("ORCHESTRATION_SERVICE")
-                .createdDate(Instant.now())
+                .createdAt(Instant.now())
                 .build();
         return sagaStateRepository.save(sagaState);
     }
@@ -45,7 +45,7 @@ public class SagaStateServiceImpl implements SagaStateService {
     @Override
     public Mono<SagaState> save(SagaState sagaState) {
         sagaState.setUpdatedBy("ORCHESTRATION_SERVICE");
-        sagaState.setLastModifiedDate(Instant.now());
+        sagaState.setUpdatedAt(Instant.now());
         return sagaStateRepository.save(sagaState);
     }
 

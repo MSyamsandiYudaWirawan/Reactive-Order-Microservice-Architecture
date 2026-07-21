@@ -43,9 +43,9 @@ public class Payment {
     private String updatedBy;
 
     @CreatedDate
-    @Column("created_date")
-    private Instant createdDate;
+    @Column("created_at")
+    private Instant createdAt;
     @LastModifiedDate
-    @Column("last_modified_date")
-    private Instant lastModifiedDate;
+    @Column("updated_at")
+    private Instant updatedAt;
 }
