@@ -37,6 +37,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -181,7 +182,7 @@ class PaymentServiceImplTest {
                 .build();
 
         when(paymentRepository.findById(paymentId)).thenReturn(Mono.just(payment));
-        when(paymentRepository.updateStatusPayment(eq(paymentId), anyString(), any(), any()))
+        when(paymentRepository.updateStatusPayment(eq(paymentId), anyString(), any(), any(), any()))
                 .thenReturn(Mono.just(1));
         when(paymentLedgerService.recordEventPayment(any())).thenReturn(Mono.empty());
         when(paymentEventProducer.send(any(), any(), any())).thenReturn(Mono.empty());
@@ -247,5 +248,125 @@ class PaymentServiceImplTest {
                 .expectErrorMatches(e -> e instanceof BusinessException
                         && ((BusinessException) e).getErrorCode() == ErrorCode.USER_UNAUTHORIZED)
                 .verify();
+    }
+
+    @Test
+    @DisplayName("webhookCallback - REFUND_SUCCESS on FAILED (expired) payment should mark REFUNDED without producing event")
+    void webhookCallback_refundSuccessOnExpiredPayment() {
+        UUID paymentId = UUID.randomUUID();
+        Payment payment = Payment.builder()
+                .id(paymentId)
+                .transactionId(transactionId)
+                .correlationId(UUID.randomUUID().toString())
+                .status(AppConstant.PAYMENT_STATUS.FAILED.name())
+                .build();
+
+        WebhookCallbackRequest request = WebhookCallbackRequest.builder()
+                .paymentId(paymentId.toString())
+                .paymentStatus(AppConstant.WEBHOOK_CALLBACK_PAYMENT_STATUS.REFUND_SUCCESS.name())
+                .build();
+
+        when(paymentRepository.findById(paymentId)).thenReturn(Mono.just(payment));
+        when(paymentRepository.updateStatusPayment(eq(paymentId), anyString(), any(), any(), any()))
+                .thenReturn(Mono.just(1));
+        when(paymentLedgerService.recordEventPayment(any())).thenReturn(Mono.empty());
+
+        StepVerifier.create(paymentService.webhookCallbackPaymentMethod(request, new HttpHeaders()))
+                .verifyComplete();
+
+        // silent refund: status updated + ledger written, but no Kafka event
+        assertThat(payment.getStatus()).isEqualTo(AppConstant.PAYMENT_STATUS.REFUNDED.name());
+        verify(paymentRepository).updateStatusPayment(eq(paymentId), eq(AppConstant.PAYMENT_STATUS.REFUNDED.name()), any(), any(), any());
+        verify(paymentEventProducer, never()).send(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("webhookCallback - REFUND_SUCCESS on CANCELLED payment should mark REFUNDED without producing event")
+    void webhookCallback_refundSuccessOnCancelledPayment() {
+        UUID paymentId = UUID.randomUUID();
+        Payment payment = Payment.builder()
+                .id(paymentId)
+                .transactionId(transactionId)
+                .correlationId(UUID.randomUUID().toString())
+                .status(AppConstant.PAYMENT_STATUS.CANCELLED.name())
+                .build();
+
+        WebhookCallbackRequest request = WebhookCallbackRequest.builder()
+                .paymentId(paymentId.toString())
+                .paymentStatus(AppConstant.WEBHOOK_CALLBACK_PAYMENT_STATUS.REFUND_SUCCESS.name())
+                .build();
+
+        when(paymentRepository.findById(paymentId)).thenReturn(Mono.just(payment));
+        when(paymentRepository.updateStatusPayment(eq(paymentId), anyString(), any(), any(), any()))
+                .thenReturn(Mono.just(1));
+        when(paymentLedgerService.recordEventPayment(any())).thenReturn(Mono.empty());
+
+        StepVerifier.create(paymentService.webhookCallbackPaymentMethod(request, new HttpHeaders()))
+                .verifyComplete();
+
+        assertThat(payment.getStatus()).isEqualTo(AppConstant.PAYMENT_STATUS.REFUNDED.name());
+        verify(paymentRepository).updateStatusPayment(eq(paymentId), eq(AppConstant.PAYMENT_STATUS.REFUNDED.name()), any(), any(), any());
+        verify(paymentEventProducer, never()).send(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("webhookCallback - REFUND_SUCCESS on SUCCESS payment should produce ORDER_REFUND_COMPLETED")
+    void webhookCallback_refundSuccessOnPaidPayment() {
+        UUID paymentId = UUID.randomUUID();
+        Payment payment = Payment.builder()
+                .id(paymentId)
+                .transactionId(transactionId)
+                .correlationId(UUID.randomUUID().toString())
+                .status(AppConstant.PAYMENT_STATUS.PAID.name())
+                .build();
+
+        WebhookCallbackRequest request = WebhookCallbackRequest.builder()
+                .paymentId(paymentId.toString())
+                .paymentStatus(AppConstant.WEBHOOK_CALLBACK_PAYMENT_STATUS.REFUND_SUCCESS.name())
+                .build();
+
+        when(paymentRepository.findById(paymentId)).thenReturn(Mono.just(payment));
+        when(paymentRepository.updateStatusPayment(eq(paymentId), anyString(), any(), any(), any()))
+                .thenReturn(Mono.just(1));
+        when(paymentLedgerService.recordEventPayment(any())).thenReturn(Mono.empty());
+        when(paymentEventProducer.send(any(), any(), any())).thenReturn(Mono.empty());
+
+        StepVerifier.create(paymentService.webhookCallbackPaymentMethod(request, new HttpHeaders()))
+                .verifyComplete();
+
+        // orchestrator-driven refund — saga is COMPENSATING and waiting for this event
+        verify(paymentEventProducer).send(eq(AppConstant.TOPICS.ORDER_REFUND_COMPLETED), any(), any());
+    }
+
+    @Test
+    @DisplayName("webhookCallback - REFUND_FAILED on FAILED (expired) payment should send DLQ and mark REFUND_FAILED")
+    void webhookCallback_refundFailedOnExpiredPayment() {
+        UUID paymentId = UUID.randomUUID();
+        Payment payment = Payment.builder()
+                .id(paymentId)
+                .transactionId(transactionId)
+                .correlationId(UUID.randomUUID().toString())
+                .status(AppConstant.PAYMENT_STATUS.FAILED.name())
+                .build();
+
+        WebhookCallbackRequest request = WebhookCallbackRequest.builder()
+                .paymentId(paymentId.toString())
+                .paymentStatus(AppConstant.WEBHOOK_CALLBACK_PAYMENT_STATUS.REFUND_FAILED.name())
+                .failureCode("PROVIDER_ERROR")
+                .failureMessage("refund rejected")
+                .build();
+
+        when(paymentRepository.findById(paymentId)).thenReturn(Mono.just(payment));
+        when(paymentEventProducer.send(any(), any(), any())).thenReturn(Mono.empty());
+        when(paymentRepository.updateStatusPayment(eq(paymentId), anyString(), any(), any(), any()))
+                .thenReturn(Mono.just(1));
+        when(paymentLedgerService.recordEventPayment(any())).thenReturn(Mono.empty());
+
+        StepVerifier.create(paymentService.webhookCallbackPaymentMethod(request, new HttpHeaders()))
+                .verifyComplete();
+
+        verify(paymentEventProducer).send(eq(AppConstant.TOPICS.PAYMENT_DLQ), eq(paymentId.toString()), any());
+        verify(paymentRepository).updateStatusPayment(eq(paymentId), eq(AppConstant.PAYMENT_STATUS.REFUND_FAILED.name()), any(), any(), any());
+        verify(paymentEventProducer).send(eq(AppConstant.TOPICS.ORDER_REFUND_FAILED), any(), any());
     }
 }

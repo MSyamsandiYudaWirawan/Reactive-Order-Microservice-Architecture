@@ -44,3 +44,4 @@ infra/terraform/errored.tfstate
 
 # Personal
 personal/
+AGENTS.md

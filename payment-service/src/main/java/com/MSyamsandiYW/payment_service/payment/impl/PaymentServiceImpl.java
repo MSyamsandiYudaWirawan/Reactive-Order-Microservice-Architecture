@@ -29,6 +29,7 @@ import reactor.core.publisher.Mono;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -47,6 +48,14 @@ public class PaymentServiceImpl implements PaymentService {
     private final JwtService jwtService;
     private final OrderServiceClient orderServiceClient;
     private final AppProperties appProperties;
+
+    // Defines which current statuses are allowed to transition TO a given target status (same pattern as order-service)
+    private static final Map<String, Set<String>> ALLOWED_TRANSITIONS = Map.of(
+            PAID.name(), Set.of(AppConstant.PAYMENT_STATUS.PENDING.name()),
+            FAILED.name(), Set.of(AppConstant.PAYMENT_STATUS.PENDING.name()),
+            REFUNDED.name(), Set.of(PAID.name(), REFUND_FAILED.name()),
+            REFUND_FAILED.name(), Set.of(PAID.name(), CANCELLED.name(), FAILED.name())
+    );
 
     @Override
     public Mono<ResponseEntity<CreatePaymentResponse>> createPayment(CreatePaymentRequest request, String token, String correlationId) {
@@ -171,17 +180,15 @@ public class PaymentServiceImpl implements PaymentService {
 
         // === REFUND_SUCCESS webhook ===
         if (webhookStatus.equalsIgnoreCase(REFUND_SUCCESS.name())) {
-            // CANCELLED + REFUND_SUCCESS → mark REFUNDED, DON'T produce event (silent refund completion)
-            if (currentStatus.equalsIgnoreCase(CANCELLED.name())) {
-                log.info("Silent refund completed for CANCELLED paymentId: {}", payment.getId());
-                payment.setStatus(REFUNDED.name());
-                payment.setUpdatedBy("PAYMENT_SERVICE");
-                payment.setUpdatedAt(Instant.now());
-                return paymentRepository.save(payment)
-                        .flatMap(saved -> paymentLedgerService.recordEventPayment(saved).thenReturn(saved))
+            // CANCELLED or FAILED (expired) + REFUND_SUCCESS → mark REFUNDED, DON'T produce event (silent refund completion)
+            if (Set.of(CANCELLED.name(), FAILED.name()).contains(currentStatus)) {
+                log.info("Silent refund completed for {} paymentId: {}", currentStatus, payment.getId());
+                // CAS: only mark REFUNDED if still CANCELLED/FAILED — prevents duplicate ledger on webhook redelivery
+                return updatePaymentStatus(payment, REFUNDED.name(), null, null, Set.of(CANCELLED.name(), FAILED.name()))
+                        .flatMap(paymentLedgerService::recordEventPayment)
                         .then(Mono.empty());
             }
-            // Only SUCCESS or REFUND_FAILED are valid for REFUND_SUCCESS
+            // Only SUCCESS or REFUND_FAILED proceed to normal flow — orchestrator is waiting for ORDER_REFUND_COMPLETED
             if (!Set.of(PAID.name(), REFUND_FAILED.name()).contains(currentStatus)) {
                 log.warn("Ignoring REFUND_SUCCESS webhook for paymentId: {} — current status: {}", payment.getId(), currentStatus);
                 return Mono.empty();
@@ -190,8 +197,8 @@ public class PaymentServiceImpl implements PaymentService {
 
         // === REFUND_FAILED webhook ===
         if (webhookStatus.equalsIgnoreCase(AppConstant.ORDER_STATUS.REFUND_FAILED.name())) {
-            // Only CANCELLED or SUCCESS are valid for REFUND_FAILED
-            if (!Set.of(CANCELLED.name(), PAID.name()).contains(currentStatus)) {
+            // Only CANCELLED, FAILED (expired), or SUCCESS are valid for REFUND_FAILED
+            if (!Set.of(CANCELLED.name(), PAID.name(), FAILED.name()).contains(currentStatus)) {
                 log.warn("Ignoring REFUND_FAILED webhook for paymentId: {} — current status: {}", payment.getId(), currentStatus);
                 return Mono.empty();
             }
@@ -358,8 +365,13 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     private Mono<Payment> updatePaymentStatus(Payment payment, String status, String failureCode, String failureMessage) {
+        //update with cas for atomic — only allowed source statuses can transition
+        return updatePaymentStatus(payment, status, failureCode, failureMessage, ALLOWED_TRANSITIONS.get(status));
+    }
+
+    private Mono<Payment> updatePaymentStatus(Payment payment, String status, String failureCode, String failureMessage, Set<String> allowedStatuses) {
         //update with cas for atomic
-        return paymentRepository.updateStatusPayment(payment.getId(), status, failureCode, failureMessage)
+        return paymentRepository.updateStatusPayment(payment.getId(), status, failureCode, failureMessage, allowedStatuses)
                 .filter(rows -> rows > 0)
                 .map(__ -> {
                     log.info("Payment status updated to {} - transactionId: {}, correlationId: {}",

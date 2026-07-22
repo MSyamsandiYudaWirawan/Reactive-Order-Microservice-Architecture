@@ -7,6 +7,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.time.Instant;
+import java.util.Set;
 import java.util.UUID;
 
 public interface PaymentRepository extends R2dbcRepository<Payment, UUID> {
@@ -43,7 +44,7 @@ public interface PaymentRepository extends R2dbcRepository<Payment, UUID> {
                     updated_by = 'PAYMENT_SERVICE',
                     updated_at = NOW()
                 WHERE id = :id
-                AND status != :status
+                AND status IN (:allowedStatuses)
             """)
-    Mono<Integer> updateStatusPayment(UUID id, String status, String failureCode, String failureMessage);
+    Mono<Integer> updateStatusPayment(UUID id, String status, String failureCode, String failureMessage, Set<String> allowedStatuses);
 }
