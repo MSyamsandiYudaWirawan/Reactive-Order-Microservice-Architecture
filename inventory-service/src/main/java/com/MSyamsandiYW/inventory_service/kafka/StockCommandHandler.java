@@ -19,6 +19,7 @@ import reactor.core.publisher.Mono;
 import reactor.kafka.receiver.ReceiverRecord;
 
 import java.time.Duration;
+import java.util.UUID;
 
 import static com.MSyamsandiYW.inventory_service.properties.AppConstant.RESERVATION_STATUS.*;
 import static com.MSyamsandiYW.inventory_service.properties.AppConstant.TOPICS.STOCK_RESERVE_COMPLETED;
@@ -109,7 +110,7 @@ public class StockCommandHandler {
     private Mono<Void> insertOutbox(StockEventPayload payload, String topic, String eventName) {
         return Mono.fromCallable(() -> objectMapper.writeValueAsString(payload))
                 .map(json -> Outbox.builder()
-                        .aggregateId(payload.getTransactionId())
+                        .aggregateId(UUID.randomUUID().toString())
                         .aggregateType(topic)
                         .eventType(eventName)
                         .payload(json)

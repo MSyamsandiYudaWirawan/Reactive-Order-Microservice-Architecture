@@ -2,7 +2,7 @@ CREATE TABLE IF NOT EXISTS payments
 (
     id              UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id         VARCHAR(255)  NOT NULL,
-    transaction_id  VARCHAR(255)  NOT NULL UNIQUE,
+    transaction_id  VARCHAR(255)  NOT NULL,
     correlation_id  VARCHAR(255)  NOT NULL,
     payment_method  VARCHAR(50)   NOT NULL,
     amount          NUMERIC(19,2) NOT NULL,
@@ -22,6 +22,16 @@ CREATE TABLE IF NOT EXISTS payment_ledger
     transaction_id VARCHAR(255) NOT NULL,
     correlation_id VARCHAR(255) NOT NULL,
     status         VARCHAR(255) NOT NULL,
+    created_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS outbox
+(
+    id             UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    aggregate_type VARCHAR(255) NOT NULL,
+    aggregate_id   VARCHAR(255) NOT NULL,
+    event_type     VARCHAR(255) NOT NULL,
+    payload        JSONB        NOT NULL,
     created_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 

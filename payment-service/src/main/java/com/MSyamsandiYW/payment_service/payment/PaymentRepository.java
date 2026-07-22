@@ -29,11 +29,13 @@ public interface PaymentRepository extends R2dbcRepository<Payment, UUID> {
     @Query("""
                 UPDATE payments
                 SET status = :status,
+                    failure_code = :failureCode,
+                    failure_message = :failureMessage,
                     updated_by = 'PAYMENT_SERVICE',
                     updated_at = NOW()
                 WHERE id = :id AND status = 'PENDING'
             """)
-    Mono<Integer> updatePendingStatusPayment(UUID id, String status);
+    Mono<Integer> updatePendingStatusPayment(UUID id, String status,String failureCode,String failureMessage);
 
     @Modifying
     @Query("""

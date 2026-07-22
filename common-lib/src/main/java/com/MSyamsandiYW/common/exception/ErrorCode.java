@@ -53,6 +53,7 @@ public enum ErrorCode {
     PAYMENT_ALREADY_PENDING("PAYMENT_ALREADY_PENDING", "Payment is already pending", CONFLICT),
     PAYMENT_ALREADY_PROCESSED("PAYMENT_ALREADY_PROCESSED", "Payment is already pending", CONFLICT),
     PAYMENT_EXPIRED("PAYMENT_EXPIRED", "Payment has been expired", UNPROCESSABLE_ENTITY),
+    PAYMENT_CANCELLED("PAYMENT_CANCELLED", "Payment has been cancelled", CONFLICT),
 
     // ===== Inventory =====
     OUT_OF_STOCK("OUT_OF_STOCK", "Insufficient stock to fulfill the order", UNPROCESSABLE_ENTITY),

@@ -118,7 +118,7 @@ public class OrderServiceImpl implements OrderService {
 
         return Mono.fromCallable(() -> objectMapper.writeValueAsString(payload))
                 .map(json -> Outbox.builder()
-                        .aggregateId(order.getTransactionId())
+                        .aggregateId(UUID.randomUUID().toString())
                         .aggregateType(AppConstant.TOPICS.STOCK_RESERVE_REQUESTED)
                         .eventType("STOCK_RESERVE_REQUESTED")
                         .payload(json)

@@ -9,6 +9,8 @@ import com.MSyamsandiYW.payment_service.kafka.PaymentEventProducer;
 import com.MSyamsandiYW.payment_service.kafka.event.DlqEventPayload;
 import com.MSyamsandiYW.payment_service.kafka.event.PaymentCommand;
 import com.MSyamsandiYW.payment_service.kafka.event.PaymentEventPayload;
+import com.MSyamsandiYW.payment_service.outbox.Outbox;
+import com.MSyamsandiYW.payment_service.outbox.OutboxService;
 import com.MSyamsandiYW.payment_service.payment.Payment;
 import com.MSyamsandiYW.payment_service.payment.PaymentRepository;
 import com.MSyamsandiYW.payment_service.payment.PaymentService;
@@ -19,12 +21,14 @@ import com.MSyamsandiYW.payment_service.payment.response.GetPaymentResponse;
 import com.MSyamsandiYW.payment_service.payment_ledger.PaymentLedgerService;
 import com.MSyamsandiYW.payment_service.properties.AppConstant;
 import com.MSyamsandiYW.payment_service.properties.AppProperties;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.reactive.TransactionalOperator;
 import reactor.core.publisher.Mono;
 
 import java.time.Instant;
@@ -48,6 +52,9 @@ public class PaymentServiceImpl implements PaymentService {
     private final JwtService jwtService;
     private final OrderServiceClient orderServiceClient;
     private final AppProperties appProperties;
+    private final TransactionalOperator transactionalOperator;
+    private final OutboxService outboxService;
+    private final ObjectMapper objectMapper;
 
     // Defines which current statuses are allowed to transition TO a given target status (same pattern as order-service)
     private static final Map<String, Set<String>> ALLOWED_TRANSITIONS = Map.of(
@@ -57,6 +64,21 @@ public class PaymentServiceImpl implements PaymentService {
             REFUND_FAILED.name(), Set.of(PAID.name(), CANCELLED.name(), FAILED.name())
     );
 
+    private record PaymentContext(Claims claims, GetOrderStatusResponse order, Payment payment) {
+    }
+
+    // payment status -> which topic the event routes to (aggregate_type) + event name (outbox metadata)
+    private record EventRoute(String topic, String eventType) {
+    }
+
+    private static final Map<String, EventRoute> STATUS_TO_EVENT = Map.of(
+            PENDING.name(), new EventRoute(PAYMENT_INITIATED, "PAYMENT_INITIATED"),
+            PAID.name(), new EventRoute(PAYMENT_COMPLETED, "PAYMENT_COMPLETED"),
+            FAILED.name(), new EventRoute(PAYMENT_FAILED, "PAYMENT_FAILED"),
+            REFUNDED.name(), new EventRoute(ORDER_REFUND_COMPLETED, "ORDER_REFUND_COMPLETED"),
+            REFUND_FAILED.name(), new EventRoute(ORDER_REFUND_FAILED, "ORDER_REFUND_FAILED")
+    );
+
     @Override
     public Mono<ResponseEntity<CreatePaymentResponse>> createPayment(CreatePaymentRequest request, String token, String correlationId) {
         log.info("Creating payment for transactionId: {}", request.getTransactionId());
@@ -64,70 +86,26 @@ public class PaymentServiceImpl implements PaymentService {
         return Mono.zip(jwtService.extractClaims(token),
                         orderServiceClient.getStatusOrder(request.getTransactionId(), token, correlationId).switchIfEmpty(Mono.error(new BusinessException(ErrorCode.ORDER_SERVICE_UNAVAILABLE)))
                 )
-                .flatMap(tuple -> {
-                    Claims claims = tuple.getT1();
-                    GetOrderStatusResponse order = tuple.getT2();
-
-                    // validate payment method
-                    if (appProperties.getPaymentMethodUrlMap().get(request.getPaymentMethod()) == null) {
-                        return Mono.error(new BusinessException(ErrorCode.INVALID_PAYMENT_METHOD));
-                    }
-
-                    // validate order status
-                    if (order.getOrderStatus().equalsIgnoreCase(AppConstant.ORDER_STATUS.PAID.name())) {
-                        return Mono.error(new BusinessException(ErrorCode.ORDER_ALREADY_PAID));
-                    }
-                    if (order.getOrderStatus().equalsIgnoreCase(AppConstant.ORDER_STATUS.COMPLETED.name())) {
-                        return Mono.error(new BusinessException(ErrorCode.ORDER_ALREADY_COMPLETED));
-                    }
-                    if (order.getOrderStatus().equalsIgnoreCase(AppConstant.ORDER_STATUS.REFUNDED.name())) {
-                        return Mono.error(new BusinessException(ErrorCode.ORDER_ALREADY_REFUNDED));
-                    }
-                    if (order.getOrderStatus().equalsIgnoreCase(AppConstant.ORDER_STATUS.OUT_OF_STOCK.name())) {
-                        return Mono.error(new BusinessException(ErrorCode.ORDER_OUT_OF_STOCK));
-                    }
-                    if (order.getOrderStatus().equalsIgnoreCase(AppConstant.ORDER_STATUS.EXPIRED.name())) {
-                        return Mono.error(new BusinessException(ErrorCode.ORDER_ALREADY_EXPIRED));
-                    }
-                    if (order.getOrderStatus().equalsIgnoreCase(AppConstant.ORDER_STATUS.REFUND_FAILED.name())) {
-                        return Mono.error(new BusinessException(ErrorCode.ORDER_ALREADY_COMPLETED));
-                    }
-
-                    // build payment entity
-                    return Mono.just(Payment.builder()
-                            .userId(claims.get("userId").toString())
-                            .transactionId(request.getTransactionId())
-                            .correlationId(order.getCorrelationId())
-                            .paymentMethod(request.getPaymentMethod())
-                            .amount(order.getTotalAmount())
-                            .status(AppConstant.PAYMENT_STATUS.PENDING.name())
-                            .createdBy("PAYMENT_SERVICE")
-                            .createdAt(Instant.now())
-                            .build());
-                })
-                // validate current active payment
-                .flatMap(payment -> validateCurrentPayment(payment, request.getTransactionId())
+                // validate user order
+                .flatMap(tuple -> validateUserOrder(tuple.getT2(), request).thenReturn(new PaymentContext(tuple.getT1(), tuple.getT2(), null)))
+                // validate existing payment
+                .flatMap(ctx -> validateCurrentPayment(request.getTransactionId()).thenReturn(ctx))
+                // build payment
+                .map(ctx -> new PaymentContext(ctx.claims, ctx.order, paymentBuilder(ctx.claims().get("userId").toString(), request, ctx.order())))
+                // save payment,ledger,outbox in one transactional
+                .flatMap(ctx -> paymentRepository.save(ctx.payment)
+                        // save payment ledger
+                        .flatMap(payment -> paymentLedgerService.recordEventPayment(payment).thenReturn(payment))
+                        // build outbox — uses the saved payment (id is generated on insert)
+                        .flatMap(payment -> insertOutbox(buildPayload(payment), PAYMENT_INITIATED, "PAYMENT_INITIATED").thenReturn(payment))
+                        // flag as transactional
+                        .as(transactionalOperator::transactional)
                 )
-                // save payment
-                .flatMap(paymentRepository::save)
                 .doOnNext(payment -> log.info("Payment created successfully for transactionId: {}, status: {}", payment.getTransactionId(), payment.getStatus()))
-                // save payment ledger
-                .flatMap(payment -> paymentLedgerService.recordEventPayment(payment).thenReturn(payment))
-                .flatMap(payment -> produceEventPayment(payment).thenReturn(payment))
                 // build response
-                .flatMap(payment ->
-                        Mono.just(ResponseEntity.ok().body(
-                                CreatePaymentResponse.builder()
-                                        .transactionId(payment.getTransactionId())
-                                        .amount(payment.getAmount())
-                                        .paymentMethod(payment.getPaymentMethod())
-                                        .urlPayment(appProperties.getPaymentMethodUrlMap().get(request.getPaymentMethod()))
-                                        // TODO: Remove paymentId — testing only
-                                        .paymentId(payment.getId().toString())
-                                        .build()
-                        ))
-                );
+                .map(payment -> ResponseEntity.ok().body(buildResponse(payment, request.getPaymentMethod())));
     }
+
 
     @Override
     public Mono<Void> webhookCallbackPaymentMethod(WebhookCallbackRequest request, HttpHeaders headers) {
@@ -135,17 +113,28 @@ public class PaymentServiceImpl implements PaymentService {
 
         return paymentRepository.findById(UUID.fromString(request.getPaymentId()))
                 .switchIfEmpty(Mono.error(new BusinessException(ErrorCode.PAYMENT_NOT_FOUND)))
-                .flatMap(payment -> validatePayment(payment, request, headers))
+                // guards: skip stale webhooks, handle silent-refund + DLQ edge cases — empty Mono means stop processing
+                .flatMap(payment -> applyWebhookGuards(payment, request, headers))
                 // update status payment
-                .flatMap(payment -> updatePaymentEntity(payment, request))
-                // save payment ledger
-                .flatMap(payment -> paymentLedgerService.recordEventPayment(payment).thenReturn(payment))
-                // produce payment event and will be consumed by orchestrator-service or order-service
-                .flatMap(this::produceEventPayment)
+                .flatMap(payment -> updatePaymentEntity(payment, request)
+                        // save payment ledger
+                        .flatMap(updated -> paymentLedgerService.recordEventPayment(updated).thenReturn(updated))
+                        // insert to outbox — topic + eventName resolved from one lookup
+                        .flatMap(updated -> {
+                            EventRoute route = STATUS_TO_EVENT.get(updated.getStatus());
+                            if (route == null) {
+                                return Mono.<Void>error(new BusinessException(ErrorCode.INTERNAL_EXCEPTION));
+                            }
+                            return insertOutbox(buildPayload(updated), route.topic(), route.eventType());
+                        })
+                        // flag as transactional
+                        .as(transactionalOperator::transactional)
+                        .thenReturn(payment)
+                )
                 .then();
     }
 
-    private Mono<Payment> validatePayment(Payment payment, WebhookCallbackRequest request, HttpHeaders headers) {
+    private Mono<Payment> applyWebhookGuards(Payment payment, WebhookCallbackRequest request, HttpHeaders headers) {
         String currentStatus = payment.getStatus();
         String webhookStatus = request.getPaymentStatus();
 
@@ -296,38 +285,11 @@ public class PaymentServiceImpl implements PaymentService {
         return Mono.error(new BusinessException(ErrorCode.INTERNAL_EXCEPTION));
     }
 
-    private Mono<Void> produceEventPayment(Payment payment) {
-        log.info("Producing payment event for transactionId: {}, status: {}", payment.getTransactionId(), payment.getStatus());
-
-        PaymentEventPayload payload = PaymentEventPayload.builder()
-                .paymentId(payment.getId().toString())
-                .transactionId(payment.getTransactionId())
-                .correlationId(payment.getCorrelationId())
-                .build();
-
-
-        if (payment.getStatus().equalsIgnoreCase(PAID.name())) {
-            return paymentEventProducer.send(PAYMENT_COMPLETED, UUID.randomUUID().toString(), payload);
-        } else if (payment.getStatus().equalsIgnoreCase(AppConstant.PAYMENT_STATUS.PENDING.name())) {
-            return paymentEventProducer.send(PAYMENT_INITIATED, UUID.randomUUID().toString(), payload);
-        } else if (payment.getStatus().equalsIgnoreCase(FAILED.name())) {
-            payload.setFailureCode(payment.getFailureCode());
-            payload.setFailureMessage(payment.getFailureMessage());
-            return paymentEventProducer.send(PAYMENT_FAILED, UUID.randomUUID().toString(), payload);
-        } else if (payment.getStatus().equalsIgnoreCase(REFUNDED.name())) {
-            return paymentEventProducer.send(ORDER_REFUND_COMPLETED, UUID.randomUUID().toString(), payload);
-        } else if (payment.getStatus().equalsIgnoreCase(REFUND_FAILED.name())) {
-            return paymentEventProducer.send(ORDER_REFUND_FAILED, UUID.randomUUID().toString(), payload);
-        }
-        return Mono.error(new BusinessException(ErrorCode.INTERNAL_EXCEPTION));
-
-    }
-
-    private Mono<Payment> validateCurrentPayment(Payment newPayment, String transactionId) {
+    private Mono<Void> validateCurrentPayment(String transactionId) {
         // find active current payment
         return paymentRepository.findFirstByTransactionIdAndStatus(transactionId, AppConstant.PAYMENT_STATUS.PENDING.name())
                 // cancel current payment if exist
-                .flatMap(existingPayment -> paymentRepository.updatePendingStatusPayment(existingPayment.getId(), CANCELLED.name())
+                .flatMap(existingPayment -> paymentRepository.updatePendingStatusPayment(existingPayment.getId(), CANCELLED.name(), ErrorCode.PAYMENT_CANCELLED.getCode(), ErrorCode.PAYMENT_CANCELLED.getDefaultMessage())
                         .filter(rows -> rows > 0)
                         .flatMap(__ -> {
                             log.info("Cancelled existing PENDING payment: {}", existingPayment.getId());
@@ -335,7 +297,35 @@ public class PaymentServiceImpl implements PaymentService {
                             return Mono.empty();
                         })
                 )
-                .thenReturn(newPayment);  // always returns newPayment regardless
+                .then();
+    }
+
+    private Mono<Void> validateUserOrder(GetOrderStatusResponse order, CreatePaymentRequest request) {
+        // validate payment method
+        if (appProperties.getPaymentMethodUrlMap().get(request.getPaymentMethod()) == null) {
+            return Mono.error(new BusinessException(ErrorCode.INVALID_PAYMENT_METHOD));
+        }
+
+        // validate order status
+        if (order.getOrderStatus().equalsIgnoreCase(AppConstant.ORDER_STATUS.PAID.name())) {
+            return Mono.error(new BusinessException(ErrorCode.ORDER_ALREADY_PAID));
+        }
+        if (order.getOrderStatus().equalsIgnoreCase(AppConstant.ORDER_STATUS.COMPLETED.name())) {
+            return Mono.error(new BusinessException(ErrorCode.ORDER_ALREADY_COMPLETED));
+        }
+        if (order.getOrderStatus().equalsIgnoreCase(AppConstant.ORDER_STATUS.REFUNDED.name())) {
+            return Mono.error(new BusinessException(ErrorCode.ORDER_ALREADY_REFUNDED));
+        }
+        if (order.getOrderStatus().equalsIgnoreCase(AppConstant.ORDER_STATUS.OUT_OF_STOCK.name())) {
+            return Mono.error(new BusinessException(ErrorCode.ORDER_OUT_OF_STOCK));
+        }
+        if (order.getOrderStatus().equalsIgnoreCase(AppConstant.ORDER_STATUS.EXPIRED.name())) {
+            return Mono.error(new BusinessException(ErrorCode.ORDER_ALREADY_EXPIRED));
+        }
+        if (order.getOrderStatus().equalsIgnoreCase(AppConstant.ORDER_STATUS.REFUND_FAILED.name())) {
+            return Mono.error(new BusinessException(ErrorCode.ORDER_ALREADY_COMPLETED));
+        }
+        return Mono.empty();
     }
 
 
@@ -346,7 +336,7 @@ public class PaymentServiceImpl implements PaymentService {
                 .switchIfEmpty(Mono.error(new BusinessException(ErrorCode.PAYMENT_NOT_FOUND)))
                 .flatMap(payment -> {
                     // Build request body
-                    // Request refund to third party
+                    // Request refund to third party payment provider
                     // and wait webhook callback from payment method provider
                     return Mono.empty();
                 });
@@ -382,5 +372,51 @@ public class PaymentServiceImpl implements PaymentService {
                     payment.setFailureMessage(failureMessage);
                     return payment;
                 });
+    }
+
+    private Mono<Void> insertOutbox(PaymentEventPayload payload, String topic, String eventName) {
+        return Mono.fromCallable(() -> objectMapper.writeValueAsString(payload))
+                .map(json -> Outbox.builder()
+                        .aggregateId(UUID.randomUUID().toString())
+                        .aggregateType(topic)
+                        .eventType(eventName)
+                        .payload(json)
+                        .build())
+                .flatMap(outboxService::save);
+
+    }
+
+    private PaymentEventPayload buildPayload(Payment payment) {
+        return PaymentEventPayload.builder()
+                .paymentId(payment.getId().toString())
+                .correlationId(payment.getCorrelationId())
+                .transactionId(payment.getTransactionId())
+                .failureCode(payment.getFailureCode())
+                .failureMessage(payment.getFailureMessage())
+                .build();
+    }
+
+    private Payment paymentBuilder(String userId, CreatePaymentRequest request, GetOrderStatusResponse order) {
+        return Payment.builder()
+                .userId(userId)
+                .transactionId(request.getTransactionId())
+                .correlationId(order.getCorrelationId())
+                .paymentMethod(request.getPaymentMethod())
+                .amount(order.getTotalAmount())
+                .status(AppConstant.PAYMENT_STATUS.PENDING.name())
+                .createdBy("PAYMENT_SERVICE")
+                .createdAt(Instant.now())
+                .build();
+    }
+
+    private CreatePaymentResponse buildResponse(Payment payment, String paymentMethod) {
+        return CreatePaymentResponse.builder()
+                .transactionId(payment.getTransactionId())
+                .amount(payment.getAmount())
+                .paymentMethod(payment.getPaymentMethod())
+                .urlPayment(appProperties.getPaymentMethodUrlMap().get(paymentMethod))
+                // TODO: Remove paymentId — testing only
+                .paymentId(payment.getId().toString())
+                .build();
     }
 }
