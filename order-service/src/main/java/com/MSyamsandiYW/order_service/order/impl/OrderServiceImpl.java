@@ -60,7 +60,7 @@ public class OrderServiceImpl implements OrderService {
         return Mono.zip(jwtService.extractClaims(token), inventoryServiceClient.getProductsById(token, buildProductsRequest(request), correlationId)
                         .switchIfEmpty(Mono.error(new BusinessException(ErrorCode.INVENTORY_SERVICE_UNAVAILABLE))))
 
-                // build OrderContext
+                // build OrderContext with claims and pricemap
                 .map(tuple ->
                         new OrderContext(tuple.getT1(), buildPriceMap(tuple.getT2()), null, null))
 
@@ -79,10 +79,18 @@ public class OrderServiceImpl implements OrderService {
                 // apply discount if any
                 .flatMap(ctx -> discountService.apply(request, ctx.order)
                         .map(discountedOrder -> new OrderContext(ctx.claims, ctx.priceMap, discountedOrder, ctx.items)))
-                // save order, order items and outbox event in one transaction
-                .flatMap(ctx -> saveOrderAndItemsAndOutbox(ctx.order, ctx.items).thenReturn(ctx))
-                // record order status history
-                .flatMap(ctx -> orderStatusHistoryService.recordOrderStatus(ctx.order).thenReturn(ctx.order))
+                // save order,items,outbox,order status in one transaction
+                .flatMap(ctx -> orderRepository.save(ctx.order)
+                        // save order items
+                        .flatMap(savedOrder -> orderItemRepository.saveAll(ctx.items).collectList().thenReturn(savedOrder))
+                        // insert outbox
+                        .flatMap(savedItems -> insertOutbox(savedItems, ctx.items))
+                        // record order status history
+                        .then(orderStatusHistoryService.recordOrderStatus(ctx.order))
+                        // flag it as transactional
+                        .as(transactionalOperator::transactional)
+                        .thenReturn(ctx.order)
+                )
 
                 .doOnSuccess(order -> log.info("Order created - orderId: {}, correlationId: {}", order.getId(), correlationId))
                 .doOnError(e -> log.error("Failed to create order - correlationId: {}, error: {}", correlationId, e.getMessage()))
@@ -93,13 +101,6 @@ public class OrderServiceImpl implements OrderService {
                                 .build())));
 
 
-    }
-
-    private Mono<Void> saveOrderAndItemsAndOutbox(Order order, List<OrderItem> items) {
-        return orderRepository.save(order)
-                .flatMap(savedOrder -> orderItemRepository.saveAll(items).collectList().thenReturn(savedOrder))
-                .flatMap(savedItems -> insertOutbox(savedItems, items))
-                .as(transactionalOperator::transactional);
     }
 
     private Mono<Void> insertOutbox(Order order, List<OrderItem> items) {
