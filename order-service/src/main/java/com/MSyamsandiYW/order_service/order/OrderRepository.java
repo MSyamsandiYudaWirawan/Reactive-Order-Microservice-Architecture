@@ -16,7 +16,7 @@ public interface OrderRepository extends R2dbcRepository<Order, UUID> {
     Flux<Order> findAllByUserId(String userId);
 
     @Query("""
-            UPDATE orders SET order_status = :orderStatus, failure_code = :failureCode, failure_message = :failureMessage, updated_by = 'ORDER_SERVICE', last_modified_date = now()
+            UPDATE orders SET order_status = :orderStatus, failure_code = :failureCode, failure_message = :failureMessage, updated_by = 'ORDER_SERVICE', updated_at = now()
             WHERE transaction_id = :transactionId AND order_status IN (:allowedStatuses)
             """
     )

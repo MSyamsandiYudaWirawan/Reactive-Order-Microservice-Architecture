@@ -7,11 +7,12 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.time.Instant;
+import java.util.Set;
 import java.util.UUID;
 
 public interface PaymentRepository extends R2dbcRepository<Payment, UUID> {
 
-    Mono<Payment> findFirstByTransactionIdOrderByCreatedDateDesc(String transactionId);
+    Mono<Payment> findFirstByTransactionIdOrderByCreatedAtDesc(String transactionId);
 
     Flux<Payment> findByUserId(String transactionId);
 
@@ -20,19 +21,9 @@ public interface PaymentRepository extends R2dbcRepository<Payment, UUID> {
     @Query("""
                 SELECT * FROM payments
                 WHERE status = 'PENDING'
-                  AND created_date < :cutoff
+                  AND created_at < :cutoff
             """)
     Flux<Payment> findAllExpiredPayments(Instant cutoff);
-
-    @Modifying
-    @Query("""
-                UPDATE payments
-                SET status = :status,
-                    updated_by = 'PAYMENT_SERVICE',
-                    last_modified_date = NOW()
-                WHERE id = :id AND status = 'PENDING'
-            """)
-    Mono<Integer> updatePendingStatusPayment(UUID id, String status);
 
     @Modifying
     @Query("""
@@ -41,9 +32,21 @@ public interface PaymentRepository extends R2dbcRepository<Payment, UUID> {
                     failure_code = :failureCode,
                     failure_message = :failureMessage,
                     updated_by = 'PAYMENT_SERVICE',
-                    last_modified_date = NOW()
-                WHERE id = :id
-                AND status != :status
+                    updated_at = NOW()
+                WHERE id = :id AND status = 'PENDING'
             """)
-    Mono<Integer> updateStatusPayment(UUID id, String status, String failureCode, String failureMessage);
+    Mono<Integer> updatePendingStatusPayment(UUID id, String status,String failureCode,String failureMessage);
+
+    @Modifying
+    @Query("""
+                UPDATE payments
+                SET status = :status,
+                    failure_code = :failureCode,
+                    failure_message = :failureMessage,
+                    updated_by = 'PAYMENT_SERVICE',
+                    updated_at = NOW()
+                WHERE id = :id
+                AND status IN (:allowedStatuses)
+            """)
+    Mono<Integer> updateStatusPayment(UUID id, String status, String failureCode, String failureMessage, Set<String> allowedStatuses);
 }

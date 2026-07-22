@@ -1,59 +1,69 @@
 CREATE TABLE if NOT EXISTS orders
 (
-    id                 UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    correlation_id     VARCHAR(255) NOT NULL,
-    transaction_id     VARCHAR(255) NOT NULL,
-    user_id            VARCHAR(255) NOT NULL,
-    discount_code      VARCHAR(255),
-    order_status       VARCHAR(50)  NOT NULL,
-    total_amount       NUMERIC(19,2) NOT NULL,
-    failure_code       VARCHAR(100),
-    failure_message    VARCHAR(500),
-    created_by         VARCHAR(255) NOT NULL,
-    updated_by         VARCHAR(255),
-    created_date       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-    last_modified_date TIMESTAMPTZ
+    id             UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    correlation_id VARCHAR(255)  NOT NULL,
+    transaction_id VARCHAR(255)  NOT NULL UNIQUE,
+    user_id        VARCHAR(255)  NOT NULL,
+    discount_code  VARCHAR(255),
+    order_status   VARCHAR(50)   NOT NULL,
+    total_amount   NUMERIC(19,2) NOT NULL,
+    failure_code   VARCHAR(100),
+    failure_message VARCHAR(500),
+    created_by     VARCHAR(255)  NOT NULL,
+    updated_by     VARCHAR(255),
+    created_at     TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+    updated_at     TIMESTAMPTZ
 );
 
 CREATE TABLE if NOT EXISTS order_items
 (
-    id                 UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    correlation_id     VARCHAR(255) NOT NULL,
-    transaction_id     VARCHAR(255) NOT NULL,
-    product_id         VARCHAR(255) NOT NULL,
-    quantity           INTEGER      NOT NULL,
-    price              NUMERIC(19,2) NOT NULL,
-    created_by         VARCHAR(255) NOT NULL,
-    updated_by         VARCHAR(255),
-    created_date       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-    last_modified_date TIMESTAMPTZ
+    id             UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    correlation_id VARCHAR(255)  NOT NULL,
+    transaction_id VARCHAR(255)  NOT NULL,
+    product_id     VARCHAR(255)  NOT NULL,
+    quantity       INTEGER       NOT NULL,
+    price          NUMERIC(19,2) NOT NULL,
+    created_by     VARCHAR(255)  NOT NULL,
+    updated_by     VARCHAR(255),
+    created_at     TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+    updated_at     TIMESTAMPTZ
 );
 
 CREATE TABLE IF NOT EXISTS discounts
 (
     id                  UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    code                VARCHAR(50) UNIQUE NOT NULL,
-    discount_type       VARCHAR(20)        NOT NULL, -- 'PERCENTAGE' or 'FIXED'
-    value               NUMERIC(19,2)      NOT NULL,
+    code                VARCHAR(50)   UNIQUE NOT NULL,
+    discount_type       VARCHAR(20)   NOT NULL,
+    value               NUMERIC(19,2) NOT NULL,
     minimum_order_value NUMERIC(19,2),
     maximum_order_value NUMERIC(19,2),
     max_usage           INTEGER,
     valid_from          TIMESTAMPTZ,
     valid_until         TIMESTAMPTZ,
-    created_by          VARCHAR(255)       NOT NULL,
+    created_by          VARCHAR(255)  NOT NULL,
     updated_by          VARCHAR(255),
-    created_date        TIMESTAMPTZ        NOT NULL DEFAULT NOW(),
-    last_modified_date  TIMESTAMPTZ
+    created_at          TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ
 );
 
-CREATE TABLE IF NOT EXISTS order_ledger
+CREATE TABLE IF NOT EXISTS order_status_history
 (
-    id                   UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    id             UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     transaction_id VARCHAR(255) NOT NULL,
-    correlation_id       VARCHAR(255) NOT NULL,
-    event_type           VARCHAR(255) NOT NULL, -- PENDING, WAITING_PAYMENT, PAID, COMPLETED, FAILED, REFUNDED
-    created_date         TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+    correlation_id VARCHAR(255) NOT NULL,
+    status         VARCHAR(255) NOT NULL,
+    created_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS outbox
+(
+    id             UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    aggregate_type VARCHAR(255) NOT NULL,
+    aggregate_id   VARCHAR(255) NOT NULL,
+    event_type     VARCHAR(255) NOT NULL,
+    payload        JSONB        NOT NULL,
+    created_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX idx_orders_user_id ON orders(user_id);
-CREATE INDEX idx_orders_transaction_id ON orders(transaction_id);
+ALTER USER username REPLICATION;

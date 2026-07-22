@@ -16,5 +16,5 @@ public class GetStatusOrderResponse {
     private String orderStatus;
     private String discountCode;
     private BigDecimal totalAmount;
-    private Instant createdDate;
+    private Instant createdAt;
 }

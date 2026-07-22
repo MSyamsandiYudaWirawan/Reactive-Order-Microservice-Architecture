@@ -53,7 +53,7 @@ public class OrchestrationCommandHandler {
                     sagaState.setPaymentId(payload.getPaymentId());
                     sagaState.setPaymentStatus(INITIATED.name());
                     sagaState.setUpdatedBy("ORCHESTRATION_SERVICE");
-                    sagaState.setLastModifiedDate(Instant.now());
+                    sagaState.setUpdatedAt(Instant.now());
                     return sagaStateService.save(sagaState);
                 })
                 .then();
@@ -115,7 +115,7 @@ public class OrchestrationCommandHandler {
                 }).then();
     }
 
-    private Mono<SagaState> handleSagaCompleted(SagaState sagaState) {
+    private Mono<Void> handleSagaCompleted(SagaState sagaState) {
         //update saga status to completed and payment status to paid
         //update using Conditional UPDATE CAS for atomic
         return sagaStateService.updateStatusIfInProgress(
@@ -135,11 +135,11 @@ public class OrchestrationCommandHandler {
                     return producer.send(AppConstant.TOPICS.ORDER_COMPLETED, UUID.randomUUID().toString(), payload)
                             .then(producer.send(AppConstant.TOPICS.DEDUCT_STOCK, UUID.randomUUID().toString(), payload));
                 })
-                .thenReturn(sagaState);
+                .then();
     }
 
 
-    private Mono<SagaState> handleSagaCompensated(SagaState sagaState) {
+    private Mono<Void> handleSagaCompensated(SagaState sagaState) {
 
         //update saga status to compensating and payment status to paid
         //update using Conditional UPDATE CAS for atomic
@@ -160,7 +160,7 @@ public class OrchestrationCommandHandler {
                             .build();
                     return producer.send(AppConstant.TOPICS.REFUND_REQUESTED, UUID.randomUUID().toString(), payload);
                 })
-                .thenReturn(sagaState);
+                .then();
     }
 
     public Mono<Void> handleOrderRefundCompleted(OrchestratorCommand payload) {

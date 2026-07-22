@@ -6,6 +6,7 @@ services:
       POSTGRES_DB: orchestrator_service_db
       POSTGRES_USER: username
       POSTGRES_PASSWORD: password
+      POSTGRES_INITDB_ARGS: "--wal-level=logical"
       PGDATA: /data/postgres
     volumes:
       - postgres:/data/postgres
@@ -27,7 +28,7 @@ services:
       DEFAULT_POOL_SIZE: 20
       MIN_POOL_SIZE: 5
       AUTH_TYPE: scram-sha-256
-      restart: unless-stopped
+    restart: unless-stopped
 
 volumes:
   postgres:

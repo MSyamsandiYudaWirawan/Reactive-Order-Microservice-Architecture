@@ -3,7 +3,7 @@ package com.MSyamsandiYW.order_service.kafka;
 import com.MSyamsandiYW.order_service.kafka.event.OrderCommand;
 import com.MSyamsandiYW.order_service.order.Order;
 import com.MSyamsandiYW.order_service.order.OrderRepository;
-import com.MSyamsandiYW.order_service.order_ledger.OrderLedgerService;
+import com.MSyamsandiYW.order_service.order_ledger.OrderStatusHistoryService;
 import com.MSyamsandiYW.order_service.properties.AppConstant;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,7 +20,7 @@ import static com.MSyamsandiYW.order_service.properties.AppConstant.ORDER_STATUS
 @RequiredArgsConstructor
 public class OrderEventHandler {
     private final OrderRepository orderRepository;
-    private final OrderLedgerService orderLedgerService;
+    private final OrderStatusHistoryService orderStatusHistoryService;
 
     // Defines which statuses are allowed to transition TO a given target status
     private static final Map<AppConstant.ORDER_STATUS, Set<String>> ALLOWED_TRANSITIONS = Map.of(
@@ -78,7 +78,7 @@ public class OrderEventHandler {
                             .correlationId(payload.getCorrelationId())
                             .orderStatus(targetStatus.name())
                             .build();
-                    return orderLedgerService.recordOrderEvent(order);
+                    return orderStatusHistoryService.recordOrderStatus(order);
                 })
                 .then();
     }

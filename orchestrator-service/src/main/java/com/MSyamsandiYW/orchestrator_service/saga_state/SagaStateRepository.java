@@ -17,7 +17,7 @@ public interface SagaStateRepository extends R2dbcRepository<SagaState, UUID> {
             SET saga_status = :newSagaStatus,
                 payment_status = :newPaymentStatus,
                 updated_by = 'ORCHESTRATION_SERVICE',
-                last_modified_date = NOW()
+                updated_at = NOW()
             WHERE transaction_id = :transactionId
               AND saga_status = 'IN_PROGRESS'
             """)
@@ -28,13 +28,13 @@ public interface SagaStateRepository extends R2dbcRepository<SagaState, UUID> {
     @Query("""
             SELECT * FROM saga_state
             WHERE saga_status = 'IN_PROGRESS'
-              AND created_date < :cutoff
+              AND created_at < :cutoff
             """)
     Flux<SagaState> findAllExpiredTransaction(Instant cutoff);
 
     @Modifying
     @Query("""
-            INSERT INTO saga_state (id, transaction_id, correlation_id, saga_status, created_by, created_date)
+            INSERT INTO saga_state (id, transaction_id, correlation_id, saga_status, created_by, created_at)
             VALUES (gen_random_uuid(), :transactionId, :correlationId, 'IN_PROGRESS', 'ORCHESTRATION_SERVICE', NOW())
             ON CONFLICT (transaction_id) DO NOTHING
             """)
@@ -45,7 +45,7 @@ public interface SagaStateRepository extends R2dbcRepository<SagaState, UUID> {
     UPDATE saga_state
     SET saga_status = :newStatus,
         updated_by = 'ORCHESTRATION_SERVICE',
-        last_modified_date = NOW()
+        updated_at = NOW()
     WHERE transaction_id = :transactionId
       AND saga_status = 'COMPENSATING'
     """)

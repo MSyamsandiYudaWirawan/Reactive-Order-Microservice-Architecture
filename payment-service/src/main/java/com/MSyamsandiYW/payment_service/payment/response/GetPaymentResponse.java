@@ -15,5 +15,5 @@ public class GetPaymentResponse {
     private String paymentMethod;
     private BigDecimal amount;
     private String status;
-    private Instant createdDate;
+    private Instant createdAt;
 }

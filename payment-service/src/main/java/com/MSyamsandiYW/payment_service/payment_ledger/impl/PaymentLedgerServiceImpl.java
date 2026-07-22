@@ -9,6 +9,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
+import java.time.Instant;
+
 @Service
 @Slf4j
 @RequiredArgsConstructor
@@ -21,8 +23,8 @@ public class PaymentLedgerServiceImpl implements PaymentLedgerService {
                 .paymentId(payment.getId().toString())
                 .transactionId(payment.getTransactionId())
                 .correlationId(payment.getCorrelationId())
-                .eventType(payment.getStatus())
-                .createdDate(payment.getCreatedDate())
+                .status(payment.getStatus())
+                .createdAt(Instant.now())
                 .build();
         return paymentLedgerRepository.save(paymentLedger).then();
     }

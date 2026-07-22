@@ -1,8 +1,6 @@
-package com.MSyamsandiYW.order_service.order_ledger;
-
+package com.MSyamsandiYW.inventory_service.outbox;
 
 import lombok.*;
-import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
@@ -15,19 +13,18 @@ import java.util.UUID;
 @Getter
 @Setter
 @Builder
-@Table("order_ledger")
-public class OrderLedger {
-
+@Table("outbox")
+public class Outbox {
     @Id
     private UUID id;
-    @Column("transaction_id")
-    private String transactionId;
-    @Column("correlation_id")
-    private String correlationId;
+    @Column("aggregate_type")
+    private String aggregateType;
+    @Column("aggregate_id")
+    private String aggregateId;
     @Column("event_type")
     private String eventType;
-
-    @CreatedDate
-    @Column("created_date")
-    private Instant createdDate;
+    @Column("payload")
+    private String payload;
+    @Column("created_at")
+    private Instant createdAt;
 }

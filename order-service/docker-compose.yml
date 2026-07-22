@@ -6,6 +6,7 @@ services:
       POSTGRES_DB: order_service_db
       POSTGRES_USER: username
       POSTGRES_PASSWORD: password
+      POSTGRES_INITDB_ARGS: "--wal-level=logical"
       PGDATA: /data/postgres
     volumes:
       - postgres:/data/postgres

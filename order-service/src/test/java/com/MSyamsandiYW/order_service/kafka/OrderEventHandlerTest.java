@@ -2,7 +2,7 @@ package com.MSyamsandiYW.order_service.kafka;
 
 import com.MSyamsandiYW.order_service.kafka.event.OrderCommand;
 import com.MSyamsandiYW.order_service.order.OrderRepository;
-import com.MSyamsandiYW.order_service.order_ledger.OrderLedgerService;
+import com.MSyamsandiYW.order_service.order_ledger.OrderStatusHistoryService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -26,7 +26,7 @@ class OrderEventHandlerTest {
     @Mock
     private OrderRepository orderRepository;
     @Mock
-    private OrderLedgerService orderLedgerService;
+    private OrderStatusHistoryService orderStatusHistoryService;
 
     @InjectMocks
     private OrderEventHandler handler;
@@ -46,7 +46,7 @@ class OrderEventHandlerTest {
     void handleStockReservedCompleted() {
         when(orderRepository.updateOrderStatus(eq(command.getTransactionId()), eq("WAITING_PAYMENT"), any(), any(), any(Set.class)))
                 .thenReturn(Mono.just(1));
-        when(orderLedgerService.recordOrderEvent(any())).thenReturn(Mono.empty());
+        when(orderStatusHistoryService.recordOrderStatus(any())).thenReturn(Mono.empty());
 
         StepVerifier.create(handler.handleStockReservedCompleted(command))
                 .verifyComplete();
@@ -59,7 +59,7 @@ class OrderEventHandlerTest {
     void handlePaymentCompleted() {
         when(orderRepository.updateOrderStatus(eq(command.getTransactionId()), eq("PAID"), any(), any(), any(Set.class)))
                 .thenReturn(Mono.just(1));
-        when(orderLedgerService.recordOrderEvent(any())).thenReturn(Mono.empty());
+        when(orderStatusHistoryService.recordOrderStatus(any())).thenReturn(Mono.empty());
 
         StepVerifier.create(handler.handlePaymentCompleted(command))
                 .verifyComplete();
@@ -72,7 +72,7 @@ class OrderEventHandlerTest {
     void handleOrderCompleted() {
         when(orderRepository.updateOrderStatus(eq(command.getTransactionId()), eq("COMPLETED"), any(), any(), any(Set.class)))
                 .thenReturn(Mono.just(1));
-        when(orderLedgerService.recordOrderEvent(any())).thenReturn(Mono.empty());
+        when(orderStatusHistoryService.recordOrderStatus(any())).thenReturn(Mono.empty());
 
         StepVerifier.create(handler.handleOrderCompleted(command))
                 .verifyComplete();
@@ -85,7 +85,7 @@ class OrderEventHandlerTest {
     void handleRefundCompleted() {
         when(orderRepository.updateOrderStatus(eq(command.getTransactionId()), eq("REFUNDED"), any(), any(), any(Set.class)))
                 .thenReturn(Mono.just(1));
-        when(orderLedgerService.recordOrderEvent(any())).thenReturn(Mono.empty());
+        when(orderStatusHistoryService.recordOrderStatus(any())).thenReturn(Mono.empty());
 
         StepVerifier.create(handler.handleRefundCompleted(command))
                 .verifyComplete();
@@ -98,7 +98,7 @@ class OrderEventHandlerTest {
     void handleStockOutOfStock() {
         when(orderRepository.updateOrderStatus(eq(command.getTransactionId()), eq("OUT_OF_STOCK"), any(), any(), any(Set.class)))
                 .thenReturn(Mono.just(1));
-        when(orderLedgerService.recordOrderEvent(any())).thenReturn(Mono.empty());
+        when(orderStatusHistoryService.recordOrderStatus(any())).thenReturn(Mono.empty());
 
         StepVerifier.create(handler.handleStockOutOfStock(command))
                 .verifyComplete();
@@ -111,7 +111,7 @@ class OrderEventHandlerTest {
     void handleOrderExpired() {
         when(orderRepository.updateOrderStatus(eq(command.getTransactionId()), eq("EXPIRED"), any(), any(), any(Set.class)))
                 .thenReturn(Mono.just(1));
-        when(orderLedgerService.recordOrderEvent(any())).thenReturn(Mono.empty());
+        when(orderStatusHistoryService.recordOrderStatus(any())).thenReturn(Mono.empty());
 
         StepVerifier.create(handler.handleOrderExpired(command))
                 .verifyComplete();
@@ -128,7 +128,7 @@ class OrderEventHandlerTest {
         StepVerifier.create(handler.handleOrderCompleted(command))
                 .verifyComplete();
 
-        verify(orderLedgerService, never()).recordOrderEvent(any());
+        verify(orderStatusHistoryService, never()).recordOrderStatus(any());
     }
 
     @Test
@@ -141,7 +141,7 @@ class OrderEventHandlerTest {
                 eq(command.getTransactionId()), eq("OUT_OF_STOCK"),
                 eq("OUT_OF_STOCK"), eq("Insufficient stock"), any(Set.class)))
                 .thenReturn(Mono.just(1));
-        when(orderLedgerService.recordOrderEvent(any())).thenReturn(Mono.empty());
+        when(orderStatusHistoryService.recordOrderStatus(any())).thenReturn(Mono.empty());
 
         StepVerifier.create(handler.handleStockOutOfStock(command))
                 .verifyComplete();

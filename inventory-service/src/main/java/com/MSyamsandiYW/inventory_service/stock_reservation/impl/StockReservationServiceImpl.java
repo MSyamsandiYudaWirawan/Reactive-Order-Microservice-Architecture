@@ -34,8 +34,8 @@ public class StockReservationServiceImpl implements StockReservationService {
                         .status(RESERVED.name())
                         .createdBy("INVENTORY_SERVICE")
                         .updatedBy("INVENTORY_SERVICE")
-                        .createdDate(Instant.now())
-                        .lastModifiedDate(Instant.now())
+                        .createdAt(Instant.now())
+                        .updatedAt(Instant.now())
                         .build()
                 ).toList();
 

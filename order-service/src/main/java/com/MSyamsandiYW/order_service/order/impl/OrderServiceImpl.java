@@ -7,7 +7,6 @@ import com.MSyamsandiYW.order_service.client.InventoryServiceClient;
 import com.MSyamsandiYW.order_service.client.request.GetProductsRequest;
 import com.MSyamsandiYW.order_service.client.response.GetProductResponse;
 import com.MSyamsandiYW.order_service.discount.DiscountService;
-import com.MSyamsandiYW.order_service.kafka.OrderCommandProducer;
 import com.MSyamsandiYW.order_service.kafka.event.OrderCommandPayload;
 import com.MSyamsandiYW.order_service.order.Order;
 import com.MSyamsandiYW.order_service.order.OrderRepository;
@@ -18,8 +17,12 @@ import com.MSyamsandiYW.order_service.order.response.GetStatusOrderResponse;
 import com.MSyamsandiYW.order_service.order_item.OrderItem;
 import com.MSyamsandiYW.order_service.order_item.OrderItemRepository;
 import com.MSyamsandiYW.order_service.order_item.request.OrderItemRequest;
-import com.MSyamsandiYW.order_service.order_ledger.OrderLedgerService;
+import com.MSyamsandiYW.order_service.order_ledger.OrderStatusHistoryService;
+import com.MSyamsandiYW.order_service.outbox.Outbox;
+import com.MSyamsandiYW.order_service.outbox.OutboxService;
 import com.MSyamsandiYW.order_service.properties.AppConstant;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -40,95 +43,129 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class OrderServiceImpl implements OrderService {
     private final OrderRepository orderRepository;
-    private final OrderCommandProducer orderCommandProducer;
     private final JwtService jwtService;
     private final OrderItemRepository orderItemRepository;
     private final TransactionalOperator transactionalOperator;
     private final DiscountService discountService;
-    private final OrderLedgerService orderLedgerService;
+    private final OrderStatusHistoryService orderStatusHistoryService;
     private final InventoryServiceClient inventoryServiceClient;
+    private final OutboxService outboxService;
+    private final ObjectMapper objectMapper;
 
     @Override
     public Mono<ResponseEntity<CreateOrderResponse>> createOrder(String correlationId, String token, CreateOrderRequest request) {
         String transactionId = UUID.randomUUID().toString();
         log.info("Creating order - correlationId: {}, transactionId: {}", correlationId, transactionId);
 
-        GetProductsRequest getProductsRequest = GetProductsRequest.builder()
-                .productIds(request.getItems().stream().map(OrderItemRequest::getProductId).toList())
+        return Mono.zip(jwtService.extractClaims(token), inventoryServiceClient.getProductsById(token, buildProductsRequest(request), correlationId)
+                        .switchIfEmpty(Mono.error(new BusinessException(ErrorCode.INVENTORY_SERVICE_UNAVAILABLE))))
+
+                // build OrderContext with claims and pricemap
+                .map(tuple ->
+                        new OrderContext(tuple.getT1(), buildPriceMap(tuple.getT2()), null, null))
+
+                // build Order and OrderItem
+                .map(ctx -> {
+                    BigDecimal totalAmount = calculateTotalAmount(request.getItems(), ctx.priceMap);
+                    String userId = ctx.claims.get("userId").toString();
+
+                    return new OrderContext(
+                            ctx.claims,
+                            ctx.priceMap,
+                            buildOrder(userId, correlationId, transactionId, totalAmount),
+                            buildOrderItems(transactionId, correlationId, request.getItems(), ctx.priceMap)
+                    );
+                })
+                // apply discount if any
+                .flatMap(ctx -> discountService.apply(request, ctx.order)
+                        .map(discountedOrder -> new OrderContext(ctx.claims, ctx.priceMap, discountedOrder, ctx.items)))
+                // save order,items,outbox,order status in one transaction
+                .flatMap(ctx -> orderRepository.save(ctx.order)
+                        // save order items
+                        .flatMap(savedOrder -> orderItemRepository.saveAll(ctx.items).collectList().thenReturn(savedOrder))
+                        // insert outbox
+                        .flatMap(savedItems -> insertOutbox(savedItems, ctx.items))
+                        // record order status history
+                        .then(orderStatusHistoryService.recordOrderStatus(ctx.order))
+                        // flag it as transactional
+                        .as(transactionalOperator::transactional)
+                        .thenReturn(ctx.order)
+                )
+
+                .doOnSuccess(order -> log.info("Order created - orderId: {}, correlationId: {}", order.getId(), correlationId))
+                .doOnError(e -> log.error("Failed to create order - correlationId: {}, error: {}", correlationId, e.getMessage()))
+
+                .then(Mono.just(ResponseEntity.status(HttpStatus.CREATED)
+                        .body(CreateOrderResponse.builder()
+                                .transactionId(transactionId)
+                                .build())));
+
+
+    }
+
+    private Mono<Void> insertOutbox(Order order, List<OrderItem> items) {
+        List<OrderItemRequest> requests = items.stream().map(item -> OrderItemRequest.builder()
+                .productId(item.getProductId())
+                .quantity(item.getQuantity())
+                .build()).toList();
+
+        OrderCommandPayload payload = OrderCommandPayload.builder()
+                .orderId(order.getId().toString())
+                .transactionId(order.getTransactionId())
+                .correlationId(order.getCorrelationId())
+                .items(requests)
                 .build();
 
-        // extract claims and get products by id from inventory-service
-        return Mono.zip(jwtService.extractClaims(token),
-                        inventoryServiceClient.getProductsById(token, getProductsRequest,correlationId).switchIfEmpty(Mono.error(new BusinessException(ErrorCode.INVENTORY_SERVICE_UNAVAILABLE))))
-                .flatMap(tuple2 -> {
-                    List<GetProductResponse> products = tuple2.getT2();
+        return Mono.fromCallable(() -> objectMapper.writeValueAsString(payload))
+                .map(json -> Outbox.builder()
+                        .aggregateId(UUID.randomUUID().toString())
+                        .aggregateType(AppConstant.TOPICS.STOCK_RESERVE_REQUESTED)
+                        .eventType("STOCK_RESERVE_REQUESTED")
+                        .payload(json)
+                        .build())
+                .flatMap(outboxService::save)
+                .then();
+    }
 
-                    //validate if not same size some product is not found, it actually already validated in inventory-service but just to make sure
-                    if (products.size() != request.getItems().size()) {
-                        return Mono.error(new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
-                    }
+    private GetProductsRequest buildProductsRequest(CreateOrderRequest request) {
+        return GetProductsRequest.builder()
+                .productIds(request.getItems().stream().map(OrderItemRequest::getProductId).toList())
+                .build();
+    }
 
-                    //build price lookup map
-                    Map<String, BigDecimal> priceMap = products.stream()
-                            .collect(Collectors.toMap(GetProductResponse::getProductId, GetProductResponse::getPrice));
+    private Map<String, BigDecimal> buildPriceMap(List<GetProductResponse> products) {
+        // no need validation since already validated by inventory service
+        return products.stream().collect(Collectors.toMap(GetProductResponse::getProductId, GetProductResponse::getPrice));
+    }
 
-                    //calculate total amount
-                    BigDecimal totalAmount = BigDecimal.ZERO;
-                    for (OrderItemRequest item : request.getItems()) {
-                        BigDecimal price = priceMap.get(item.getProductId());
-                        if (price == null) {
-                            return Mono.error(new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
-                        }
-                        totalAmount = totalAmount.add(price.multiply(BigDecimal.valueOf(item.getQuantity())));
-                    }
+    private Order buildOrder(String userId, String correlationId, String transactionId, BigDecimal totalAmount) {
+        return Order.builder()
+                .transactionId(transactionId)
+                .correlationId(correlationId)
+                .userId(userId)
+                .orderStatus(AppConstant.ORDER_STATUS.PENDING.name())
+                .totalAmount(totalAmount)
+                .createdBy("ORDER_SERVICE")
+                .createdAt(Instant.now())
+                .build();
+    }
 
-                    // build order entity
-                    Order order = Order.builder()
-                            .correlationId(correlationId)
-                            .transactionId(transactionId)
-                            .userId(tuple2.getT1().get("userId").toString())
-                            .orderStatus(AppConstant.ORDER_STATUS.PENDING.name())
-                            .totalAmount(totalAmount)
-                            .createdBy("SYSTEM")
-                            .createdDate(Instant.now())
-                            .build();
+    private List<OrderItem> buildOrderItems(String transactionId, String correlationId, List<OrderItemRequest> items, Map<String, BigDecimal> priceMap) {
+        return items.stream()
+                .map(item -> OrderItem.builder()
+                        .transactionId(transactionId)
+                        .correlationId(correlationId)
+                        .productId(item.getProductId())
+                        .quantity(item.getQuantity())
+                        .price(priceMap.get(item.getProductId()))
+                        .build())
+                .toList();
+    }
 
-                    // apply discount then save
-                    return discountService.apply(request, order)
-                            .flatMap(discounted -> saveOrderWithItems(discounted, request, priceMap));
-                })
-                .doOnSuccess(order ->
-                        log.info("Order persisted - orderId: {}, correlationId: {}",
-                                order.getId(), correlationId))
-
-                // record order event to ledger
-                .flatMap(order -> orderLedgerService.recordOrderEvent(order).thenReturn(order))
-
-                // produce event to reserve stock consumed by  inventory-service
-                .flatMap(order -> {
-                    OrderCommandPayload orderCommandPayload = OrderCommandPayload.builder()
-                            .orderId(order.getId().toString())
-                            .transactionId(transactionId)
-                            .correlationId(correlationId)
-                            .items(request.getItems())
-                            .build();
-
-                    //key is UUID random purposely for eventId
-                    return orderCommandProducer.send(
-                            AppConstant.TOPICS.STOCK_RESERVE_REQUESTED, UUID.randomUUID().toString(), orderCommandPayload);
-                })
-                .doOnSuccess(unused ->
-                        log.info("Stock reserve event published - correlationId: {}", correlationId))
-                .doOnError(e ->
-                        log.error("Failed to create order - correlationId: {}, error: {}",
-                                correlationId, e.getMessage()))
-                // return to client
-                .then(Mono.just(
-                        ResponseEntity.status(HttpStatus.CREATED)
-                                .body(CreateOrderResponse.builder()
-                                        .transactionId(transactionId)
-                                        .build())
-                ));
+    private BigDecimal calculateTotalAmount(List<OrderItemRequest> items, Map<String, BigDecimal> priceMap) {
+        return items.stream()
+                .map(item -> priceMap.get(item.getProductId()).multiply(BigDecimal.valueOf(item.getQuantity())))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     @Override
@@ -160,7 +197,7 @@ public class OrderServiceImpl implements OrderService {
                                 .orderStatus(order.getOrderStatus())
                                 .totalAmount(order.getTotalAmount())
                                 .discountCode(order.getDiscountCode())
-                                .createdDate(order.getCreatedDate())
+                                .createdAt(order.getCreatedAt())
                                 .build())
                 );
     }
@@ -184,29 +221,15 @@ public class OrderServiceImpl implements OrderService {
                                 .orderStatus(order.getOrderStatus())
                                 .totalAmount(order.getTotalAmount())
                                 .discountCode(order.getDiscountCode())
-                                .createdDate(order.getCreatedDate())
+                                .createdAt(order.getCreatedAt())
                                 .build()
                         ).toList())
                 )
                 ;
     }
 
-    private Mono<Order> saveOrderWithItems(Order order, CreateOrderRequest request, Map<String, BigDecimal> priceMap) {
-        return orderRepository.save(order)
-                .flatMap(saved -> {
-                    List<OrderItem> orderItems = request.getItems().stream()
-                            .map(item -> OrderItem.builder()
-                                    .transactionId(saved.getTransactionId())
-                                    .correlationId(saved.getCorrelationId())
-                                    .productId(item.getProductId())
-                                    .quantity(item.getQuantity())
-                                    .price(priceMap.get(item.getProductId()))
-                                    .createdBy("SYSTEM")
-                                    .createdDate(Instant.now())
-                                    .build())
-                            .toList();
-                    return orderItemRepository.saveAll(orderItems).collectList().thenReturn(saved);
-                })
-                .as(transactionalOperator::transactional);
+    private record OrderContext(Claims claims, Map<String, BigDecimal> priceMap, Order order, List<OrderItem> items) {
     }
 }
+
+

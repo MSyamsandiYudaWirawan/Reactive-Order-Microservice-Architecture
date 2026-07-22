@@ -25,9 +25,9 @@ public class StockLedgerServiceImpl implements StockLedgerService {
                                 .productId(reservation.getProductId())
                                 .transactionId(reservation.getTransactionId())
                                 .correlationId(reservation.getCorrelationId())
-                                .eventType(reservation.getStatus())
+                                .status(reservation.getStatus())
                                 .qty(reservation.getQty())
-                                .createdDate(Instant.now())
+                                .createdAt(Instant.now())
                                 .build())
                 .toList();
         return repository.saveAll(ledgerList).then();
