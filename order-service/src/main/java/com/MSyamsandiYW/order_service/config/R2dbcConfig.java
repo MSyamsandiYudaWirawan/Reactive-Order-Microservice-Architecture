@@ -1,7 +1,5 @@
 package com.MSyamsandiYW.order_service.config;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.r2dbc.spi.ConnectionFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -22,10 +20,5 @@ public class R2dbcConfig {
                 new ResourceDatabasePopulator(new ClassPathResource("init.sql"))
         );
         return initializer;
-    }
-
-    @Bean
-    public ObjectMapper objectMapper(){
-        return new ObjectMapper().registerModule(new JavaTimeModule());
     }
 }
