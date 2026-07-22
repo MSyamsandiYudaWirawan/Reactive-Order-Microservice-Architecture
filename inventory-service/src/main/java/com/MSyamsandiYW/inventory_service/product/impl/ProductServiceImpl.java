@@ -24,11 +24,10 @@ import java.util.UUID;
 @Slf4j
 @RequiredArgsConstructor
 public class ProductServiceImpl implements ProductService {
-    private final TransactionalOperator transactionalOperator;
     private final ProductRepository productRepository;
     private final JwtService jwtService;
+    private final TransactionalOperator transactionalOperator;
 
-    @Transactional
     @Override
     public Mono<Void> reserveStock(List<StockReservation> reservationList) {
 
@@ -41,8 +40,7 @@ public class ProductServiceImpl implements ProductService {
                             }
                             return Mono.empty();
                         })
-                ).then()
-                .as(transactionalOperator::transactional);
+                ).then();
     }
 
     @Override
@@ -56,8 +54,9 @@ public class ProductServiceImpl implements ProductService {
                             }
                             return Mono.empty();
                         })
-                ).then()
-                .as(transactionalOperator::transactional);
+                )
+                .as(transactionalOperator::transactional)
+                .then();
     }
 
     @Override
@@ -71,8 +70,9 @@ public class ProductServiceImpl implements ProductService {
                             }
                             return Mono.empty();
                         })
-                ).then()
-                .as(transactionalOperator::transactional);
+                )
+                .as(transactionalOperator::transactional)
+                .then();
     }
 
     @Override
