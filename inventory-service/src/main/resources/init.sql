@@ -10,8 +10,8 @@ CREATE TABLE IF NOT EXISTS products(
     is_deleted BOOLEAN DEFAULT FALSE,
     created_by         VARCHAR(255) NOT NULL,
     updated_by         VARCHAR(255) ,
-    created_date       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-    last_modified_date TIMESTAMPTZ
+    created_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ
 );
 
 CREATE TABLE IF NOT EXISTS stock_reservation(
@@ -23,8 +23,8 @@ CREATE TABLE IF NOT EXISTS stock_reservation(
     status VARCHAR(255) NOT NULL ,
     created_by         VARCHAR(255) NOT NULL,
     updated_by         VARCHAR(255),
-    created_date       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-    last_modified_date TIMESTAMPTZ
+    created_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ
 );
 
 CREATE TABLE IF NOT EXISTS stock_ledger(
@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS stock_ledger(
     correlation_id VARCHAR(255) NOT NULL,
     event_type VARCHAR(255) NOT NULL,
     qty INTEGER NOT NULL,
-    created_date TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS outbox
@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS outbox
     aggregate_id VARCHAR(255) NOT NULL,
     event_type VARCHAR(255) NOT NULL,
     payload JSONB NOT NULL,
-    created_date TIMESTAMPTZ DEFAULT NOW()
+    created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Sample products for testing
