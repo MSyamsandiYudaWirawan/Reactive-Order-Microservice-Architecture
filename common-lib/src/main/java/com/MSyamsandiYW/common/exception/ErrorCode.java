@@ -45,6 +45,7 @@ public enum ErrorCode {
     ORDER_ALREADY_FAILED("ORDER_ALREADY_FAILED", "Order is already failed", CONFLICT),
     ORDER_ALREADY_REFUNDED("ORDER_ALREADY_REFUNDED", "Order is already refunded", CONFLICT),
     ORDER_OUT_OF_STOCK("ORDER_OUT_OF_STOCK", "Order is out of stock", UNPROCESSABLE_ENTITY),
+    ORDER_EXPIRED("ORDER_EXPIRED", "Order is expired", GONE),
     ORDER_ALREADY_EXPIRED("ORDER_ALREADY_EXPIRED", "Order is already expired", GONE),
 
     // ===== Payment =====

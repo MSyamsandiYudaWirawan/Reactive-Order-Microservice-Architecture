@@ -7,6 +7,8 @@ CREATE TABLE IF NOT EXISTS saga_state
     stock_status   VARCHAR(255) NULL,
     payment_status VARCHAR(255) NULL,
     saga_status    VARCHAR(255) NOT NULL,
+    failure_code   VARCHAR(100),
+    failure_message VARCHAR(500),
     created_by     VARCHAR(255) NOT NULL,
     updated_by     VARCHAR(255),
     created_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW(),

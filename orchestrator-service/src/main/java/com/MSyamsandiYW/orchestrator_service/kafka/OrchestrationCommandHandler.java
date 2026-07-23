@@ -1,5 +1,6 @@
 package com.MSyamsandiYW.orchestrator_service.kafka;
 
+import com.MSyamsandiYW.common.exception.ErrorCode;
 import com.MSyamsandiYW.orchestrator_service.kafka.event.OrchestratorCommand;
 import com.MSyamsandiYW.orchestrator_service.kafka.event.OrchestratorEventPayload;
 import com.MSyamsandiYW.orchestrator_service.outbox.Outbox;
@@ -131,9 +132,9 @@ public class OrchestrationCommandHandler {
                 // if no rows updated return mono empty
                 .filter(rowsUpdated -> rowsUpdated > 0)
                 // insert outbox event ORDER_COMPLETED
-                .flatMap(updatedSagaState -> insertOutbox(buildEventPayload(sagaState), AppConstant.TOPICS.ORDER_COMPLETED, "ORDER_COMPLETED").thenReturn(updatedSagaState))
+                .flatMap(updatedSagaState -> insertOutbox(buildEventPayload(sagaState, null, null), AppConstant.TOPICS.ORDER_COMPLETED, "ORDER_COMPLETED").thenReturn(updatedSagaState))
                 // insert outbox event DEDUCT_STOCK
-                .flatMap(updatedSagaState -> insertOutbox(buildEventPayload(sagaState), AppConstant.TOPICS.DEDUCT_STOCK, "DEDUCT_STOCK"))
+                .flatMap(updatedSagaState -> insertOutbox(buildEventPayload(sagaState, null, null), AppConstant.TOPICS.DEDUCT_STOCK, "DEDUCT_STOCK"))
                 // flag as transactional
                 .as(transactionalOperator::transactional)
                 .then();
@@ -153,7 +154,7 @@ public class OrchestrationCommandHandler {
                 // if no rows updated return mono empty
                 .filter(rowsUpdated -> rowsUpdated > 0)
                 // insert outbox event REFUND_REQUESTED
-                .flatMap(updatedSagaState -> insertOutbox(buildEventPayload(sagaState), AppConstant.TOPICS.REFUND_REQUESTED, "REFUND_REQUESTED"))
+                .flatMap(updatedSagaState -> insertOutbox(buildEventPayload(sagaState, ErrorCode.OUT_OF_STOCK.getCode(), ErrorCode.OUT_OF_STOCK.getDefaultMessage()), AppConstant.TOPICS.REFUND_REQUESTED, "REFUND_REQUESTED"))
                 .as(transactionalOperator::transactional)
                 .then();
     }
@@ -176,11 +177,13 @@ public class OrchestrationCommandHandler {
     }
 
 
-    private OrchestratorEventPayload buildEventPayload(SagaState sagaState) {
+    private OrchestratorEventPayload buildEventPayload(SagaState sagaState, String failureCode, String failureMessage) {
         return OrchestratorEventPayload.builder()
                 .paymentId(sagaState.getPaymentId())
                 .correlationId(sagaState.getCorrelationId())
                 .transactionId(sagaState.getTransactionId())
+                .failureCode(failureCode)
+                .failureMessage(failureMessage)
                 .build();
     }
 

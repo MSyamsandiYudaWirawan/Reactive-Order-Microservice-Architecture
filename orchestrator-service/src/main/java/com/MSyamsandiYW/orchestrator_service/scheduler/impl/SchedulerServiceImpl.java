@@ -1,5 +1,6 @@
 package com.MSyamsandiYW.orchestrator_service.scheduler.impl;
 
+import com.MSyamsandiYW.common.exception.ErrorCode;
 import com.MSyamsandiYW.orchestrator_service.kafka.event.OrchestratorEventPayload;
 import com.MSyamsandiYW.orchestrator_service.outbox.Outbox;
 import com.MSyamsandiYW.orchestrator_service.outbox.OutboxService;
@@ -83,9 +84,9 @@ public class SchedulerServiceImpl implements SchedulerService {
                                 )
                                 .filter(rows -> rows > 0)
                                 // insert outbox event ORDER_EXPIRED
-                                .flatMap(updatedSagaState -> insertOutbox(buildEventPayload(sagaState), AppConstant.TOPICS.ORDER_EXPIRED, "ORDER_EXPIRED").thenReturn(updatedSagaState))
+                                .flatMap(updatedSagaState -> insertOutbox(buildEventPayload(sagaState, ErrorCode.ORDER_EXPIRED.getCode(), ErrorCode.ORDER_EXPIRED.getDefaultMessage()), AppConstant.TOPICS.ORDER_EXPIRED, "ORDER_EXPIRED").thenReturn(updatedSagaState))
                                 // insert outbox event RELEASE_STOCK
-                                .flatMap(updatedSagaState -> insertOutbox(buildEventPayload(sagaState), AppConstant.TOPICS.RELEASE_STOCK, "RELEASE_STOCK"))
+                                .flatMap(updatedSagaState -> insertOutbox(buildEventPayload(sagaState, ErrorCode.ORDER_EXPIRED.getCode(), ErrorCode.ORDER_EXPIRED.getDefaultMessage()), AppConstant.TOPICS.RELEASE_STOCK, "RELEASE_STOCK"))
                                 // flag as transactional
                                 .as(transactionalOperator::transactional)
                                 .then()
@@ -106,9 +107,9 @@ public class SchedulerServiceImpl implements SchedulerService {
                                 )
                                 .filter(rows -> rows > 0)
                                 // insert outbox event ORDER_EXPIRED
-                                .flatMap(updatedSagaState -> insertOutbox(buildEventPayload(sagaState), AppConstant.TOPICS.ORDER_EXPIRED, "ORDER_EXPIRED").thenReturn(updatedSagaState))
+                                .flatMap(updatedSagaState -> insertOutbox(buildEventPayload(sagaState, ErrorCode.ORDER_EXPIRED.getCode(), ErrorCode.ORDER_EXPIRED.getDefaultMessage()), AppConstant.TOPICS.ORDER_EXPIRED, "ORDER_EXPIRED").thenReturn(updatedSagaState))
                                 // insert outbox event REFUND_REQUESTED
-                                .flatMap(updatedSagaState -> insertOutbox(buildEventPayload(sagaState), AppConstant.TOPICS.REFUND_REQUESTED, "REFUND_REQUESTED"))
+                                .flatMap(updatedSagaState -> insertOutbox(buildEventPayload(sagaState, ErrorCode.ORDER_EXPIRED.getCode(), ErrorCode.ORDER_EXPIRED.getDefaultMessage()), AppConstant.TOPICS.REFUND_REQUESTED, "REFUND_REQUESTED"))
                                 // flag as transactional
                                 .as(transactionalOperator::transactional)
                                 .then()
@@ -129,7 +130,7 @@ public class SchedulerServiceImpl implements SchedulerService {
                                 )
                                 .filter(rows -> rows > 0)
                                 // insert outbox event ORDER_EXPIRED
-                                .flatMap(updatedSagaState -> insertOutbox(buildEventPayload(sagaState), AppConstant.TOPICS.ORDER_EXPIRED, "ORDER_EXPIRED").thenReturn(updatedSagaState))
+                                .flatMap(updatedSagaState -> insertOutbox(buildEventPayload(sagaState, ErrorCode.ORDER_EXPIRED.getCode(), ErrorCode.ORDER_EXPIRED.getDefaultMessage()), AppConstant.TOPICS.ORDER_EXPIRED, "ORDER_EXPIRED").thenReturn(updatedSagaState))
                                 // flag as transactional
                                 .as(transactionalOperator::transactional)
                                 .then()
@@ -137,11 +138,13 @@ public class SchedulerServiceImpl implements SchedulerService {
                 .then();
     }
 
-    private OrchestratorEventPayload buildEventPayload(SagaState sagaState) {
+    private OrchestratorEventPayload buildEventPayload(SagaState sagaState, String failureCode, String failureMessage) {
         return OrchestratorEventPayload.builder()
                 .paymentId(sagaState.getPaymentId())
                 .correlationId(sagaState.getCorrelationId())
                 .transactionId(sagaState.getTransactionId())
+                .failureCode(failureCode)
+                .failureMessage(failureMessage)
                 .build();
     }
 
