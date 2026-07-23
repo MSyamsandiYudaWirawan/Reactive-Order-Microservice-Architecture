@@ -1,5 +1,6 @@
 package com.MSyamsandiYW.orchestrator_service.saga_state.impl;
 
+import com.MSyamsandiYW.orchestrator_service.kafka.event.OrchestratorCommand;
 import com.MSyamsandiYW.orchestrator_service.saga_state.SagaState;
 import com.MSyamsandiYW.orchestrator_service.saga_state.SagaStateRepository;
 import com.MSyamsandiYW.orchestrator_service.saga_state.SagaStateService;
@@ -10,7 +11,6 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.time.Instant;
-import java.util.List;
 
 import static com.MSyamsandiYW.orchestrator_service.properties.AppConstant.SAGA_STATUS.IN_PROGRESS;
 
@@ -43,6 +43,11 @@ public class SagaStateServiceImpl implements SagaStateService {
     }
 
     @Override
+    public Mono<Integer> updateStatusIfInProgress(String transactionId, String newSagaStatus, String newPaymentStatus, String failureCode, String failureMessage) {
+        return sagaStateRepository.updateStatusIfInProgress(transactionId, newSagaStatus, newPaymentStatus, failureCode, failureMessage);
+    }
+
+    @Override
     public Mono<SagaState> save(SagaState sagaState) {
         sagaState.setUpdatedBy("ORCHESTRATION_SERVICE");
         sagaState.setUpdatedAt(Instant.now());
@@ -55,19 +60,16 @@ public class SagaStateServiceImpl implements SagaStateService {
     }
 
     @Override
-    public Mono<SagaState> findOrCreate(String transactionId, String correlationId) {
-        return sagaStateRepository.insertIfAbsent(transactionId,correlationId)
-                .then(sagaStateRepository.findFirstByTransactionId(transactionId));
+    public Mono<SagaState> findOrCreate(OrchestratorCommand command) {
+        return sagaStateRepository.insertIfAbsent(command.getTransactionId(), command.getCorrelationId())
+                .then(sagaStateRepository.findFirstByTransactionId(command.getTransactionId()));
     }
 
     @Override
     public Mono<Void> updateCompensatingStatus(String transactionId, String name) {
         return sagaStateRepository.updateCompensatingStatus(transactionId, name)
                 .filter(rows -> rows > 0)
-                .map(__ -> {
-                    log.info("Compensation status updated for transactionId: {}", transactionId);
-                    return Mono.empty();
-                })
+                .doOnNext(__ -> log.info("Compensation status updated for transactionId: {}", transactionId))
                 .then();
     }
 }

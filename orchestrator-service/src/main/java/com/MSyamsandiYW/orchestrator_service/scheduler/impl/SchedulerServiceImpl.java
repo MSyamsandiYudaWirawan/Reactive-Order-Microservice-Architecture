@@ -80,7 +80,9 @@ public class SchedulerServiceImpl implements SchedulerService {
                         sagaStateService.updateStatusIfInProgress(
                                         sagaState.getTransactionId(),
                                         AppConstant.SAGA_STATUS.FAILED.name(),
-                                        sagaState.getPaymentStatus()
+                                        sagaState.getPaymentStatus(),
+                                        ErrorCode.ORDER_EXPIRED.getCode(),
+                                        ErrorCode.ORDER_EXPIRED.getDefaultMessage()
                                 )
                                 .filter(rows -> rows > 0)
                                 // insert outbox event ORDER_EXPIRED
@@ -103,7 +105,9 @@ public class SchedulerServiceImpl implements SchedulerService {
                         sagaStateService.updateStatusIfInProgress(
                                         sagaState.getTransactionId(),
                                         AppConstant.SAGA_STATUS.COMPENSATING.name(),
-                                        sagaState.getPaymentStatus()
+                                        sagaState.getPaymentStatus(),
+                                        ErrorCode.ORDER_EXPIRED.getCode(),
+                                        ErrorCode.ORDER_EXPIRED.getDefaultMessage()
                                 )
                                 .filter(rows -> rows > 0)
                                 // insert outbox event ORDER_EXPIRED
@@ -126,7 +130,9 @@ public class SchedulerServiceImpl implements SchedulerService {
                         sagaStateService.updateStatusIfInProgress(
                                         sagaState.getTransactionId(),
                                         AppConstant.SAGA_STATUS.FAILED.name(),
-                                        sagaState.getPaymentStatus()
+                                        sagaState.getPaymentStatus(),
+                                        ErrorCode.ORDER_EXPIRED.getCode(),
+                                        ErrorCode.ORDER_EXPIRED.getDefaultMessage()
                                 )
                                 .filter(rows -> rows > 0)
                                 // insert outbox event ORDER_EXPIRED

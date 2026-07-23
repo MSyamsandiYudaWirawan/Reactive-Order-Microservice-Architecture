@@ -1,6 +1,5 @@
 package com.MSyamsandiYW.orchestrator_service.kafka;
 
-import com.MSyamsandiYW.common.exception.ErrorCode;
 import com.MSyamsandiYW.orchestrator_service.kafka.event.OrchestratorCommand;
 import com.MSyamsandiYW.orchestrator_service.kafka.event.OrchestratorEventPayload;
 import com.MSyamsandiYW.orchestrator_service.outbox.Outbox;
@@ -35,7 +34,7 @@ public class OrchestrationCommandHandler {
 
     public Mono<Void> handleStockReserveCompleted(OrchestratorCommand payload) {
         // find or create saga by transaction id (atomic)
-        return sagaStateService.findOrCreate(payload.getTransactionId(), payload.getCorrelationId())
+        return sagaStateService.findOrCreate(payload)
                 // set stock status to reserved
                 .flatMap(sagaState -> {
                     // if payment status is paid then handle saga completed
@@ -52,7 +51,7 @@ public class OrchestrationCommandHandler {
 
     public Mono<Void> handlePaymentInitiated(OrchestratorCommand payload) {
         // find or create saga by transaction id (atomic)
-        return sagaStateService.findOrCreate(payload.getTransactionId(), payload.getCorrelationId())
+        return sagaStateService.findOrCreate(payload)
                 // set payment status to initiated
                 .flatMap(sagaState -> {
                     log.info("Payment initiated — tracking paymentId: {}, transactionId: {}", payload.getPaymentId(), payload.getTransactionId());
@@ -67,7 +66,7 @@ public class OrchestrationCommandHandler {
 
     public Mono<Void> handlePaymentCompleted(OrchestratorCommand payload) {
         // find or create saga by transaction id (atomic)
-        return sagaStateService.findOrCreate(payload.getTransactionId(), payload.getCorrelationId())
+        return sagaStateService.findOrCreate(payload)
                 .flatMap(sagaState -> {
                     // always set paymentId from the event
                     sagaState.setPaymentId(payload.getPaymentId());
@@ -100,8 +99,11 @@ public class OrchestrationCommandHandler {
 
     public Mono<Void> handleOutOfStock(OrchestratorCommand payload) {
         // find or create saga by transaction id (atomic)
-        return sagaStateService.findOrCreate(payload.getTransactionId(), payload.getCorrelationId())
+        return sagaStateService.findOrCreate(payload)
                 .flatMap(sagaState -> {
+                    // keep failure reason from the event — persisted via save() below, or carried in-memory to compensation
+                    sagaState.setFailureCode(payload.getFailureCode());
+                    sagaState.setFailureMessage(payload.getFailureMessage());
                     // if payment already completed, trigger refund
                     if (PAID.name().equalsIgnoreCase(sagaState.getPaymentStatus())) {
                         log.info("Out of stock + payment already PAID — triggering compensation - transactionId: {}", payload.getTransactionId());
@@ -132,9 +134,9 @@ public class OrchestrationCommandHandler {
                 // if no rows updated return mono empty
                 .filter(rowsUpdated -> rowsUpdated > 0)
                 // insert outbox event ORDER_COMPLETED
-                .flatMap(updatedSagaState -> insertOutbox(buildEventPayload(sagaState, null, null), AppConstant.TOPICS.ORDER_COMPLETED, "ORDER_COMPLETED").thenReturn(updatedSagaState))
+                .flatMap(updatedSagaState -> insertOutbox(buildEventPayload(sagaState), AppConstant.TOPICS.ORDER_COMPLETED, "ORDER_COMPLETED").thenReturn(updatedSagaState))
                 // insert outbox event DEDUCT_STOCK
-                .flatMap(updatedSagaState -> insertOutbox(buildEventPayload(sagaState, null, null), AppConstant.TOPICS.DEDUCT_STOCK, "DEDUCT_STOCK"))
+                .flatMap(updatedSagaState -> insertOutbox(buildEventPayload(sagaState), AppConstant.TOPICS.DEDUCT_STOCK, "DEDUCT_STOCK"))
                 // flag as transactional
                 .as(transactionalOperator::transactional)
                 .then();
@@ -149,12 +151,14 @@ public class OrchestrationCommandHandler {
                         sagaState.getTransactionId(),
                         COMPENSATING.name(),
                         // this already paid
-                        PAID.name()
+                        PAID.name(),
+                        sagaState.getFailureCode(),
+                        sagaState.getFailureMessage()
                 )
                 // if no rows updated return mono empty
                 .filter(rowsUpdated -> rowsUpdated > 0)
                 // insert outbox event REFUND_REQUESTED
-                .flatMap(updatedSagaState -> insertOutbox(buildEventPayload(sagaState, ErrorCode.OUT_OF_STOCK.getCode(), ErrorCode.OUT_OF_STOCK.getDefaultMessage()), AppConstant.TOPICS.REFUND_REQUESTED, "REFUND_REQUESTED"))
+                .flatMap(updatedSagaState -> insertOutbox(buildEventPayload(sagaState), AppConstant.TOPICS.REFUND_REQUESTED, "REFUND_REQUESTED"))
                 .as(transactionalOperator::transactional)
                 .then();
     }
@@ -173,17 +177,17 @@ public class OrchestrationCommandHandler {
 
     public Mono<Void> handleStockReserveRequested(OrchestratorCommand payload) {
         log.info("Stock reserve requested - initializing saga - transactionId: {}", payload.getTransactionId());
-        return sagaStateService.findOrCreate(payload.getTransactionId(), payload.getCorrelationId()).then();
+        return sagaStateService.findOrCreate(payload).then();
     }
 
 
-    private OrchestratorEventPayload buildEventPayload(SagaState sagaState, String failureCode, String failureMessage) {
+    private OrchestratorEventPayload buildEventPayload(SagaState sagaState) {
         return OrchestratorEventPayload.builder()
                 .paymentId(sagaState.getPaymentId())
                 .correlationId(sagaState.getCorrelationId())
                 .transactionId(sagaState.getTransactionId())
-                .failureCode(failureCode)
-                .failureMessage(failureMessage)
+                .failureCode(sagaState.getFailureCode())
+                .failureMessage(sagaState.getFailureMessage())
                 .build();
     }
 

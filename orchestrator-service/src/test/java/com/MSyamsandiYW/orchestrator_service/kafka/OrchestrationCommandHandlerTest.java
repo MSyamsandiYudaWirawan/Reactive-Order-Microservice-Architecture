@@ -65,7 +65,7 @@ class OrchestrationCommandHandlerTest {
                 .build();
 
         // Default mock for findOrCreate — used by most handler methods
-        lenient().when(sagaStateService.findOrCreate(any(), any()))
+        lenient().when(sagaStateService.findOrCreate(any(OrchestratorCommand.class)))
                 .thenReturn(Mono.just(sagaState));
         // Pass-through transaction boundary — unit test has no real transaction
         lenient().when(transactionalOperator.transactional(any(Mono.class)))
@@ -78,7 +78,7 @@ class OrchestrationCommandHandlerTest {
     @Test
     @DisplayName("handleStockReserveCompleted - no payment yet, should set stock RESERVED and wait")
     void handleStockReserveCompleted_noPayment_shouldWait() {
-        when(sagaStateService.findOrCreate(command.getTransactionId(), command.getCorrelationId()))
+        when(sagaStateService.findOrCreate(command))
                 .thenReturn(Mono.just(sagaState));
         when(sagaStateService.save(any(SagaState.class)))
                 .thenAnswer(inv -> Mono.just(inv.getArgument(0)));
@@ -96,7 +96,7 @@ class OrchestrationCommandHandlerTest {
         sagaState.setPaymentStatus(AppConstant.PAYMENT_STATUS.PAID.name());
         sagaState.setPaymentId(command.getPaymentId());
 
-        when(sagaStateService.findOrCreate(command.getTransactionId(), command.getCorrelationId()))
+        when(sagaStateService.findOrCreate(command))
                 .thenReturn(Mono.just(sagaState));
         when(sagaStateService.updateStatusIfInProgress(any(), any(), any()))
                 .thenReturn(Mono.just(1));
@@ -113,7 +113,7 @@ class OrchestrationCommandHandlerTest {
     void handlePaymentCompleted_stockReserved_shouldCompleteSaga() {
         sagaState.setStockStatus(AppConstant.STOCK_STATUS.RESERVED.name());
 
-        when(sagaStateService.findOrCreate(command.getTransactionId(), command.getCorrelationId()))
+        when(sagaStateService.findOrCreate(command))
                 .thenReturn(Mono.just(sagaState));
         when(sagaStateService.updateStatusIfInProgress(any(), any(), any()))
                 .thenReturn(Mono.just(1));
@@ -130,9 +130,9 @@ class OrchestrationCommandHandlerTest {
     void handlePaymentCompleted_outOfStock_shouldCompensate() {
         sagaState.setStockStatus(AppConstant.STOCK_STATUS.OUT_OF_STOCK.name());
 
-        when(sagaStateService.findOrCreate(command.getTransactionId(), command.getCorrelationId()))
+        when(sagaStateService.findOrCreate(command))
                 .thenReturn(Mono.just(sagaState));
-        when(sagaStateService.updateStatusIfInProgress(any(), any(), any()))
+        when(sagaStateService.updateStatusIfInProgress(any(), any(), any(), any(), any()))
                 .thenReturn(Mono.just(1));
 
         StepVerifier.create(handler.handlePaymentCompleted(command))
@@ -144,7 +144,7 @@ class OrchestrationCommandHandlerTest {
     @Test
     @DisplayName("handlePaymentCompleted - no stock result yet, should set PAID and wait")
     void handlePaymentCompleted_noStockResult_shouldWait() {
-        when(sagaStateService.findOrCreate(command.getTransactionId(), command.getCorrelationId()))
+        when(sagaStateService.findOrCreate(command))
                 .thenReturn(Mono.just(sagaState));
         when(sagaStateService.save(any(SagaState.class)))
                 .thenAnswer(inv -> Mono.just(inv.getArgument(0)));
@@ -161,22 +161,25 @@ class OrchestrationCommandHandlerTest {
     void handleOutOfStock_paymentPaid_shouldCompensate() {
         sagaState.setPaymentStatus(AppConstant.PAYMENT_STATUS.PAID.name());
         sagaState.setPaymentId(command.getPaymentId());
+        command.setFailureCode("OUT_OF_STOCK");
+        command.setFailureMessage("Insufficient stock to fulfill the order");
 
-        when(sagaStateService.findOrCreate(command.getTransactionId(), command.getCorrelationId()))
+        when(sagaStateService.findOrCreate(command))
                 .thenReturn(Mono.just(sagaState));
-        when(sagaStateService.updateStatusIfInProgress(any(), any(), any()))
+        when(sagaStateService.updateStatusIfInProgress(any(), any(), any(), any(), any()))
                 .thenReturn(Mono.just(1));
 
         StepVerifier.create(handler.handleOutOfStock(command))
                 .verifyComplete();
 
-        verify(outboxService).save(argThat(o -> AppConstant.TOPICS.REFUND_REQUESTED.equals(o.getAggregateType())));
+        verify(outboxService).save(argThat(o -> AppConstant.TOPICS.REFUND_REQUESTED.equals(o.getAggregateType())
+                && o.getPayload().contains("\"failureCode\":\"OUT_OF_STOCK\"")));
     }
 
     @Test
     @DisplayName("handleOutOfStock - no payment, should mark saga FAILED")
     void handleOutOfStock_noPayment_shouldMarkFailed() {
-        when(sagaStateService.findOrCreate(command.getTransactionId(), command.getCorrelationId()))
+        when(sagaStateService.findOrCreate(command))
                 .thenReturn(Mono.just(sagaState));
         when(sagaStateService.save(any(SagaState.class)))
                 .thenAnswer(inv -> Mono.just(inv.getArgument(0)));
@@ -200,7 +203,7 @@ class OrchestrationCommandHandlerTest {
     @Test
     @DisplayName("handlePaymentInitiated - should set payment status to INITIATED")
     void handlePaymentInitiated_shouldSetInitiated() {
-        when(sagaStateService.findOrCreate(command.getTransactionId(), command.getCorrelationId()))
+        when(sagaStateService.findOrCreate(command))
                 .thenReturn(Mono.just(sagaState));
         when(sagaStateService.save(any(SagaState.class)))
                 .thenAnswer(inv -> Mono.just(inv.getArgument(0)));
@@ -238,13 +241,13 @@ class OrchestrationCommandHandlerTest {
     @Test
     @DisplayName("handleStockReserveRequested - should initialize saga via findOrCreate")
     void handleStockReserveRequested_shouldInitializeSaga() {
-        when(sagaStateService.findOrCreate(command.getTransactionId(), command.getCorrelationId()))
+        when(sagaStateService.findOrCreate(command))
                 .thenReturn(Mono.just(sagaState));
 
         StepVerifier.create(handler.handleStockReserveRequested(command))
                 .verifyComplete();
 
-        verify(sagaStateService).findOrCreate(command.getTransactionId(), command.getCorrelationId());
+        verify(sagaStateService).findOrCreate(command);
         verify(sagaStateService, never()).save(any());
         verifyNoInteractions(outboxService);
     }
@@ -252,7 +255,7 @@ class OrchestrationCommandHandlerTest {
     @Test
     @DisplayName("handleStockReserveCompleted - new transaction, should create saga via findOrCreate")
     void handleStockReserveCompleted_newTransaction_shouldCreateSaga() {
-        when(sagaStateService.findOrCreate(command.getTransactionId(), command.getCorrelationId()))
+        when(sagaStateService.findOrCreate(command))
                 .thenReturn(Mono.just(sagaState));
         when(sagaStateService.save(any(SagaState.class)))
                 .thenAnswer(inv -> Mono.just(inv.getArgument(0)));
@@ -260,6 +263,6 @@ class OrchestrationCommandHandlerTest {
         StepVerifier.create(handler.handleStockReserveCompleted(command))
                 .verifyComplete();
 
-        verify(sagaStateService).findOrCreate(command.getTransactionId(), command.getCorrelationId());
+        verify(sagaStateService).findOrCreate(command);
     }
 }
