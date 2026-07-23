@@ -2,12 +2,16 @@ package com.MSyamsandiYW.orchestrator_service.kafka;
 
 import com.MSyamsandiYW.orchestrator_service.kafka.event.OrchestratorCommand;
 import com.MSyamsandiYW.orchestrator_service.kafka.event.OrchestratorEventPayload;
+import com.MSyamsandiYW.orchestrator_service.outbox.Outbox;
+import com.MSyamsandiYW.orchestrator_service.outbox.OutboxService;
 import com.MSyamsandiYW.orchestrator_service.properties.AppConstant;
 import com.MSyamsandiYW.orchestrator_service.saga_state.SagaState;
 import com.MSyamsandiYW.orchestrator_service.saga_state.SagaStateService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.reactive.TransactionalOperator;
 import reactor.core.publisher.Mono;
 
 import java.time.Instant;
@@ -16,7 +20,6 @@ import java.util.UUID;
 import static com.MSyamsandiYW.orchestrator_service.properties.AppConstant.PAYMENT_STATUS.INITIATED;
 import static com.MSyamsandiYW.orchestrator_service.properties.AppConstant.PAYMENT_STATUS.PAID;
 import static com.MSyamsandiYW.orchestrator_service.properties.AppConstant.SAGA_STATUS.*;
-import static com.MSyamsandiYW.orchestrator_service.properties.AppConstant.STOCK_STATUS.OUT_OF_STOCK;
 import static com.MSyamsandiYW.orchestrator_service.properties.AppConstant.STOCK_STATUS.RESERVED;
 
 @Service
@@ -25,7 +28,9 @@ import static com.MSyamsandiYW.orchestrator_service.properties.AppConstant.STOCK
 public class OrchestrationCommandHandler {
 
     private final SagaStateService sagaStateService;
-    private final OrchestratorEventProducer producer;
+    private final TransactionalOperator transactionalOperator;
+    private final OutboxService outboxService;
+    private final ObjectMapper objectMapper;
 
     public Mono<Void> handleStockReserveCompleted(OrchestratorCommand payload) {
         // find or create saga by transaction id (atomic)
@@ -72,7 +77,7 @@ public class OrchestrationCommandHandler {
                         return handleSagaCompleted(sagaState);
                     }
                     // if stock status is out of stock then handle saga compensate
-                    if (OUT_OF_STOCK.name().equalsIgnoreCase(sagaState.getStockStatus())) {
+                    if (AppConstant.STOCK_STATUS.OUT_OF_STOCK.name().equalsIgnoreCase(sagaState.getStockStatus())) {
                         log.info("Payment completed + stock OUT_OF_STOCK — triggering compensation - transactionId: {}", payload.getTransactionId());
                         return handleSagaCompensated(sagaState);
                     }
@@ -104,12 +109,12 @@ public class OrchestrationCommandHandler {
                     //if payment is initiated (in progress), wait for payment result
                     if (INITIATED.name().equalsIgnoreCase(sagaState.getPaymentStatus())) {
                         log.info("Out of stock + payment INITIATED — waiting for payment result - transactionId: {}", payload.getTransactionId());
-                        sagaState.setStockStatus(OUT_OF_STOCK.name());
+                        sagaState.setStockStatus(AppConstant.STOCK_STATUS.OUT_OF_STOCK.name());
                         return sagaStateService.save(sagaState);
                     }
                     // no payment at all, saga simply fails
                     log.info("Out of stock + no payment — saga failed - transactionId: {}", payload.getTransactionId());
-                    sagaState.setStockStatus(OUT_OF_STOCK.name());
+                    sagaState.setStockStatus(AppConstant.STOCK_STATUS.OUT_OF_STOCK.name());
                     sagaState.setSagaStatus(FAILED.name());
                     return sagaStateService.save(sagaState);
                 }).then();
@@ -125,16 +130,12 @@ public class OrchestrationCommandHandler {
                 )
                 // if no rows updated return mono empty
                 .filter(rowsUpdated -> rowsUpdated > 0)
-                // flatMap will skip if its mono empty
-                .flatMap(__ -> {
-                    OrchestratorEventPayload payload = OrchestratorEventPayload.builder()
-                            .paymentId(sagaState.getPaymentId())
-                            .transactionId(sagaState.getTransactionId())
-                            .correlationId(sagaState.getCorrelationId())
-                            .build();
-                    return producer.send(AppConstant.TOPICS.ORDER_COMPLETED, UUID.randomUUID().toString(), payload)
-                            .then(producer.send(AppConstant.TOPICS.DEDUCT_STOCK, UUID.randomUUID().toString(), payload));
-                })
+                // insert outbox event ORDER_COMPLETED
+                .flatMap(updatedSagaState -> insertOutbox(buildEventPayload(sagaState), AppConstant.TOPICS.ORDER_COMPLETED, "ORDER_COMPLETED").thenReturn(updatedSagaState))
+                // insert outbox event DEDUCT_STOCK
+                .flatMap(updatedSagaState -> insertOutbox(buildEventPayload(sagaState), AppConstant.TOPICS.DEDUCT_STOCK, "DEDUCT_STOCK"))
+                // flag as transactional
+                .as(transactionalOperator::transactional)
                 .then();
     }
 
@@ -151,15 +152,9 @@ public class OrchestrationCommandHandler {
                 )
                 // if no rows updated return mono empty
                 .filter(rowsUpdated -> rowsUpdated > 0)
-                // flatMap will skip if its mono empty
-                .flatMap(__ -> {
-                    OrchestratorEventPayload payload = OrchestratorEventPayload.builder()
-                            .paymentId(sagaState.getPaymentId())
-                            .transactionId(sagaState.getTransactionId())
-                            .correlationId(sagaState.getCorrelationId())
-                            .build();
-                    return producer.send(AppConstant.TOPICS.REFUND_REQUESTED, UUID.randomUUID().toString(), payload);
-                })
+                // insert outbox event REFUND_REQUESTED
+                .flatMap(updatedSagaState -> insertOutbox(buildEventPayload(sagaState), AppConstant.TOPICS.REFUND_REQUESTED, "REFUND_REQUESTED"))
+                .as(transactionalOperator::transactional)
                 .then();
     }
 
@@ -178,5 +173,27 @@ public class OrchestrationCommandHandler {
     public Mono<Void> handleStockReserveRequested(OrchestratorCommand payload) {
         log.info("Stock reserve requested - initializing saga - transactionId: {}", payload.getTransactionId());
         return sagaStateService.findOrCreate(payload.getTransactionId(), payload.getCorrelationId()).then();
+    }
+
+
+    private OrchestratorEventPayload buildEventPayload(SagaState sagaState) {
+        return OrchestratorEventPayload.builder()
+                .paymentId(sagaState.getPaymentId())
+                .correlationId(sagaState.getCorrelationId())
+                .transactionId(sagaState.getTransactionId())
+                .build();
+    }
+
+    private Mono<Void> insertOutbox(OrchestratorEventPayload payload, String topic, String eventName) {
+        return Mono.fromCallable(() -> objectMapper.writeValueAsString(payload))
+                .map(json -> Outbox.builder()
+                        .aggregateId(UUID.randomUUID().toString())
+                        .aggregateType(topic)
+                        .eventType(eventName)
+                        .payload(json)
+                        .createdAt(Instant.now())
+                        .build())
+                .flatMap(outboxService::save)
+                .then();
     }
 }

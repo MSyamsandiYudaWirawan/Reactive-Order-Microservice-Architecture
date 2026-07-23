@@ -1,16 +1,21 @@
 package com.MSyamsandiYW.orchestrator_service.kafka;
 
 import com.MSyamsandiYW.orchestrator_service.kafka.event.OrchestratorCommand;
+import com.MSyamsandiYW.orchestrator_service.outbox.Outbox;
+import com.MSyamsandiYW.orchestrator_service.outbox.OutboxService;
 import com.MSyamsandiYW.orchestrator_service.properties.AppConstant;
 import com.MSyamsandiYW.orchestrator_service.saga_state.SagaState;
 import com.MSyamsandiYW.orchestrator_service.saga_state.SagaStateService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.reactive.TransactionalOperator;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
@@ -18,7 +23,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -28,7 +33,13 @@ class OrchestrationCommandHandlerTest {
     private SagaStateService sagaStateService;
 
     @Mock
-    private OrchestratorEventProducer producer;
+    private OutboxService outboxService;
+
+    @Mock
+    private TransactionalOperator transactionalOperator;
+
+    @Spy
+    private ObjectMapper objectMapper = new ObjectMapper();
 
     @InjectMocks
     private OrchestrationCommandHandler handler;
@@ -56,6 +67,12 @@ class OrchestrationCommandHandlerTest {
         // Default mock for findOrCreate — used by most handler methods
         lenient().when(sagaStateService.findOrCreate(any(), any()))
                 .thenReturn(Mono.just(sagaState));
+        // Pass-through transaction boundary — unit test has no real transaction
+        lenient().when(transactionalOperator.transactional(any(Mono.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+        // Default mock for outbox save
+        lenient().when(outboxService.save(any(Outbox.class)))
+                .thenReturn(Mono.empty());
     }
 
     @Test
@@ -70,7 +87,7 @@ class OrchestrationCommandHandlerTest {
                 .verifyComplete();
 
         verify(sagaStateService).save(any(SagaState.class));
-        verify(producer, never()).send(any(), any(), any());
+        verify(outboxService, never()).save(any());
     }
 
     @Test
@@ -83,14 +100,12 @@ class OrchestrationCommandHandlerTest {
                 .thenReturn(Mono.just(sagaState));
         when(sagaStateService.updateStatusIfInProgress(any(), any(), any()))
                 .thenReturn(Mono.just(1));
-        when(producer.send(any(), any(), any()))
-                .thenReturn(Mono.empty());
 
         StepVerifier.create(handler.handleStockReserveCompleted(command))
                 .verifyComplete();
 
-        verify(producer).send(eq(AppConstant.TOPICS.ORDER_COMPLETED), any(), any());
-        verify(producer).send(eq(AppConstant.TOPICS.DEDUCT_STOCK), any(), any());
+        verify(outboxService).save(argThat(o -> AppConstant.TOPICS.ORDER_COMPLETED.equals(o.getAggregateType())));
+        verify(outboxService).save(argThat(o -> AppConstant.TOPICS.DEDUCT_STOCK.equals(o.getAggregateType())));
     }
 
     @Test
@@ -102,14 +117,12 @@ class OrchestrationCommandHandlerTest {
                 .thenReturn(Mono.just(sagaState));
         when(sagaStateService.updateStatusIfInProgress(any(), any(), any()))
                 .thenReturn(Mono.just(1));
-        when(producer.send(any(), any(), any()))
-                .thenReturn(Mono.empty());
 
         StepVerifier.create(handler.handlePaymentCompleted(command))
                 .verifyComplete();
 
-        verify(producer).send(eq(AppConstant.TOPICS.ORDER_COMPLETED), any(), any());
-        verify(producer).send(eq(AppConstant.TOPICS.DEDUCT_STOCK), any(), any());
+        verify(outboxService).save(argThat(o -> AppConstant.TOPICS.ORDER_COMPLETED.equals(o.getAggregateType())));
+        verify(outboxService).save(argThat(o -> AppConstant.TOPICS.DEDUCT_STOCK.equals(o.getAggregateType())));
     }
 
     @Test
@@ -121,13 +134,11 @@ class OrchestrationCommandHandlerTest {
                 .thenReturn(Mono.just(sagaState));
         when(sagaStateService.updateStatusIfInProgress(any(), any(), any()))
                 .thenReturn(Mono.just(1));
-        when(producer.send(any(), any(), any()))
-                .thenReturn(Mono.empty());
 
         StepVerifier.create(handler.handlePaymentCompleted(command))
                 .verifyComplete();
 
-        verify(producer).send(eq(AppConstant.TOPICS.REFUND_REQUESTED), any(), any());
+        verify(outboxService).save(argThat(o -> AppConstant.TOPICS.REFUND_REQUESTED.equals(o.getAggregateType())));
     }
 
     @Test
@@ -142,7 +153,7 @@ class OrchestrationCommandHandlerTest {
                 .verifyComplete();
 
         verify(sagaStateService).save(any(SagaState.class));
-        verify(producer, never()).send(any(), any(), any());
+        verify(outboxService, never()).save(any());
     }
 
     @Test
@@ -155,13 +166,11 @@ class OrchestrationCommandHandlerTest {
                 .thenReturn(Mono.just(sagaState));
         when(sagaStateService.updateStatusIfInProgress(any(), any(), any()))
                 .thenReturn(Mono.just(1));
-        when(producer.send(any(), any(), any()))
-                .thenReturn(Mono.empty());
 
         StepVerifier.create(handler.handleOutOfStock(command))
                 .verifyComplete();
 
-        verify(producer).send(eq(AppConstant.TOPICS.REFUND_REQUESTED), any(), any());
+        verify(outboxService).save(argThat(o -> AppConstant.TOPICS.REFUND_REQUESTED.equals(o.getAggregateType())));
     }
 
     @Test
@@ -185,7 +194,7 @@ class OrchestrationCommandHandlerTest {
                 .verifyComplete();
 
         verifyNoInteractions(sagaStateService);
-        verifyNoInteractions(producer);
+        verifyNoInteractions(outboxService);
     }
 
     @Test
@@ -237,7 +246,7 @@ class OrchestrationCommandHandlerTest {
 
         verify(sagaStateService).findOrCreate(command.getTransactionId(), command.getCorrelationId());
         verify(sagaStateService, never()).save(any());
-        verifyNoInteractions(producer);
+        verifyNoInteractions(outboxService);
     }
 
     @Test
