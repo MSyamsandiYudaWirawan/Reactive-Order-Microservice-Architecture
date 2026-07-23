@@ -175,6 +175,7 @@ public class PaymentServiceImpl implements PaymentService {
                 // CAS: only mark REFUNDED if still CANCELLED/FAILED — prevents duplicate ledger on webhook redelivery
                 return updatePaymentStatus(payment, REFUNDED.name(), null, null, Set.of(CANCELLED.name(), FAILED.name()))
                         .flatMap(paymentLedgerService::recordEventPayment)
+                        .as(transactionalOperator::transactional)
                         .then(Mono.empty());
             }
             // Only SUCCESS or REFUND_FAILED proceed to normal flow — orchestrator is waiting for ORDER_REFUND_COMPLETED
