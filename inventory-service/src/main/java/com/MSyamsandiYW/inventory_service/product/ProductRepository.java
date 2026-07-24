@@ -10,7 +10,7 @@ import java.util.UUID;
 public interface ProductRepository extends R2dbcRepository<Product, UUID> {
     @Query("""
             UPDATE products SET available_qty = available_qty - :qty, reserved_qty = reserved_qty + :qty,
-                updated_by = 'INVENTORY_SERVICE', last_modified_date = now()
+                updated_by = 'INVENTORY_SERVICE', updated_at = now()
             WHERE available_qty >= :qty AND id= :id AND is_active = true AND is_deleted = false;
             """)
     @Modifying
@@ -18,7 +18,7 @@ public interface ProductRepository extends R2dbcRepository<Product, UUID> {
 
     @Query("""
             UPDATE products SET available_qty = available_qty + :qty, reserved_qty = reserved_qty - :qty,
-                updated_by = 'INVENTORY_SERVICE', last_modified_date = now()
+                updated_by = 'INVENTORY_SERVICE', updated_at = now()
             WHERE id= :id AND is_active = true AND is_deleted = false;
             """)
     @Modifying
@@ -26,7 +26,7 @@ public interface ProductRepository extends R2dbcRepository<Product, UUID> {
 
     @Query("""
             UPDATE products SET reserved_qty = reserved_qty - :qty, sold_qty = sold_qty + :qty,
-                updated_by = 'INVENTORY_SERVICE', last_modified_date = now()
+                updated_by = 'INVENTORY_SERVICE', updated_at = now()
             WHERE id= :id AND is_active = true AND is_deleted = false;
             """)
     @Modifying

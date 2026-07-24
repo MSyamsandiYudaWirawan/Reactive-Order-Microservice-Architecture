@@ -17,5 +17,5 @@ public class GetOrderStatusResponse {
     private String discountCode;
     private BigDecimal totalAmount;
     private String paymentMethod;
-    private ZonedDateTime createdDate;
+    private ZonedDateTime createdAt;
 }

@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS stock_ledger(
     product_id VARCHAR(255) NOT NULL ,
     transaction_id VARCHAR(255) NOT NULL,
     correlation_id VARCHAR(255) NOT NULL,
-    event_type VARCHAR(255) NOT NULL,
+    status VARCHAR(255) NOT NULL,
     qty INTEGER NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

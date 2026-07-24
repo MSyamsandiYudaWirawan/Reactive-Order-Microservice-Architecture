@@ -11,8 +11,8 @@ CREATE TABLE if NOT EXISTS orders
     failure_message    VARCHAR(500),
     created_by         VARCHAR(255) NOT NULL,
     updated_by         VARCHAR(255),
-    created_date       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-    last_modified_date TIMESTAMPTZ
+    created_at         TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at         TIMESTAMPTZ
 );
 
 CREATE TABLE if NOT EXISTS order_items
@@ -25,8 +25,8 @@ CREATE TABLE if NOT EXISTS order_items
     price              NUMERIC(19,2) NOT NULL,
     created_by         VARCHAR(255) NOT NULL,
     updated_by         VARCHAR(255),
-    created_date       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-    last_modified_date TIMESTAMPTZ
+    created_at         TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at         TIMESTAMPTZ
 );
 
 CREATE TABLE IF NOT EXISTS discounts
@@ -42,21 +42,33 @@ CREATE TABLE IF NOT EXISTS discounts
     valid_until         TIMESTAMPTZ,
     created_by          VARCHAR(255)       NOT NULL,
     updated_by          VARCHAR(255),
-    created_date        TIMESTAMPTZ        NOT NULL DEFAULT NOW(),
-    last_modified_date  TIMESTAMPTZ
+    created_at          TIMESTAMPTZ        NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ
 );
 
-CREATE TABLE IF NOT EXISTS order_ledger
+CREATE TABLE IF NOT EXISTS order_status_history
 (
     id             UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     transaction_id VARCHAR(255) NOT NULL,
     correlation_id VARCHAR(255) NOT NULL,
-    event_type     VARCHAR(255) NOT NULL, -- PENDING, WAITING_PAYMENT, PAID, COMPLETED, FAILED, REFUNDED
-    created_date   TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+    status         VARCHAR(255) NOT NULL,
+    created_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS outbox
+(
+    id             UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    aggregate_type VARCHAR(255) NOT NULL,
+    aggregate_id   VARCHAR(255) NOT NULL,
+    event_type     VARCHAR(255) NOT NULL,
+    payload        JSONB        NOT NULL,
+    created_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders(user_id);
 CREATE INDEX IF NOT EXISTS idx_orders_transaction_id ON orders(transaction_id);
+
+ALTER USER username REPLICATION;
 
 -- Sample discounts
 INSERT INTO discounts (id, code, discount_type, value, minimum_order_value, maximum_order_value, max_usage, valid_from, valid_until, created_by)

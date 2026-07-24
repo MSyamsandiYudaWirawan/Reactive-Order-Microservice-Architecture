@@ -9,7 +9,6 @@ import org.springframework.data.relational.core.mapping.Table;
 
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.time.ZonedDateTime;
 import java.util.UUID;
 
 @AllArgsConstructor
@@ -35,9 +34,9 @@ public class Discount {
     @Column("max_usage")
     private Integer maxUsage;
     @Column("valid_from")
-    private ZonedDateTime validFrom;
+    private Instant validFrom;
     @Column("valid_until")
-    private ZonedDateTime validUntil;
+    private Instant validUntil;
     @Column("created_by")
     private String createdBy;
     @Column("updated_by")

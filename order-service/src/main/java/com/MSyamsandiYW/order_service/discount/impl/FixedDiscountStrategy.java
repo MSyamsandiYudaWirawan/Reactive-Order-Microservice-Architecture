@@ -6,7 +6,7 @@ import com.MSyamsandiYW.order_service.order.Order;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
-import java.time.ZonedDateTime;
+import java.time.Instant;
 
 @Component("FIXED")
 public class FixedDiscountStrategy implements DiscountStrategy {
@@ -31,7 +31,7 @@ public class FixedDiscountStrategy implements DiscountStrategy {
 
     @Override
     public boolean isApplicable(Order order, Discount discount) {
-        ZonedDateTime now = ZonedDateTime.now();
+        Instant now = Instant.now();
         if (discount.getValidFrom().isAfter(now) || discount.getValidUntil().isBefore(now)) {
             return false;
         }

@@ -5,8 +5,8 @@ CREATE TABLE if NOT EXISTS users (
     password VARCHAR(255) NOT NULL,
     phonenumber VARCHAR(255) NOT NULL UNIQUE,
     roles VARCHAR(255),
-    created_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    last_modified_date TIMESTAMPTZ,
+    created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at         TIMESTAMPTZ,
     is_locked BOOLEAN DEFAULT FALSE,
     is_credentials_expired BOOLEAN DEFAULT FALSE,
     is_enabled BOOLEAN DEFAULT FALSE,
@@ -14,3 +14,5 @@ CREATE TABLE if NOT EXISTS users (
     is_phone_verified BOOLEAN DEFAULT FALSE,
     is_deleted BOOLEAN DEFAULT FALSE
 );
+
+ALTER USER username REPLICATION;
