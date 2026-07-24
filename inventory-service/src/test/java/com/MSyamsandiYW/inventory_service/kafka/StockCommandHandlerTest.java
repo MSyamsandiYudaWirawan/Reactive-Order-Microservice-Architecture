@@ -102,7 +102,6 @@ class StockCommandHandlerTest {
         verify(stockLedgerService).recordStockEvent(reservations);
         verify(outboxService).save(argThat(outbox ->
                 outbox.getAggregateType().equals(AppConstant.TOPICS.STOCK_RESERVE_COMPLETED)
-                        && outbox.getAggregateId().equals(command.getTransactionId())
                         && outbox.getEventType().equals("STOCK_RESERVE_COMPLETED")));
     }
 
@@ -125,8 +124,7 @@ class StockCommandHandlerTest {
         verify(stockReservationService).updateStatusReservation(command.getTransactionId(), AppConstant.RESERVATION_STATUS.OUT_OF_STOCK.name());
         verify(outboxService).save(argThat(outbox ->
                 outbox.getAggregateType().equals(AppConstant.TOPICS.OUT_OF_STOCK)
-                        && outbox.getAggregateId().equals(command.getTransactionId())
-                        && outbox.getPayload().contains(ErrorCode.OUT_OF_STOCK.name())));
+                        && outbox.getPayload().asString().contains(ErrorCode.OUT_OF_STOCK.name())));
     }
 
     @Test

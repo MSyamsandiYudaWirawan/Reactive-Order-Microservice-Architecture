@@ -173,7 +173,7 @@ class OrchestrationCommandHandlerTest {
                 .verifyComplete();
 
         verify(outboxService).save(argThat(o -> AppConstant.TOPICS.REFUND_REQUESTED.equals(o.getAggregateType())
-                && o.getPayload().contains("\"failureCode\":\"OUT_OF_STOCK\"")));
+                && o.getPayload().asString().contains("\"failureCode\":\"OUT_OF_STOCK\"")));
     }
 
     @Test

@@ -1,5 +1,6 @@
 package com.MSyamsandiYW.payment_service.scheduler.impl;
 
+import io.r2dbc.postgresql.codec.Json;
 import com.MSyamsandiYW.payment_service.kafka.event.PaymentEventPayload;
 import com.MSyamsandiYW.payment_service.outbox.Outbox;
 import com.MSyamsandiYW.payment_service.outbox.OutboxService;
@@ -81,7 +82,7 @@ public class SchedulerServiceImpl implements SchedulerService {
                         .aggregateId(UUID.randomUUID().toString())
                         .aggregateType(topic)
                         .eventType(eventName)
-                        .payload(json)
+                        .payload(Json.of(json))
                         .build())
                 .flatMap(outboxService::save);
     }

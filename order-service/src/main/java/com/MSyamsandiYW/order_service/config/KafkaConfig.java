@@ -1,6 +1,7 @@
 package com.MSyamsandiYW.order_service.config;
 
 import com.MSyamsandiYW.order_service.kafka.event.OrderCommand;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.springframework.boot.kafka.autoconfigure.KafkaProperties;
 import org.springframework.context.annotation.Bean;
@@ -17,6 +18,11 @@ import static com.MSyamsandiYW.order_service.properties.AppConstant.TOPICS.*;
 
 @Configuration
 public class KafkaConfig {
+
+    @Bean
+    public ObjectMapper objectMapper() {
+        return new ObjectMapper();
+    }
 
     @Bean
     public KafkaSender<String, Object> kafkaSender(KafkaProperties kafkaProperties) {

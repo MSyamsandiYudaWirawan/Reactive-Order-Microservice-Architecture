@@ -1,5 +1,6 @@
 package com.MSyamsandiYW.inventory_service.kafka;
 
+import io.r2dbc.postgresql.codec.Json;
 import com.MSyamsandiYW.common.exception.BusinessException;
 import com.MSyamsandiYW.common.exception.ErrorCode;
 import com.MSyamsandiYW.inventory_service.kafka.event.StockCommand;
@@ -20,7 +21,6 @@ import reactor.kafka.receiver.ReceiverRecord;
 
 import java.time.Duration;
 import java.util.UUID;
-
 import static com.MSyamsandiYW.inventory_service.properties.AppConstant.RESERVATION_STATUS.*;
 import static com.MSyamsandiYW.inventory_service.properties.AppConstant.TOPICS.STOCK_RESERVE_COMPLETED;
 
@@ -113,7 +113,7 @@ public class StockCommandHandler {
                         .aggregateId(UUID.randomUUID().toString())
                         .aggregateType(topic)
                         .eventType(eventName)
-                        .payload(json)
+                        .payload(Json.of(json))
                         .build())
                 .flatMap(outboxService::save);
     }

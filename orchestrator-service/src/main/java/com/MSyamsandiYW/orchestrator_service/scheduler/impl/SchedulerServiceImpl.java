@@ -1,6 +1,7 @@
 package com.MSyamsandiYW.orchestrator_service.scheduler.impl;
 
 import com.MSyamsandiYW.common.exception.ErrorCode;
+import io.r2dbc.postgresql.codec.Json;
 import com.MSyamsandiYW.orchestrator_service.kafka.event.OrchestratorEventPayload;
 import com.MSyamsandiYW.orchestrator_service.outbox.Outbox;
 import com.MSyamsandiYW.orchestrator_service.outbox.OutboxService;
@@ -160,7 +161,7 @@ public class SchedulerServiceImpl implements SchedulerService {
                         .aggregateId(UUID.randomUUID().toString())
                         .aggregateType(topic)
                         .eventType(eventName)
-                        .payload(json)
+                        .payload(Json.of(json))
                         .createdAt(Instant.now())
                         .build())
                 .flatMap(outboxService::save)

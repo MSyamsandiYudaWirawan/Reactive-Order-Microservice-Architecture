@@ -1,5 +1,6 @@
 package com.MSyamsandiYW.inventory_service.outbox;
 
+import io.r2dbc.postgresql.codec.Json;
 import lombok.*;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.relational.core.mapping.Column;
@@ -24,7 +25,7 @@ public class Outbox {
     @Column("event_type")
     private String eventType;
     @Column("payload")
-    private String payload;
+    private Json payload;
     @Column("created_at")
     private Instant createdAt;
 }

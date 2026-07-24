@@ -1,5 +1,6 @@
 package com.MSyamsandiYW.orchestrator_service.kafka;
 
+import io.r2dbc.postgresql.codec.Json;
 import com.MSyamsandiYW.orchestrator_service.kafka.event.OrchestratorCommand;
 import com.MSyamsandiYW.orchestrator_service.kafka.event.OrchestratorEventPayload;
 import com.MSyamsandiYW.orchestrator_service.outbox.Outbox;
@@ -197,7 +198,7 @@ public class OrchestrationCommandHandler {
                         .aggregateId(UUID.randomUUID().toString())
                         .aggregateType(topic)
                         .eventType(eventName)
-                        .payload(json)
+                        .payload(Json.of(json))
                         .createdAt(Instant.now())
                         .build())
                 .flatMap(outboxService::save)
