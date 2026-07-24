@@ -57,7 +57,9 @@ register "order-service-outbox-connector" '{
     "transforms.outbox.table.field.event.payload": "payload",
     "transforms.outbox.route.by.field": "aggregate_type",
     "transforms.outbox.route.topic.replacement": "${routedByValue}",
-    "tombstones.on.delete": "false"
+    "tombstones.on.delete": "false",
+    "value.converter": "org.apache.kafka.connect.storage.StringConverter",
+    "value.converter.schemas.enable": "false"
   }
 }'
 
@@ -85,7 +87,9 @@ register "inventory-service-outbox-connector" '{
     "transforms.outbox.table.field.event.payload": "payload",
     "transforms.outbox.route.by.field": "aggregate_type",
     "transforms.outbox.route.topic.replacement": "${routedByValue}",
-    "tombstones.on.delete": "false"
+    "tombstones.on.delete": "false",
+    "value.converter": "org.apache.kafka.connect.storage.StringConverter",
+    "value.converter.schemas.enable": "false"
   }
 }'
 
@@ -113,7 +117,9 @@ register "payment-service-outbox-connector" '{
     "transforms.outbox.table.field.event.payload": "payload",
     "transforms.outbox.route.by.field": "aggregate_type",
     "transforms.outbox.route.topic.replacement": "${routedByValue}",
-    "tombstones.on.delete": "false"
+    "tombstones.on.delete": "false",
+    "value.converter": "org.apache.kafka.connect.storage.StringConverter",
+    "value.converter.schemas.enable": "false"
   }
 }'
 
@@ -141,7 +147,9 @@ register "orchestrator-service-outbox-connector" '{
     "transforms.outbox.table.field.event.payload": "payload",
     "transforms.outbox.route.by.field": "aggregate_type",
     "transforms.outbox.route.topic.replacement": "${routedByValue}",
-    "tombstones.on.delete": "false"
+    "tombstones.on.delete": "false",
+    "value.converter": "org.apache.kafka.connect.storage.StringConverter",
+    "value.converter.schemas.enable": "false"
   }
 }'
 
