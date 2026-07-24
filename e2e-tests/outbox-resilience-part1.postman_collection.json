@@ -1,8 +1,7 @@
 {
   "info": {
-    "name": "E2E - Out of Stock (No Payment → OUT_OF_STOCK)",
-    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "Order qty=99999 + No payment → Stock check fails after 15s → OUT_OF_STOCK (saga FAILED, no compensation needed)"
+    "name": "E2E - Outbox Resilience Part 1 (Create Order)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "event": [
     {
@@ -11,7 +10,8 @@
         "type": "text/javascript",
         "exec": [
           "if (pm.response.code >= 400) {",
-          "    console.log('\u274c [' + pm.response.code + '] ' + pm.info.requestName + ' \u2192 ' + pm.response.text());",
+          "    var body = ''; try { body = JSON.stringify(pm.response.json()); } catch(e) { body = pm.response.text(); }",
+          "    console.log('❌ [' + pm.response.code + '] ' + pm.info.requestName + ' → ' + body);",
           "}"
         ]
       }
@@ -26,11 +26,9 @@
           "script": {
             "type": "text/javascript",
             "exec": [
-              "if (!pm.environment.get('test_email') || pm.environment.get('test_email') === '') {",
-              "    const ts = Date.now();",
-              "    pm.environment.set('test_email', 'e2e_oos_' + ts + '@testmail.com');",
-              "    pm.environment.set('test_phone', '+628' + ts.toString().slice(-10));",
-              "}"
+              "const ts = Date.now();",
+              "pm.environment.set('test_email', 'e2e_' + ts + '@testmail.com');",
+              "pm.environment.set('test_phone', '+628' + ts.toString().slice(-10));"
             ]
           }
         },
@@ -66,7 +64,8 @@
             "type": "text/javascript",
             "exec": [
               "pm.test('Login OK', function() { pm.response.to.have.status(200); });",
-              "pm.environment.set('access_token', pm.response.json().access_token);"
+              "const r = pm.response.json();",
+              "pm.environment.set('access_token', r.access_token);"
             ]
           }
         }
@@ -87,7 +86,7 @@
       }
     },
     {
-      "name": "3. Create Order (qty=99999, will be OUT_OF_STOCK)",
+      "name": "3. Create Order",
       "event": [
         {
           "listen": "prerequest",
@@ -102,8 +101,10 @@
             "type": "text/javascript",
             "exec": [
               "pm.test('Order created', function() { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });",
-              "pm.environment.set('transaction_id', pm.response.json().transactionId);",
-              "console.log('📦 Order created (qty=99999, no payment) | transactionId: ' + pm.response.json().transactionId);"
+              "const r = pm.response.json();",
+              "pm.environment.set('transaction_id', r.transactionId);",
+              "console.log('📦 Order created | transactionId: ' + r.transactionId);",
+              "console.log('⚠️  Outbox row written to DB. kafka-connect will be killed next.');"
             ]
           }
         }
@@ -117,48 +118,13 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n    \"discountCode\": \"\",\n    \"items\": [\n        {\n            \"productId\": \"{{product_id}}\",\n            \"quantity\": 99999\n        }\n    ]\n}"
+          "raw": "{\n    \"discountCode\": \"\",\n    \"items\": [\n        {\n            \"productId\": \"{{product_id}}\",\n            \"quantity\": 1\n        }\n    ]\n}"
         },
         "url": {
           "raw": "{{base_url}}:{{gateway_port}}/api/v1/orders",
           "host": ["{{base_url}}"],
           "port": "{{gateway_port}}",
           "path": ["api", "v1", "orders"]
-        }
-      }
-    },
-    {
-      "name": "4. Poll Order Status (wait for OUT_OF_STOCK ~15s)",
-      "event": [
-        {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "pm.test('Status retrieved', function() { pm.response.to.have.status(200); });",
-              "const status = pm.response.json().orderStatus;",
-              "console.log('📋 status: ' + status);",
-              "if (status === 'PENDING') {",
-              "    let c = pm.environment.get('_r1') || 0; c++;",
-              "    if (c < 20) { pm.environment.set('_r1', c); setTimeout(function() {}, 3000); pm.execution.setNextRequest('4. Poll Order Status (wait for OUT_OF_STOCK ~15s)'); }",
-              "    else { pm.environment.unset('_r1'); pm.expect.fail('Timeout waiting for OUT_OF_STOCK'); }",
-              "} else {",
-              "    pm.environment.unset('_r1');",
-              "    pm.test('✅ Order is OUT_OF_STOCK', function() { pm.expect(status).to.equal('OUT_OF_STOCK'); });",
-              "}"
-            ]
-          }
-        }
-      ],
-      "request": {
-        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
-        "method": "GET",
-        "header": [],
-        "url": {
-          "raw": "{{base_url}}:{{gateway_port}}/api/v1/orders/status/{{transaction_id}}",
-          "host": ["{{base_url}}"],
-          "port": "{{gateway_port}}",
-          "path": ["api", "v1", "orders", "status", "{{transaction_id}}"]
         }
       }
     }

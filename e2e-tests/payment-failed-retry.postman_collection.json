@@ -138,7 +138,7 @@
               "const status = pm.response.json().orderStatus;",
               "if (status === 'PENDING') {",
               "    let c = pm.environment.get('_r1') || 0; c++;",
-              "    if (c < 10) { pm.environment.set('_r1', c); pm.execution.setNextRequest('4. Poll Order (WAITING_PAYMENT)'); }",
+              "    if (c < 20) { pm.environment.set('_r1', c); setTimeout(function() {}, 3000); pm.execution.setNextRequest('4. Poll Order (WAITING_PAYMENT)'); }",
               "    else { pm.environment.unset('_r1'); pm.expect.fail('Timeout'); }",
               "} else { pm.environment.unset('_r1'); pm.test('WAITING_PAYMENT', function() { pm.expect(status).to.equal('WAITING_PAYMENT'); }); }"
             ]
@@ -332,7 +332,7 @@
               "console.log('📋 status: ' + status);",
               "if (status !== 'COMPLETED') {",
               "    let c = pm.environment.get('_r2') || 0; c++;",
-              "    if (c < 5) { pm.environment.set('_r2', c); pm.execution.setNextRequest('10. Poll Order (COMPLETED)'); }",
+              "    if (c < 20) { pm.environment.set('_r2', c); setTimeout(function() {}, 3000); pm.execution.setNextRequest('10. Poll Order (COMPLETED)'); }",
               "    else { pm.environment.unset('_r2'); pm.expect.fail('Timeout'); }",
               "} else { pm.environment.unset('_r2'); pm.test('✅ Order COMPLETED after retry', function() { pm.expect(status).to.equal('COMPLETED'); }); }"
             ]

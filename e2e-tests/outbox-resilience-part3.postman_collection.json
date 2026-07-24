@@ -1,0 +1,177 @@
+{
+  "info": {
+    "name": "E2E - Outbox Resilience Part 3 (Recovery → COMPLETED)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "if (pm.response.code >= 400) {",
+          "    var body = ''; try { body = JSON.stringify(pm.response.json()); } catch(e) { body = pm.response.text(); }",
+          "    console.log('❌ [' + pm.response.code + '] ' + pm.info.requestName + ' → ' + body);",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "5. Poll Order Status (WAITING_PAYMENT) — after recovery",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status retrieved', function() { pm.response.to.have.status(200); });",
+              "const r = pm.response.json();",
+              "const status = r.orderStatus;",
+              "console.log('📋 status: ' + status);",
+              "if (status === 'PENDING') {",
+              "    let c = pm.environment.get('_retry') || 0; c++;",
+              "    if (c < 30) {",
+              "        pm.environment.set('_retry', c);",
+              "        setTimeout(function() {}, 3000);",
+              "        pm.execution.setNextRequest('5. Poll Order Status (WAITING_PAYMENT) — after recovery');",
+              "    } else {",
+              "        pm.environment.unset('_retry');",
+              "        pm.expect.fail('Timed out waiting for WAITING_PAYMENT after kafka-connect restart');",
+              "    }",
+              "} else {",
+              "    pm.environment.unset('_retry');",
+              "    pm.test('✅ Outbox replayed: Order is WAITING_PAYMENT', function() { pm.expect(status).to.equal('WAITING_PAYMENT'); });",
+              "    console.log('✅ Debezium resumed from WAL and replayed the outbox event successfully!');",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}:{{gateway_port}}/api/v1/orders/status/{{transaction_id}}",
+          "host": ["{{base_url}}"],
+          "port": "{{gateway_port}}",
+          "path": ["api", "v1", "orders", "status", "{{transaction_id}}"]
+        }
+      }
+    },
+    {
+      "name": "6. Create Payment",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.environment.set('payment_idempotency_key', pm.variables.replaceIn('{{$guid}}'));"]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Payment created', function() { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });",
+              "const r = pm.response.json();",
+              "pm.environment.set('payment_id', r.paymentId);",
+              "console.log('💳 Payment created | paymentId: ' + r.paymentId);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "X-Idempotency-Key", "value": "{{payment_idempotency_key}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"transactionId\": \"{{transaction_id}}\",\n    \"paymentMethod\": \"CREDIT_CARD\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}:{{gateway_port}}/api/v1/payments",
+          "host": ["{{base_url}}"],
+          "port": "{{gateway_port}}",
+          "path": ["api", "v1", "payments"]
+        }
+      }
+    },
+    {
+      "name": "7. Webhook - Payment Success",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Webhook accepted', function() { pm.expect(pm.response.code).to.be.oneOf([200, 202]); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"paymentId\": \"{{payment_id}}\",\n    \"paymentStatus\": \"PAYMENT_SUCCESS\",\n    \"failureCode\": \"\",\n    \"failureMessage\": \"\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}:{{gateway_port}}/api/v1/payments/webhook/callback",
+          "host": ["{{base_url}}"],
+          "port": "{{gateway_port}}",
+          "path": ["api", "v1", "payments", "webhook", "callback"]
+        }
+      }
+    },
+    {
+      "name": "8. Poll Order Status (COMPLETED)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status retrieved', function() { pm.response.to.have.status(200); });",
+              "const r = pm.response.json();",
+              "const status = r.orderStatus;",
+              "console.log('📋 status: ' + status);",
+              "if (status !== 'COMPLETED') {",
+              "    let c = pm.environment.get('_retry') || 0; c++;",
+              "    if (c < 20) {",
+              "        pm.environment.set('_retry', c);",
+              "        setTimeout(function() {}, 3000);",
+              "        pm.execution.setNextRequest('8. Poll Order Status (COMPLETED)');",
+              "    } else {",
+              "        pm.environment.unset('_retry');",
+              "        pm.expect.fail('Timed out waiting for COMPLETED');",
+              "    }",
+              "} else {",
+              "    pm.environment.unset('_retry');",
+              "    pm.test('✅ Order COMPLETED', function() { pm.expect(status).to.equal('COMPLETED'); });",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}:{{gateway_port}}/api/v1/orders/status/{{transaction_id}}",
+          "host": ["{{base_url}}"],
+          "port": "{{gateway_port}}",
+          "path": ["api", "v1", "orders", "status", "{{transaction_id}}"]
+        }
+      }
+    }
+  ]
+}
