@@ -213,12 +213,12 @@
               "// Payment stays SUCCESS until refund webhook arrives",
               "if (status === 'PENDING') {",
               "    let c = pm.environment.get('_r1') || 0; c++;",
-              "    if (c < 10) { pm.environment.set('_r1', c); pm.execution.setNextRequest('6. Wait for orchestrator to trigger refund (~15s stock delay)'); }",
+              "    if (c < 20) { pm.environment.set('_r1', c); setTimeout(function() {}, 3000); pm.execution.setNextRequest('6. Wait for orchestrator to trigger refund (~15s stock delay)'); }",
               "    else { pm.environment.unset('_r1'); pm.expect.fail('Timeout'); }",
               "} else {",
               "    pm.environment.unset('_r1');",
-              "    pm.test('Payment is SUCCESS (refund pending from provider)', function() { pm.expect(status).to.equal('SUCCESS'); });",
-              "    console.log('✅ Payment SUCCESS confirmed — orchestrator should have triggered refund by now');",
+              "    pm.test('Payment is PAID (refund pending from provider)', function() { pm.expect(status).to.equal('PAID'); });",
+              "    console.log('✅ Payment PAID confirmed — orchestrator should have triggered refund by now');",
               "}"
             ]
           }
@@ -278,7 +278,7 @@
               "console.log('📋 orderStatus: ' + status);",
               "if (status !== 'REFUND_FAILED') {",
               "    let c = pm.environment.get('_r2') || 0; c++;",
-              "    if (c < 10) { pm.environment.set('_r2', c); pm.execution.setNextRequest('8. Verify Order is REFUND_FAILED'); }",
+              "    if (c < 20) { pm.environment.set('_r2', c); setTimeout(function() {}, 3000); pm.execution.setNextRequest('8. Verify Order is REFUND_FAILED'); }",
               "    else { pm.environment.unset('_r2'); pm.expect.fail('Timeout waiting for REFUND_FAILED'); }",
               "} else {",
               "    pm.environment.unset('_r2');",

@@ -1,4 +1,4 @@
-package com.MSyamsandiYW.inventory_service.outbox;
+package com.MSyamsandiYW.orchestrator_service.outbox;
 
 import io.r2dbc.postgresql.codec.Json;
 import lombok.*;

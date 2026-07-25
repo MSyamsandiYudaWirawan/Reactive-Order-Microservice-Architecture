@@ -7,7 +7,7 @@ import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.time.ZonedDateTime;
+import java.time.Instant;
 
 @Component("PERCENTAGE")
 public class PercentageDiscountStrategy implements DiscountStrategy {
@@ -30,7 +30,7 @@ public class PercentageDiscountStrategy implements DiscountStrategy {
 
     @Override
     public boolean isApplicable(Order order, Discount discount) {
-        ZonedDateTime now = ZonedDateTime.now();
+        Instant now = Instant.now();
         if (discount.getValidFrom().isAfter(now) || discount.getValidUntil().isBefore(now)) {
             return false;
         }

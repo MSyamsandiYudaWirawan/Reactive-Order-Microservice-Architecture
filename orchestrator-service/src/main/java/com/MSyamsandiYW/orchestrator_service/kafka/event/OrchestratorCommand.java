@@ -12,4 +12,6 @@ public class OrchestratorCommand {
     private String paymentId;
     private String transactionId;
     private String correlationId;
+    private String failureCode;
+    private String failureMessage;
 }

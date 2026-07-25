@@ -1,0 +1,40 @@
+{
+  "info": {
+    "name": "E2E - Outbox Resilience Part 2 (Assert PENDING while kafka-connect is DOWN)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "4. Verify Order Still PENDING (event not delivered)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status retrieved', function() { pm.response.to.have.status(200); });",
+              "const r = pm.response.json();",
+              "const status = r.orderStatus;",
+              "console.log('📋 Order status while kafka-connect is DOWN: ' + status);",
+              "pm.test('Order stuck at PENDING (outbox not yet consumed)', function() {",
+              "    pm.expect(status).to.equal('PENDING');",
+              "});",
+              "console.log('✅ Confirmed: outbox row exists in DB but Debezium is dead — event not published to Kafka yet.');"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}:{{gateway_port}}/api/v1/orders/status/{{transaction_id}}",
+          "host": ["{{base_url}}"],
+          "port": "{{gateway_port}}",
+          "path": ["api", "v1", "orders", "status", "{{transaction_id}}"]
+        }
+      }
+    }
+  ]
+}

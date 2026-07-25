@@ -6,6 +6,7 @@ import com.MSyamsandiYW.common.jwt.JwtService;
 import com.MSyamsandiYW.payment_service.client.OrderServiceClient;
 import com.MSyamsandiYW.payment_service.client.response.GetOrderStatusResponse;
 import com.MSyamsandiYW.payment_service.kafka.PaymentEventProducer;
+import com.MSyamsandiYW.payment_service.outbox.OutboxService;
 import com.MSyamsandiYW.payment_service.payment.Payment;
 import com.MSyamsandiYW.payment_service.payment.PaymentRepository;
 import com.MSyamsandiYW.payment_service.payment.request.CreatePaymentRequest;
@@ -13,6 +14,7 @@ import com.MSyamsandiYW.payment_service.payment.request.WebhookCallbackRequest;
 import com.MSyamsandiYW.payment_service.payment_ledger.PaymentLedgerService;
 import com.MSyamsandiYW.payment_service.properties.AppConstant;
 import com.MSyamsandiYW.payment_service.properties.AppProperties;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.impl.DefaultClaims;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,9 +23,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.transaction.reactive.TransactionalOperator;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
@@ -36,7 +40,9 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -56,6 +62,12 @@ class PaymentServiceImplTest {
     private OrderServiceClient orderServiceClient;
     @Mock
     private AppProperties appProperties;
+    @Mock
+    private TransactionalOperator transactionalOperator;
+    @Mock
+    private OutboxService outboxService;
+    @Spy
+    private ObjectMapper objectMapper = new ObjectMapper();
 
     @InjectMocks
     private PaymentServiceImpl paymentService;
@@ -76,6 +88,9 @@ class PaymentServiceImplTest {
                 "userEmail", "test@test.com"
         );
         claims = new DefaultClaims(claimsMap);
+
+        lenient().when(transactionalOperator.transactional(any(Mono.class))).thenAnswer(inv -> inv.getArgument(0));
+        lenient().when(outboxService.save(any())).thenReturn(Mono.empty());
     }
 
     @Test
@@ -110,7 +125,6 @@ class PaymentServiceImplTest {
                 .thenReturn(Mono.empty());
         when(paymentRepository.save(any(Payment.class))).thenReturn(Mono.just(savedPayment));
         when(paymentLedgerService.recordEventPayment(any())).thenReturn(Mono.empty());
-        when(paymentEventProducer.send(any(), any(), any())).thenReturn(Mono.empty());
 
         StepVerifier.create(paymentService.createPayment(request, token, correlationId))
                 .assertNext(response -> {
@@ -185,7 +199,6 @@ class PaymentServiceImplTest {
         when(paymentRepository.updateStatusPayment(eq(paymentId), anyString(), any(), any(), any()))
                 .thenReturn(Mono.just(1));
         when(paymentLedgerService.recordEventPayment(any())).thenReturn(Mono.empty());
-        when(paymentEventProducer.send(any(), any(), any())).thenReturn(Mono.empty());
 
         StepVerifier.create(paymentService.webhookCallbackPaymentMethod(request, new HttpHeaders()))
                 .verifyComplete();
@@ -274,10 +287,10 @@ class PaymentServiceImplTest {
         StepVerifier.create(paymentService.webhookCallbackPaymentMethod(request, new HttpHeaders()))
                 .verifyComplete();
 
-        // silent refund: status updated + ledger written, but no Kafka event
+        // silent refund: status updated + ledger written, but no outbox event
         assertThat(payment.getStatus()).isEqualTo(AppConstant.PAYMENT_STATUS.REFUNDED.name());
         verify(paymentRepository).updateStatusPayment(eq(paymentId), eq(AppConstant.PAYMENT_STATUS.REFUNDED.name()), any(), any(), any());
-        verify(paymentEventProducer, never()).send(any(), any(), any());
+        verify(outboxService, never()).save(any());
     }
 
     @Test
@@ -306,7 +319,7 @@ class PaymentServiceImplTest {
 
         assertThat(payment.getStatus()).isEqualTo(AppConstant.PAYMENT_STATUS.REFUNDED.name());
         verify(paymentRepository).updateStatusPayment(eq(paymentId), eq(AppConstant.PAYMENT_STATUS.REFUNDED.name()), any(), any(), any());
-        verify(paymentEventProducer, never()).send(any(), any(), any());
+        verify(outboxService, never()).save(any());
     }
 
     @Test
@@ -329,13 +342,12 @@ class PaymentServiceImplTest {
         when(paymentRepository.updateStatusPayment(eq(paymentId), anyString(), any(), any(), any()))
                 .thenReturn(Mono.just(1));
         when(paymentLedgerService.recordEventPayment(any())).thenReturn(Mono.empty());
-        when(paymentEventProducer.send(any(), any(), any())).thenReturn(Mono.empty());
 
         StepVerifier.create(paymentService.webhookCallbackPaymentMethod(request, new HttpHeaders()))
                 .verifyComplete();
 
         // orchestrator-driven refund — saga is COMPENSATING and waiting for this event
-        verify(paymentEventProducer).send(eq(AppConstant.TOPICS.ORDER_REFUND_COMPLETED), any(), any());
+        verify(outboxService).save(argThat(outbox -> outbox.getAggregateType().equals(AppConstant.TOPICS.ORDER_REFUND_COMPLETED)));
     }
 
     @Test
@@ -367,6 +379,6 @@ class PaymentServiceImplTest {
 
         verify(paymentEventProducer).send(eq(AppConstant.TOPICS.PAYMENT_DLQ), eq(paymentId.toString()), any());
         verify(paymentRepository).updateStatusPayment(eq(paymentId), eq(AppConstant.PAYMENT_STATUS.REFUND_FAILED.name()), any(), any(), any());
-        verify(paymentEventProducer).send(eq(AppConstant.TOPICS.ORDER_REFUND_FAILED), any(), any());
+        verify(outboxService).save(argThat(outbox -> outbox.getAggregateType().equals(AppConstant.TOPICS.ORDER_REFUND_FAILED)));
     }
 }

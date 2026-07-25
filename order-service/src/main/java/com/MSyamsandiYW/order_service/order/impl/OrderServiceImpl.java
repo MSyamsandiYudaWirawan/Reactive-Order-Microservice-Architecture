@@ -1,5 +1,6 @@
 package com.MSyamsandiYW.order_service.order.impl;
 
+import io.r2dbc.postgresql.codec.Json;
 import com.MSyamsandiYW.common.exception.BusinessException;
 import com.MSyamsandiYW.common.exception.ErrorCode;
 import com.MSyamsandiYW.common.jwt.JwtService;
@@ -121,7 +122,7 @@ public class OrderServiceImpl implements OrderService {
                         .aggregateId(UUID.randomUUID().toString())
                         .aggregateType(AppConstant.TOPICS.STOCK_RESERVE_REQUESTED)
                         .eventType("STOCK_RESERVE_REQUESTED")
-                        .payload(json)
+                        .payload(Json.of(json))
                         .build())
                 .flatMap(outboxService::save)
                 .then();
@@ -158,6 +159,7 @@ public class OrderServiceImpl implements OrderService {
                         .productId(item.getProductId())
                         .quantity(item.getQuantity())
                         .price(priceMap.get(item.getProductId()))
+                        .createdBy("ORDER_SERVICE")
                         .build())
                 .toList();
     }

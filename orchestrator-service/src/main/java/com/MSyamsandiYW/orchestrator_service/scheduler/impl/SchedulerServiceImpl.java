@@ -1,15 +1,20 @@
 package com.MSyamsandiYW.orchestrator_service.scheduler.impl;
 
-import com.MSyamsandiYW.orchestrator_service.kafka.OrchestratorEventProducer;
+import com.MSyamsandiYW.common.exception.ErrorCode;
+import io.r2dbc.postgresql.codec.Json;
 import com.MSyamsandiYW.orchestrator_service.kafka.event.OrchestratorEventPayload;
+import com.MSyamsandiYW.orchestrator_service.outbox.Outbox;
+import com.MSyamsandiYW.orchestrator_service.outbox.OutboxService;
 import com.MSyamsandiYW.orchestrator_service.properties.AppConstant;
 import com.MSyamsandiYW.orchestrator_service.properties.AppProperties;
 import com.MSyamsandiYW.orchestrator_service.saga_state.SagaState;
 import com.MSyamsandiYW.orchestrator_service.saga_state.SagaStateService;
 import com.MSyamsandiYW.orchestrator_service.scheduler.SchedulerService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.reactive.TransactionalOperator;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -27,7 +32,9 @@ import static com.MSyamsandiYW.orchestrator_service.properties.AppConstant.STOCK
 public class SchedulerServiceImpl implements SchedulerService {
     private final AppProperties appProperties;
     private final SagaStateService sagaStateService;
-    private final OrchestratorEventProducer producer;
+    private final OutboxService outboxService;
+    private final ObjectMapper objectMapper;
+    private final TransactionalOperator transactionalOperator;
 
     @Override
     public Mono<Void> executeScheduler() {
@@ -74,18 +81,18 @@ public class SchedulerServiceImpl implements SchedulerService {
                         sagaStateService.updateStatusIfInProgress(
                                         sagaState.getTransactionId(),
                                         AppConstant.SAGA_STATUS.FAILED.name(),
-                                        sagaState.getPaymentStatus()
+                                        sagaState.getPaymentStatus(),
+                                        ErrorCode.ORDER_EXPIRED.getCode(),
+                                        ErrorCode.ORDER_EXPIRED.getDefaultMessage()
                                 )
                                 .filter(rows -> rows > 0)
-                                .flatMap(__ -> {
-                                    OrchestratorEventPayload payload = OrchestratorEventPayload.builder()
-                                            .paymentId(sagaState.getPaymentId())
-                                            .transactionId(sagaState.getTransactionId())
-                                            .correlationId(sagaState.getCorrelationId())
-                                            .build();
-                                    return producer.send(AppConstant.TOPICS.ORDER_EXPIRED, UUID.randomUUID().toString(), payload)
-                                            .then(producer.send(AppConstant.TOPICS.RELEASE_STOCK, UUID.randomUUID().toString(), payload));
-                                })
+                                // insert outbox event ORDER_EXPIRED
+                                .flatMap(updatedSagaState -> insertOutbox(buildEventPayload(sagaState, ErrorCode.ORDER_EXPIRED.getCode(), ErrorCode.ORDER_EXPIRED.getDefaultMessage()), AppConstant.TOPICS.ORDER_EXPIRED, "ORDER_EXPIRED").thenReturn(updatedSagaState))
+                                // insert outbox event RELEASE_STOCK
+                                .flatMap(updatedSagaState -> insertOutbox(buildEventPayload(sagaState, ErrorCode.ORDER_EXPIRED.getCode(), ErrorCode.ORDER_EXPIRED.getDefaultMessage()), AppConstant.TOPICS.RELEASE_STOCK, "RELEASE_STOCK"))
+                                // flag as transactional
+                                .as(transactionalOperator::transactional)
+                                .then()
                 )
                 .then();
     }
@@ -99,18 +106,18 @@ public class SchedulerServiceImpl implements SchedulerService {
                         sagaStateService.updateStatusIfInProgress(
                                         sagaState.getTransactionId(),
                                         AppConstant.SAGA_STATUS.COMPENSATING.name(),
-                                        sagaState.getPaymentStatus()
+                                        sagaState.getPaymentStatus(),
+                                        ErrorCode.ORDER_EXPIRED.getCode(),
+                                        ErrorCode.ORDER_EXPIRED.getDefaultMessage()
                                 )
                                 .filter(rows -> rows > 0)
-                                .flatMap(__ -> {
-                                    OrchestratorEventPayload payload = OrchestratorEventPayload.builder()
-                                            .paymentId(sagaState.getPaymentId())
-                                            .transactionId(sagaState.getTransactionId())
-                                            .correlationId(sagaState.getCorrelationId())
-                                            .build();
-                                    return producer.send(AppConstant.TOPICS.ORDER_EXPIRED, UUID.randomUUID().toString(), payload)
-                                            .then(producer.send(AppConstant.TOPICS.REFUND_REQUESTED, UUID.randomUUID().toString(), payload));
-                                })
+                                // insert outbox event ORDER_EXPIRED
+                                .flatMap(updatedSagaState -> insertOutbox(buildEventPayload(sagaState, ErrorCode.ORDER_EXPIRED.getCode(), ErrorCode.ORDER_EXPIRED.getDefaultMessage()), AppConstant.TOPICS.ORDER_EXPIRED, "ORDER_EXPIRED").thenReturn(updatedSagaState))
+                                // insert outbox event REFUND_REQUESTED
+                                .flatMap(updatedSagaState -> insertOutbox(buildEventPayload(sagaState, ErrorCode.ORDER_EXPIRED.getCode(), ErrorCode.ORDER_EXPIRED.getDefaultMessage()), AppConstant.TOPICS.REFUND_REQUESTED, "REFUND_REQUESTED"))
+                                // flag as transactional
+                                .as(transactionalOperator::transactional)
+                                .then()
                 )
                 .then();
     }
@@ -124,18 +131,40 @@ public class SchedulerServiceImpl implements SchedulerService {
                         sagaStateService.updateStatusIfInProgress(
                                         sagaState.getTransactionId(),
                                         AppConstant.SAGA_STATUS.FAILED.name(),
-                                        sagaState.getPaymentStatus()
+                                        sagaState.getPaymentStatus(),
+                                        ErrorCode.ORDER_EXPIRED.getCode(),
+                                        ErrorCode.ORDER_EXPIRED.getDefaultMessage()
                                 )
                                 .filter(rows -> rows > 0)
-                                .flatMap(__ -> {
-                                    OrchestratorEventPayload payload = OrchestratorEventPayload.builder()
-                                            .paymentId(sagaState.getPaymentId())
-                                            .transactionId(sagaState.getTransactionId())
-                                            .correlationId(sagaState.getCorrelationId())
-                                            .build();
-                                    return producer.send(AppConstant.TOPICS.ORDER_EXPIRED, UUID.randomUUID().toString(), payload);
-                                })
+                                // insert outbox event ORDER_EXPIRED
+                                .flatMap(updatedSagaState -> insertOutbox(buildEventPayload(sagaState, ErrorCode.ORDER_EXPIRED.getCode(), ErrorCode.ORDER_EXPIRED.getDefaultMessage()), AppConstant.TOPICS.ORDER_EXPIRED, "ORDER_EXPIRED").thenReturn(updatedSagaState))
+                                // flag as transactional
+                                .as(transactionalOperator::transactional)
+                                .then()
                 )
+                .then();
+    }
+
+    private OrchestratorEventPayload buildEventPayload(SagaState sagaState, String failureCode, String failureMessage) {
+        return OrchestratorEventPayload.builder()
+                .paymentId(sagaState.getPaymentId())
+                .correlationId(sagaState.getCorrelationId())
+                .transactionId(sagaState.getTransactionId())
+                .failureCode(failureCode)
+                .failureMessage(failureMessage)
+                .build();
+    }
+
+    private Mono<Void> insertOutbox(OrchestratorEventPayload payload, String topic, String eventName) {
+        return Mono.fromCallable(() -> objectMapper.writeValueAsString(payload))
+                .map(json -> Outbox.builder()
+                        .aggregateId(UUID.randomUUID().toString())
+                        .aggregateType(topic)
+                        .eventType(eventName)
+                        .payload(Json.of(json))
+                        .createdAt(Instant.now())
+                        .build())
+                .flatMap(outboxService::save)
                 .then();
     }
 }

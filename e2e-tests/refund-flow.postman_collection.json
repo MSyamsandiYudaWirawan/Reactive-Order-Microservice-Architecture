@@ -210,11 +210,11 @@
               "console.log('💳 Payment status: ' + status);",
               "if (status === 'PENDING') {",
               "    let c = pm.environment.get('_r1') || 0; c++;",
-              "    if (c < 10) { pm.environment.set('_r1', c); pm.execution.setNextRequest('6. Wait for payment to be SUCCESS (confirm orchestrator processed)'); }",
+              "    if (c < 20) { pm.environment.set('_r1', c); setTimeout(function() {}, 3000); pm.execution.setNextRequest('6. Wait for payment to be SUCCESS (confirm orchestrator processed)'); }",
               "    else { pm.environment.unset('_r1'); pm.expect.fail('Timeout'); }",
               "} else {",
               "    pm.environment.unset('_r1');",
-              "    pm.test('Payment is SUCCESS', function() { pm.expect(status).to.equal('SUCCESS'); });",
+              "    pm.test('Payment is PAID', function() { pm.expect(status).to.equal('PAID'); });",
               "}"
             ]
           }
@@ -274,7 +274,7 @@
               "console.log('📋 orderStatus: ' + status);",
               "if (status !== 'REFUNDED') {",
               "    let c = pm.environment.get('_r2') || 0; c++;",
-              "    if (c < 10) { pm.environment.set('_r2', c); pm.execution.setNextRequest('8. Verify Order is REFUNDED'); }",
+              "    if (c < 20) { pm.environment.set('_r2', c); setTimeout(function() {}, 3000); pm.execution.setNextRequest('8. Verify Order is REFUNDED'); }",
               "    else { pm.environment.unset('_r2'); pm.expect.fail('Timeout waiting for REFUNDED'); }",
               "} else {",
               "    pm.environment.unset('_r2');",

@@ -1,26 +1,28 @@
 CREATE TABLE IF NOT EXISTS saga_state
 (
-    id                 UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    payment_id         VARCHAR(255) NULL,
-    transaction_id     VARCHAR(255) NOT NULL UNIQUE,
-    correlation_id     VARCHAR(255) NOT NULL,
-    stock_status       VARCHAR(255) NULL,     --NULL → RESERVED / OUT_OF_STOCK
-    payment_status     VARCHAR(255) NULL,     --NULL → INITIATED / PAID / FAILED
-    saga_status        VARCHAR(255) NOT NULL, --IN_PROGRESS / COMPLETED / COMPENSATING / FAILED
-    created_by         VARCHAR(255) NOT NULL,
-    updated_by         VARCHAR(255),
-    created_date       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-    last_modified_date TIMESTAMPTZ
+    id             UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    payment_id     VARCHAR(255) NULL,
+    transaction_id VARCHAR(255) NOT NULL UNIQUE,
+    correlation_id VARCHAR(255) NOT NULL,
+    stock_status   VARCHAR(255) NULL,
+    payment_status VARCHAR(255) NULL,
+    saga_status    VARCHAR(255) NOT NULL,
+    failure_code   VARCHAR(100),
+    failure_message VARCHAR(500),
+    created_by     VARCHAR(255) NOT NULL,
+    updated_by     VARCHAR(255),
+    created_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at     TIMESTAMPTZ
 );
 
 CREATE TABLE IF NOT EXISTS outbox
 (
-    id  UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    id             UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     aggregate_type VARCHAR(255) NOT NULL,
-    aggregate_id VARCHAR(255) NOT NULL,
-    event_type VARCHAR(255) NOT NULL,
-    payload JSONB NOT NULL,
-    created_date TIMESTAMPTZ DEFAULT NOW()
+    aggregate_id   VARCHAR(255) NOT NULL,
+    event_type     VARCHAR(255) NOT NULL,
+    payload        JSONB        NOT NULL,
+    created_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
 ALTER USER username REPLICATION;

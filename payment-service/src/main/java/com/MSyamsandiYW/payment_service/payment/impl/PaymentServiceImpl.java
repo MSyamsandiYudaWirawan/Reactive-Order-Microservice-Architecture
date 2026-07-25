@@ -9,6 +9,7 @@ import com.MSyamsandiYW.payment_service.kafka.PaymentEventProducer;
 import com.MSyamsandiYW.payment_service.kafka.event.DlqEventPayload;
 import com.MSyamsandiYW.payment_service.kafka.event.PaymentCommand;
 import com.MSyamsandiYW.payment_service.kafka.event.PaymentEventPayload;
+import io.r2dbc.postgresql.codec.Json;
 import com.MSyamsandiYW.payment_service.outbox.Outbox;
 import com.MSyamsandiYW.payment_service.outbox.OutboxService;
 import com.MSyamsandiYW.payment_service.payment.Payment;
@@ -175,6 +176,7 @@ public class PaymentServiceImpl implements PaymentService {
                 // CAS: only mark REFUNDED if still CANCELLED/FAILED — prevents duplicate ledger on webhook redelivery
                 return updatePaymentStatus(payment, REFUNDED.name(), null, null, Set.of(CANCELLED.name(), FAILED.name()))
                         .flatMap(paymentLedgerService::recordEventPayment)
+                        .as(transactionalOperator::transactional)
                         .then(Mono.empty());
             }
             // Only SUCCESS or REFUND_FAILED proceed to normal flow — orchestrator is waiting for ORDER_REFUND_COMPLETED
@@ -380,7 +382,7 @@ public class PaymentServiceImpl implements PaymentService {
                         .aggregateId(UUID.randomUUID().toString())
                         .aggregateType(topic)
                         .eventType(eventName)
-                        .payload(json)
+                        .payload(Json.of(json))
                         .build())
                 .flatMap(outboxService::save);
 

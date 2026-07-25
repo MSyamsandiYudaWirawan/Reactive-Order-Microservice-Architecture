@@ -33,6 +33,11 @@ public class SagaState {
     @Column("saga_status")
     private String sagaStatus;
 
+    @Column("failure_message")
+    private String failureMessage;
+    @Column("failure_code")
+    private String failureCode;
+
     @Column("created_by")
     private String createdBy;
     @Column("updated_by")

@@ -23,6 +23,20 @@ public interface SagaStateRepository extends R2dbcRepository<SagaState, UUID> {
             """)
     Mono<Integer> updateStatusIfInProgress(String transactionId, String newSagaStatus, String newPaymentStatus);
 
+    @Modifying
+    @Query("""
+            UPDATE saga_state
+            SET saga_status = :newSagaStatus,
+                payment_status = :newPaymentStatus,
+                failure_code = :failureCode,
+                failure_message = :failureMessage,
+                updated_by = 'ORCHESTRATION_SERVICE',
+                updated_at = NOW()
+            WHERE transaction_id = :transactionId
+              AND saga_status = 'IN_PROGRESS'
+            """)
+    Mono<Integer> updateStatusIfInProgress(String transactionId, String newSagaStatus, String newPaymentStatus, String failureCode, String failureMessage);
+
     Mono<SagaState> findFirstByTransactionId(String transactionId);
 
     @Query("""

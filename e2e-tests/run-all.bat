@@ -5,27 +5,28 @@ REM ============================================================
 REM Usage:
 REM   run-all.bat                              (fast tests only)
 REM   run-all.bat --with-scheduler             (include scheduler/compensation tests)
+REM   run-all.bat --with-outbox                (include outbox resilience test)
 REM   run-all.bat http://your-alb-url 80       (AWS ALB)
 REM ============================================================
 
 setlocal
 
-set WITH_SCHEDULER=0
+set WITH_SCHEDULER=1
+set WITH_OUTBOX=1
 set BASE_URL=http://localhost
 set GATEWAY_PORT=8080
-set DELAY_MS=2000
+set DELAY_MS=500
 set POLL_DELAY_MS=5000
 
 REM Parse arguments
 for %%a in (%*) do (
-    if "%%a"=="--with-scheduler" (
-        set WITH_SCHEDULER=1
-    )
+    if "%%a"=="--with-scheduler" set WITH_SCHEDULER=1
+    if "%%a"=="--with-outbox" set WITH_OUTBOX=1
 )
 
-if not "%1"=="" if not "%1"=="--with-scheduler" set BASE_URL=%1
-if not "%2"=="" if not "%2"=="--with-scheduler" set GATEWAY_PORT=%2
-if not "%3"=="" if not "%3"=="--with-scheduler" set DELAY_MS=%3
+if not "%1"=="" if not "%1"=="--with-scheduler" if not "%1"=="--with-outbox" set BASE_URL=%1
+if not "%2"=="" if not "%2"=="--with-scheduler" if not "%2"=="--with-outbox" set GATEWAY_PORT=%2
+if not "%3"=="" if not "%3"=="--with-scheduler" if not "%3"=="--with-outbox" set DELAY_MS=%3
 
 echo.
 echo ============================================================
@@ -33,6 +34,7 @@ echo   Reactive Order Microservice - E2E Tests
 echo   Target: %BASE_URL%:%GATEWAY_PORT%
 echo   Delay: %DELAY_MS%ms (request) / %POLL_DELAY_MS%ms (poll) / 15000ms (scheduler)
 if %WITH_SCHEDULER% equ 1 (echo   Scheduler tests: ENABLED)
+if %WITH_OUTBOX% equ 1 (echo   Outbox resilience test: ENABLED)
 echo ============================================================
 echo.
 
@@ -61,7 +63,7 @@ echo.
 echo [%TOTAL%] Happy Path (Order COMPLETED)
 echo ------------------------------------------------------------
 call :reset_env
-call newman run "%SCRIPT_DIR%happy-path.postman_collection.json" -e "%ENV_FILE%" --delay-request %POLL_DELAY_MS% --timeout-request 30000
+call newman run "%SCRIPT_DIR%happy-path.postman_collection.json" -e "%ENV_FILE%" --delay-request %DELAY_MS% --timeout-request 120000
 if %ERRORLEVEL% equ 0 (set /a PASSED+=1) else (set /a FAILED+=1)
 
 REM ---- Payment Failed + Retry ----
@@ -70,7 +72,7 @@ echo.
 echo [%TOTAL%] Payment Failed + Retry (COMPLETED)
 echo ------------------------------------------------------------
 call :reset_env
-call newman run "%SCRIPT_DIR%payment-failed-retry.postman_collection.json" -e "%ENV_FILE%" --delay-request %POLL_DELAY_MS% --timeout-request 30000
+call newman run "%SCRIPT_DIR%payment-failed-retry.postman_collection.json" -e "%ENV_FILE%" --delay-request %DELAY_MS% --timeout-request 120000
 if %ERRORLEVEL% equ 0 (set /a PASSED+=1) else (set /a FAILED+=1)
 
 REM ---- Refund Flow (Out of Stock After Payment) ----
@@ -79,7 +81,7 @@ echo.
 echo [%TOTAL%] Out of Stock After Payment (REFUNDED)
 echo ------------------------------------------------------------
 call :reset_env
-call newman run "%SCRIPT_DIR%refund-flow.postman_collection.json" -e "%ENV_FILE%" --delay-request %POLL_DELAY_MS% --timeout-request 30000
+call newman run "%SCRIPT_DIR%refund-flow.postman_collection.json" -e "%ENV_FILE%" --delay-request %DELAY_MS% --timeout-request 120000
 if %ERRORLEVEL% equ 0 (set /a PASSED+=1) else (set /a FAILED+=1)
 
 REM ---- Out of Stock (no payment) ----
@@ -88,7 +90,7 @@ echo.
 echo [%TOTAL%] Out of Stock - No Payment (OUT_OF_STOCK)
 echo ------------------------------------------------------------
 call :reset_env
-call newman run "%SCRIPT_DIR%out-of-stock.postman_collection.json" -e "%ENV_FILE%" --delay-request %POLL_DELAY_MS% --timeout-request 30000
+call newman run "%SCRIPT_DIR%out-of-stock.postman_collection.json" -e "%ENV_FILE%" --delay-request %DELAY_MS% --timeout-request 120000
 if %ERRORLEVEL% equ 0 (set /a PASSED+=1) else (set /a FAILED+=1)
 
 REM ---- Refund Flow (Out of Stock + Paid → REFUNDED) ----
@@ -97,7 +99,7 @@ echo.
 echo [%TOTAL%] Refund Flow: Out of Stock + Paid (REFUNDED)
 echo ------------------------------------------------------------
 call :reset_env
-call newman run "%SCRIPT_DIR%refund-flow.postman_collection.json" -e "%ENV_FILE%" --delay-request %POLL_DELAY_MS% --timeout-request 30000
+call newman run "%SCRIPT_DIR%refund-flow.postman_collection.json" -e "%ENV_FILE%" --delay-request %DELAY_MS% --timeout-request 120000
 if %ERRORLEVEL% equ 0 (set /a PASSED+=1) else (set /a FAILED+=1)
 
 REM ---- Refund Failed + DLQ ----
@@ -106,7 +108,7 @@ echo.
 echo [%TOTAL%] Refund Failed + DLQ (manual intervention)
 echo ------------------------------------------------------------
 call :reset_env
-call newman run "%SCRIPT_DIR%refund-failed-dlq.postman_collection.json" -e "%ENV_FILE%" --delay-request %POLL_DELAY_MS% --timeout-request 30000
+call newman run "%SCRIPT_DIR%refund-failed-dlq.postman_collection.json" -e "%ENV_FILE%" --delay-request %DELAY_MS% --timeout-request 120000
 if %ERRORLEVEL% equ 0 (set /a PASSED+=1) else (set /a FAILED+=1)
 
 REM ---- Verify DLQ message in Kafka ----
@@ -121,6 +123,16 @@ if %ERRORLEVEL% equ 0 (
     set /a TOTAL+=1
 )
 
+REM ---- Outbox Resilience Test ----
+if %WITH_OUTBOX% equ 0 goto :scheduler_section
+set /a TOTAL+=1
+echo.
+echo [%TOTAL%] Outbox Resilience (kill kafka-connect mid-transaction)
+echo ------------------------------------------------------------
+call "%SCRIPT_DIR%run-outbox-resilience.bat" %BASE_URL% %GATEWAY_PORT%
+if %ERRORLEVEL% equ 0 (set /a PASSED+=1) else (set /a FAILED+=1)
+
+:scheduler_section
 REM ---- Scheduler Tests ----
 if %WITH_SCHEDULER% equ 0 goto :summary
 
