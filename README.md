@@ -1,6 +1,8 @@
 # Reactive Order Microservice Architecture
 
-A production-grade, event-driven order processing system built with **Spring WebFlux** and **Apache Kafka**. Implements the **Saga pattern** for distributed transactions with automatic compensation, fully reactive (non-blocking) end-to-end.
+A production-grade, event-driven order processing system built with **Spring WebFlux** and **Apache Kafka** — fully reactive (non-blocking) end-to-end.
+
+Implements the **Saga pattern** (orchestrator-based) for distributed transactions with automatic compensation, and the **Transactional Outbox pattern** with **Debezium CDC** for guaranteed event publishing straight from the PostgreSQL WAL — no dual-write gap, no lost events, even if a service is killed mid-transaction.
 
 ![Java](https://img.shields.io/badge/Java-21-orange)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.1.0-brightgreen)
@@ -37,6 +39,7 @@ Each service owns its **PostgreSQL database** (database-per-service pattern) and
 | **JWT Security (RSA)** | Auth-service issues, Gateway validates, role-based access |
 | **Idempotency** | Redis-based deduplication with 24h TTL |
 | **Event Deduplication** | Redis checkpoint prevents duplicate Kafka processing |
+| **Transactional Outbox** | Events written to outbox tables in the same DB transaction; Debezium CDC relays them to Kafka |
 | **Distributed Tracing** | X-Correlation-Id propagated across HTTP & Kafka |
 | **Race Condition Handling** | Conditional DB updates (optimistic concurrency) |
 | **Order Expiry** | Scheduler auto-expires unpaid orders, releases stock |
@@ -160,6 +163,7 @@ Payment expired (marked FAILED) + Late PAYMENT_SUCCESS webhook arrives →
 | **Gateway** | Spring Cloud Gateway 2025.1.1 |
 | **Database** | PostgreSQL 17.5 (R2DBC — reactive) |
 | **Messaging** | Apache Kafka (Confluent 7.9.0) |
+| **CDC** | Debezium 3.0.0 (Kafka Connect, PostgreSQL WAL, EventRouter SMT) |
 | **Cache** | Redis 7 (reactive) |
 | **Security** | JWT with RSA key pair (JJWT 0.12.6) |
 | **Build** | Maven (multi-module) |
@@ -315,7 +319,8 @@ reactive-order-microservice/
 ├── inventory-service/       # Stock reservation & management
 ├── payment-service/         # Payment processing, refunds + payment expiry scheduler
 ├── orchestrator-service/    # Saga coordinator + order expiry scheduler
-├── docker-compose.yml       # Infrastructure (Kafka, Zookeeper, Redis)
+├── infra/debezium/          # Debezium connector configs (outbox CDC relay)
+├── docker-compose.yml       # Infrastructure (Kafka, Zookeeper, Redis, Debezium Kafka Connect)
 └── pom.xml                  # Parent POM (multi-module Maven)
 ```
 
@@ -346,6 +351,8 @@ service/src/main/java/com/MSyamsandiYW/<service_name>/
 | **Database-per-service** | Full autonomy, independent scaling and schema evolution |
 | **Ledger tables** | Immutable audit trail for compliance and debugging |
 | **Payment expiry in payment-service** | Payment owns its lifecycle; orchestrator skips INITIATED sagas until payment resolves |
+| **Transactional Outbox + Debezium CDC** | State change + ledger + outbox insert commit in one DB transaction — no dual-write gap; Debezium relays from PostgreSQL WAL, so events survive service crashes mid-publish |
+| **Unique `aggregate_id` per outbox row** | Debezium EventRouter uses it as the Kafka key and consumers dedup by key (24h Redis TTL) — reusing transactionId would skip later events of the same transaction |
 | **PgBouncer + R2DBC** | R2DBC uses unnamed prepared statements — no stale state on connection reassignment, perfect for PgBouncer transaction mode |
 
 ---
@@ -361,6 +368,8 @@ service/src/main/java/com/MSyamsandiYW/<service_name>/
 - ✅ Role-Based Access Control
 - ✅ Idempotency Pattern
 - ✅ Event Deduplication
+- ✅ Transactional Outbox Pattern
+- ✅ Change Data Capture (Debezium)
 - ✅ Distributed Tracing (Correlation ID)
 - ✅ Strategy Pattern (Discount Engine)
 - ✅ Event Sourcing (Ledger Tables)
@@ -384,6 +393,29 @@ Auto-scaling pods × connections per pod = connection explosion. PgBouncer multi
 ```
 
 **Why R2DBC + PgBouncer works perfectly:** R2DBC uses unnamed prepared statements (`PARSE name=""`) — no state persists on the server connection, so PgBouncer can freely reassign connections between transactions.
+
+---
+
+## Transactional Outbox — Guaranteed Event Publishing
+
+Publishing to Kafka directly after a DB commit leaves a dual-write gap: crash between commit and publish = lost event. Instead, the state change, ledger entry, and outbox row are written in **one DB transaction**, and Debezium relays committed outbox rows from the PostgreSQL WAL to Kafka.
+
+```
+[Service]                    [PostgreSQL]              [Debezium]        [Kafka]
+   │                              │                        │               │
+   │── BEGIN ────────────────────►│                        │               │
+   │   UPDATE status (guarded)    │                        │               │
+   │   INSERT ledger              │                        │               │
+   │   INSERT outbox row          │                        │               │
+   │── COMMIT ───────────────────►│── WAL ────────────────►│── publish ───►│
+```
+
+- **Routing**: Debezium EventRouter SMT routes each outbox row to a topic by its `aggregate_type`
+- **Kafka key**: `aggregate_id` is a unique event id per outbox row (`UUID.randomUUID()`) — never the transactionId, since consumers dedup by key (24h Redis TTL) and a shared key would skip later events of the same transaction
+- **Crash resilience**: killing a service mid-transaction leaves no partial state — uncommitted outbox rows never reach Kafka, committed ones always do (verified by `e2e-tests/run-outbox-resilience.bat`)
+- **DLQ exception**: DLQ messages still go directly to Kafka — they are not part of the saga state machine
+
+Connector registration: `infra/debezium/register-connectors.sh`
 
 ---
 
@@ -496,11 +528,12 @@ Webhook REFUND_FAILED:
 - IAM roles (execution + task) with least-privilege secrets access
 - Security groups: defense-in-depth (ALB → Gateway → ECS → DB/Messaging)
 
-### 🔲 Phase 4 — Outbox Pattern & Core Observability (Planned)
-- Transactional Outbox pattern (guaranteed event publishing)
-- Debezium CDC outbox relay (Kafka Connect + PostgreSQL WAL)
-- Distributed tracing with Micrometer + Zipkin/Jaeger
-- Prometheus + Grafana metrics dashboard
+### 🔄 Phase 4 — Outbox Pattern & Core Observability (In Progress)
+- ✅ Transactional Outbox pattern (guaranteed event publishing) — all 4 event-producing services (order, inventory, payment, orchestrator)
+- ✅ Debezium CDC outbox relay (Kafka Connect + PostgreSQL WAL, EventRouter SMT routing by `aggregate_type`)
+- ✅ Outbox resilience test — kill-mid-transaction CDC verification via `e2e-tests/run-outbox-resilience.bat`
+- 🔲 Distributed tracing with Micrometer + Zipkin/Jaeger
+- 🔲 Prometheus + Grafana metrics dashboard
 
 ### 🔲 Phase 5 — DevOps & Quality (Planned)
 - GitHub Actions CI/CD pipeline (build, test, push to ECR)
